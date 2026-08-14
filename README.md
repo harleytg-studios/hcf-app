@@ -6,10 +6,14 @@ Stable Android release branch for Harley's Clan Forum.
 
 - App name: **Harley's Clan Forum**
 - Android package: `com.harleytg.forum`
-- Current stable version: `0.2.5`
-- GitHub tag: `v0.2.5`
+- Current stable version: `0.2.6`
+- GitHub tag: `v0.2.6`
 - Release type: normal GitHub Release marked **Latest**
 - Update channel: Stable only
+
+## Native UI
+
+The app now has compact native chrome in portrait and a dedicated extra-compact landscape layout so the forum keeps more vertical space. Native app screens support three local theme modes: **Follow phone (Auto)**, **Day (Light)** and **Night (Dark)**. Theme selection is available in App Settings and applies to the main shell, Settings, Identity, Cookie Data and Diagnostics screens.
 
 ## Update behavior
 
