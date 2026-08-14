@@ -6,8 +6,8 @@ Stable Android release branch for Harley's Clan Forum.
 
 - App name: **Harley's Clan Forum**
 - Android package: `com.harleytg.forum`
-- Current stable version: `0.2.4`
-- GitHub tag: `v0.2.4`
+- Current stable version: `0.2.5`
+- GitHub tag: `v0.2.5`
 - Release type: normal GitHub Release marked **Latest**
 - Update channel: Stable only
 
@@ -17,7 +17,9 @@ The stable app checks normal GitHub Latest releases from this repository and doe
 
 ## Forum identity
 
-The native identity layer mirrors only the current signed-in Flarum session user. The drawer uses a dedicated identity card with that user's avatar, display name, username, roles and self-visible connection labels. Guest sessions use `Guest_Protocol`. Provider labels never include provider account IDs or tokens, and the app does not collect private account information for other forum users.
+The native identity layer mirrors only the current signed-in Flarum session user. The drawer uses a dedicated identity card with that user's avatar, display name, username, roles and self-visible connection labels. `User #...` is not shown in the native identity UI. Guest sessions use `Guest_Protocol`. Profile-avatar loading is cached in memory to avoid repeated flicker during identity refreshes.
+
+The app also provides an **Account Security** shortcut to the current user's `/u/<profile>/security` route. While that page is open, the app stores only a safe security summary: session counts, current-session detection, explicitly connected provider labels, capability flags for password/email/two-factor controls, and sync time. Access-token values, passwords, recovery codes, cookie values, provider account IDs and individual session/device details are excluded.
 
 ## Telemetry
 
