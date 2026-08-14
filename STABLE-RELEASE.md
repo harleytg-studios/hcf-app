@@ -25,8 +25,8 @@ Stable identity-card and Account Security integration release.
 - Existing HTTPS-only WebView security, SSL blocking, Safe Browsing, matching-signature update verification, live forum updates, per-cookie inspection, permission onboarding, telemetry opt-in and updater-owned APK cleanup remain enabled.
 
 ## Integrity
-- APK SHA-256: `89ffa37d715769c00223fd5e1b682032bb321854f1e4561629205526513c7606`
-- Source ZIP SHA-256: `260ddbf9fb5b84d9d52eb0eacc5a91733bbae5ee1d318f0dcbf7649844e46f76`
+- APK SHA-256: `1a750d5874a52915d42639d82f717e77665a26ba75b08193b8c99ad0de7ba558`
+- Source ZIP SHA-256: `5430c0a0a952e5b873fc9ea1149ff4e637f5ba29a68a2ab995422136e38c4c71`
 - Stable signing certificate SHA-256: `daa53ddbb505e066542d3e821f73cec26d33a7a73363159e3ee381d6256066a8`
 
 The private stable signing key must never be committed to this public repository. Every future `com.harleytg.forum` APK must be signed with the same stable key for in-place updates to work.
