@@ -20,8 +20,8 @@ First full stable Android release.
 - Live forum page updates, cookie inspection, simplified settings, and the prior 0.2.0-dev.1 improvements are included.
 
 ## Integrity
-- APK SHA-256: `ba21514d240182f1a1b1243b2771e2148bd8bdac471e4f88c5c85f0974b158c1`
-- Source ZIP SHA-256: `37603982a21818ee431b333c283b359a25735c5342211f10cc143f0cdf309855`
+- APK SHA-256: `648a86a5246fc89849c70e8b8cb9630a71f76dc24bfb8d34296b9fb03b93828b`
+- Source ZIP SHA-256: `87c4802b8061a41d0839b8201ecc8205a4450683bd2bd795fc8453c2fc12b6f2`
 - Stable signing certificate SHA-256: `daa53ddbb505e066542d3e821f73cec26d33a7a73363159e3ee381d6256066a8`
 
 The private stable signing key must never be committed to this public repository. Every future `com.harleytg.forum` APK must be signed with the same stable key for in-place updates to work.
