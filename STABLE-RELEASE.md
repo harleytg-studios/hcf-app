@@ -1,27 +1,30 @@
-# Harley's Clan Forum 0.2.0
+# Harley's Clan Forum 0.2.1
 
-First full stable Android release.
+Stable security and permissions update.
 
 ## Release identity
 - App name: **Harley's Clan Forum**
 - Package: `com.harleytg.forum`
-- Version: `0.2.0`
-- Android versionCode: `2009999`
-- GitHub tag: `v0.2.0`
+- Version: `0.2.1`
+- Android versionCode: `2019999`
+- Internal build: `19`
+- GitHub tag: `v0.2.1`
 - Channel: **Stable / GitHub Latest**
 
 ## Changes
-- Production package no longer uses `.dev`, so Stable and Dev can be installed side-by-side.
-- Uses the HTG App Icon black/yellow caution branding.
-- Stable updater is locked to normal GitHub Latest releases in both foreground and scheduled background checks; it will not pull Dev prereleases.
-- Automatic update checks and automatic APK downloads remain supported.
-- After Android successfully replaces the stable package, the app removes the downloaded installer APK and its DownloadManager entry.
-- A startup fallback also cleans the installer if the installed version matches the downloaded update tag.
-- Live forum page updates, cookie inspection, simplified settings, and the prior 0.2.0-dev.1 improvements are included.
+- Replaced the launcher/startup/native UI artwork with the new 1254×1254 HTG puppy icon.
+- Added first-open permission setup for Android notifications and secure app-update installation access.
+- The permission explanation explicitly states that location, contacts, microphone, camera, and broad storage access are not requested.
+- Added a Permissions & Security card to App Settings.
+- Disabled stable WebView debugging, geolocation, JavaScript pop-up windows, file URL access, file-to-network access, and mixed HTTP content.
+- Keeps Android Safe Browsing enabled when available, blocks SSL-error bypasses, blocks third-party WebView cookies, uses HTTPS-only network security, and keeps app backup disabled.
+- Update APK download URLs are restricted to the official `markhitchk/hcf-app` GitHub release-download path.
+- Before Android's installer is opened, an update APK is verified for package name, a newer versionCode, and the same signing certificate as the installed app.
+- Automatic update-download cleanup after successful replacement remains enabled.
 
 ## Integrity
-- APK SHA-256: `03df0b552daeee68888435162574fe3e7befe50aa24c35ab01fbe72ab3a2634e`
-- Source ZIP SHA-256: `c88d592a93e78753bcf8ba160636d3b7e5916f6958350566bc34296f09be8375`
+- APK SHA-256: `54b6905ba7eb8ab01e7eab6822a5fcdbd5c12fbe4bcfb55f9834eb5bc0d60344`
+- Source ZIP SHA-256: `c3834d495f4dd0bea7c8bbb63073d344a19bad44723d9e5eb7741989f4ef931e`
 - Stable signing certificate SHA-256: `daa53ddbb505e066542d3e821f73cec26d33a7a73363159e3ee381d6256066a8`
 
 The private stable signing key must never be committed to this public repository. Every future `com.harleytg.forum` APK must be signed with the same stable key for in-place updates to work.
