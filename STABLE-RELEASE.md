@@ -1,30 +1,27 @@
-# Harley's Clan Forum 0.2.1
+# Harley's Clan Forum 0.2.2
 
-Stable security and permissions update.
+Stable startup branding correction.
 
 ## Release identity
 - App name: **Harley's Clan Forum**
 - Package: `com.harleytg.forum`
-- Version: `0.2.1`
-- Android versionCode: `2019999`
-- Internal build: `19`
-- GitHub tag: `v0.2.1`
+- Version: `0.2.2`
+- Android versionCode: `2029999`
+- Internal build: `20`
+- GitHub tag: `v0.2.2`
 - Channel: **Stable / GitHub Latest**
 
 ## Changes
-- Replaced the launcher/startup/native UI artwork with the new 1254×1254 HTG puppy icon.
-- Added first-open permission setup for Android notifications and secure app-update installation access.
-- The permission explanation explicitly states that location, contacts, microphone, camera, and broad storage access are not requested.
-- Added a Permissions & Security card to App Settings.
-- Disabled stable WebView debugging, geolocation, JavaScript pop-up windows, file URL access, file-to-network access, and mixed HTTP content.
-- Keeps Android Safe Browsing enabled when available, blocks SSL-error bypasses, blocks third-party WebView cookies, uses HTTPS-only network security, and keeps app backup disabled.
-- Update APK download URLs are restricted to the official `markhitchk/hcf-app` GitHub release-download path.
-- Before Android's installer is opened, an update APK is verified for package name, a newer versionCode, and the same signing certificate as the installed app.
-- Automatic update-download cleanup after successful replacement remains enabled.
+- Fixed the round/masked logo that could appear during app startup.
+- Android 12+ now uses a transparent system splash icon and immediately hands off to the app's own square HTG startup screen, avoiding the OS icon mask.
+- Android 8-11 startup now draws the full HTG app artwork directly instead of the adaptive launcher mipmap.
+- Removed the manifest `roundIcon` override so the app no longer explicitly advertises a separate round icon.
+- The supplied 1254×1254 HTG puppy artwork remains the launcher artwork and the visible custom startup logo.
+- All 0.2.1 permissions, security, live forum updates, cookie inspection, automatic updater, and installer cleanup behavior remain included.
 
 ## Integrity
-- APK SHA-256: `54b6905ba7eb8ab01e7eab6822a5fcdbd5c12fbe4bcfb55f9834eb5bc0d60344`
-- Source ZIP SHA-256: `c3834d495f4dd0bea7c8bbb63073d344a19bad44723d9e5eb7741989f4ef931e`
+- APK SHA-256: `1c5c422a208dad6c73b3958244882eedcc556f26b212bbbeede334b3339178fa`
+- Source ZIP SHA-256: `bbc0b0cc07808a305d7dd9e99faf188a8c174415d99fe0fb9d198c53dda9dfd4`
 - Stable signing certificate SHA-256: `daa53ddbb505e066542d3e821f73cec26d33a7a73363159e3ee381d6256066a8`
 
 The private stable signing key must never be committed to this public repository. Every future `com.harleytg.forum` APK must be signed with the same stable key for in-place updates to work.
