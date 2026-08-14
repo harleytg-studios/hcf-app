@@ -1,23 +1,22 @@
-# Harley's Clan Forum Android App
+# Harley's Clan Forum Android App — Stable
 
-Official Android app release repository for Harley's Clan Forum.
+Stable Android release branch for Harley's Clan Forum.
 
-## Update channels
+## Stable identity
 
-The app uses GitHub Releases for updates and maps them to two source branches:
+- App name: **Harley's Clan Forum**
+- Android package: `com.harleytg.forum`
+- Current stable version: `0.2.0`
+- GitHub tag: `v0.2.0`
+- Release type: normal GitHub Release marked **Latest**
+- Update channel: Stable only
 
-- **Stable** — source branch `stable`; publish a normal GitHub Release and mark it as the repository's **Latest** release.
-- **Dev** — source branch `dev`; publish the GitHub Release as a **Pre-release**.
+## Update behavior
 
-Attach the built `.apk` file to each GitHub Release. The Android app checks this repository directly, compares the release tag with its installed version, and offers the APK asset when a newer version is available.
+The stable app checks normal GitHub Latest releases from this repository. It does not install Dev prereleases. Android still requires the user to confirm APK installation. After a successful in-place update, the app removes the downloaded installer APK and its DownloadManager entry.
 
-### Recommended release tags
+## Signing
 
-- Stable: `v0.1.5`
-- Dev: `v0.1.7-dev`
+All future `com.harleytg.forum` APKs must use the same persistent Stable signing certificate established by 0.2.0. Never commit the private signing key to this public repository.
 
-The `main` branch is the repository landing/documentation branch. Release source should be maintained in `stable` or `dev` depending on channel.
-
-## Live forum updates
-
-Dev builds include automatic live-refresh support for forum pages. The WebView checks Flarum's API for changes while the app is visible and refreshes the current forum page only when new discussion/post activity is detected. It avoids refreshing while the user is typing or using the composer.
+See `STABLE-RELEASE.md` and `STABLE-LATEST.json` for the current release metadata.
