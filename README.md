@@ -14,6 +14,10 @@ Attach the built `.apk` file to each GitHub Release. The Android app checks this
 ### Recommended release tags
 
 - Stable: `v0.1.5`
-- Dev: `v0.1.5-dev`
+- Dev: `v0.1.7-dev`
 
 The `main` branch is the repository landing/documentation branch. Release source should be maintained in `stable` or `dev` depending on channel.
+
+## Live forum updates
+
+Dev builds include automatic live-refresh support for forum pages. The WebView checks Flarum's API for changes while the app is visible and refreshes the current forum page only when new discussion/post activity is detected. It avoids refreshing while the user is typing or using the composer.
