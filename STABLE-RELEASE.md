@@ -1,32 +1,30 @@
-# Harley's Clan Forum 0.2.5
+# Harley's Clan Forum 0.2.6
 
-Stable identity-card and Account Security integration release.
+Stable compact-layout and day/night theme release.
 
 ## Release identity
 - App name: **Harley's Clan Forum**
 - Package: `com.harleytg.forum`
-- Version: `0.2.5`
-- Android versionCode: `2059999`
-- Internal build: `23`
-- GitHub tag: `v0.2.5`
+- Version: `0.2.6`
+- Android versionCode: `2069999`
+- Internal build: `24`
+- GitHub tag: `v0.2.6`
 - Channel: **Stable / GitHub Latest**
 
 ## Changes
-- Reworked the drawer identity area as a clearer dedicated card directly above the **FORUM** section.
-- The card shows the current user's forum avatar, display name, `@username`, role/group summary and connected sign-in labels.
-- Removed the visible `User #...` label from the identity card and detailed identity screen.
-- Fixed profile-avatar flickering by keeping the loaded bitmap in memory and no longer resetting to the HTG fallback image on every identity sync.
-- Duplicate network requests for the same avatar URL are suppressed; if the avatar URL changes, the old image stays visible until the new one is ready.
-- Added an **Account Security** button below the identity card and another button on **My Forum Identity**.
-- Signed-in users are routed to `/u/<profile>/security` on the active forum host.
-- While the current user's security page is open, the native bridge stores only a safe summary: visible signed-in session count, whether the current session is marked active, connected-provider labels explicitly shown as connected/linked/disconnect states, presence of password/email/two-factor controls, route path and sync time.
-- Access-token values, passwords, recovery codes, cookies, provider account IDs, session contents and per-device session names are never stored.
-- Guest sessions continue to use the exact `Guest_Protocol` label.
-- Existing HTTPS-only WebView security, SSL blocking, Safe Browsing, matching-signature update verification, live forum updates, per-cookie inspection, permission onboarding, telemetry opt-in and updater-owned APK cleanup remain enabled.
+- Reduced the normal portrait native app header and secure URL chrome so more forum content is visible.
+- Added dedicated landscape dimensions: the native header, URL bar, drawer, identity card, drawer actions and startup branding all become more compact in landscape.
+- Rotation now uses normal Activity recreation with WebView state restoration so Android applies the landscape resource set correctly.
+- Added app-wide native Day/Night themes across the main shell, App Settings, My Forum Identity, Cookie Data and Diagnostics.
+- Theme choices are **Follow phone (Auto)**, **Day (Light)** and **Night (Dark)** and are stored locally.
+- The theme control lives in **App Settings → App Interface**.
+- Day mode uses a light neutral surface and darker cyan accents for contrast; Night mode keeps the existing HCF dark/cyan appearance.
+- Status and navigation bar icon contrast follows the selected native app theme.
+- All 0.2.5 identity-card, Account Security, avatar anti-flicker, telemetry opt-in, updater cleanup, live forum updates and security hardening remain included.
 
 ## Integrity
-- APK SHA-256: `1a750d5874a52915d42639d82f717e77665a26ba75b08193b8c99ad0de7ba558`
-- Source ZIP SHA-256: `5430c0a0a952e5b873fc9ea1149ff4e637f5ba29a68a2ab995422136e38c4c71`
+- APK SHA-256: `d414bcdf882c5338123eb864d1c14304ceb05bbe47107f785a813633cca6da54`
+- Source ZIP SHA-256: `ac51ed9dfd01854e5bcc6a89f5c620eb7983bd46d5edc61c07346e661ae59428`
 - Stable signing certificate SHA-256: `daa53ddbb505e066542d3e821f73cec26d33a7a73363159e3ee381d6256066a8`
 
 The private stable signing key must never be committed to this public repository. Every future `com.harleytg.forum` APK must be signed with the same stable key for in-place updates to work.
