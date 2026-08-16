@@ -1,0 +1,35 @@
+name: Temporary Android Build Tools Export
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  export-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Locate Android SDK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          echo "SDK=$SDK"
+          ls "$SDK/build-tools"
+          test -d "$SDK/build-tools/35.0.0"
+          test -f "$SDK/platforms/android-35/android.jar"
+          mkdir -p export/build-tools/35.0.0/lib export/platforms/android-35
+          cp "$SDK/build-tools/35.0.0/aapt" export/build-tools/35.0.0/
+          cp "$SDK/build-tools/35.0.0/aapt2" export/build-tools/35.0.0/
+          cp "$SDK/build-tools/35.0.0/d8" export/build-tools/35.0.0/
+          cp "$SDK/build-tools/35.0.0/apksigner" export/build-tools/35.0.0/
+          cp "$SDK/build-tools/35.0.0/zipalign" export/build-tools/35.0.0/
+          cp "$SDK/build-tools/35.0.0/lib/d8.jar" export/build-tools/35.0.0/lib/
+          cp "$SDK/build-tools/35.0.0/lib/apksigner.jar" export/build-tools/35.0.0/lib/
+          cp "$SDK/platforms/android-35/android.jar" export/platforms/android-35/
+      - name: Upload tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-tools-35
+          path: export/
+          retention-days: 1
