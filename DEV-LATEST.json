@@ -1,1 +1,15 @@
-{"channel":"dev","version":"0.2.0-dev.1","versionCode":2000001,"tag":"v0.2.0-dev.1","prerelease":true,"package":"com.harleytg.forum.dev","versionScheme":"semver-stage-v1","internalBuild":17}
+{
+  "channel": "dev",
+  "version": "1.0",
+  "versionCode": 10000017,
+  "tag": "v1.0-dev",
+  "prerelease": true,
+  "package": "com.harleytg.forum.dev",
+  "versionScheme": "major-release-v1-dev",
+  "internalBuild": 73,
+  "apkFile": "HarleysClanForum-1.0-dev.apk",
+  "sourceFile": "HarleysClanForum-1.0-dev-source.zip",
+  "verificationFile": "HarleysClanForum-1.0-dev-VERIFICATION.txt",
+  "apkSha256": "f97072bf84677d613263186fe59fa87af36ae9045c984a8868bee596406e1e24",
+  "sourceSha256": "a82c3e97edcb30071b4f6cd3b4621ae515942656eb59ef69ebff880a8ac83505"
+}
