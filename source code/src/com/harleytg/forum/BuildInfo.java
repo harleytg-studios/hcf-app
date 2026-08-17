@@ -15,6 +15,11 @@ final class BuildInfo {
     static final String META_LINE = "1.0 • Development / Beta";
     static final String VERSION_BUILD_LINE = "1.0 • Development / Beta • Foundation Release";
 
+    // Small Beta/Development-only promotion for the daily-use Stable app.
+    static final int STABLE_PROMO_VERSION_CODE = 10000033;
+    static final String STABLE_PROMO_LABEL = "Stable v10000033";
+    static final String STABLE_PROMO_URL = "https://github.com/markhitchk/hcf-app/releases/download/v1.0/HCF-1.0.apk";
+
     // v1.0 starts the major-release versionCode range at 10,000,000.
     // Future builds must remain monotonic for Android in-place updates.
     static final String VERSION_CODE_SCHEME = "major-release-v1";
