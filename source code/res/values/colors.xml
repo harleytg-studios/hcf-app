@@ -2,7 +2,6 @@
     <!-- Day / light palette -->
     <color name="hcf_bg">#F4F8FA</color>
     <color name="hcf_panel">#FFFFFF</color>
-    <color name="hcf_surface2">#EAF1F4</color>
     <color name="hcf_app_bar">#FFFFFF</color>
     <color name="hcf_url_bar">#EAF2F5</color>
     <color name="hcf_welcome_bg">#DDF6FC</color>
@@ -34,7 +33,6 @@
     <color name="transparent">#00000000</color>
     <color name="hcf_logs_viewer">#F8FBFC</color>
     <color name="hcf_chip_selected_bg">#D9F4FB</color>
-    <color name="hcf_chip_selected_text">#075E78</color>
     <color name="hcf_info">#007D9F</color>
     <color name="hcf_warning">#8B6500</color>
     <color name="hcf_error">#B42318</color>

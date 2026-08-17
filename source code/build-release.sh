@@ -43,7 +43,6 @@ mkdir -p "$work_dir/gen" "$work_dir/classes" "$work_dir/dex" "$output_dir"
   -J "$work_dir/gen" \
   -M "$project_dir/AndroidManifest.xml" \
   -S "$project_dir/res" \
-  -A "$project_dir/assets" \
   -I "$android_jar" \
   -F "$work_dir/resources.apk"
 
