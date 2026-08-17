@@ -1,1 +1,18 @@
-{"channel":"stable","version":"0.2.8","versionCode":2089999,"tag":"v0.2.8","prerelease":false,"package":"com.harleytg.forum","versionScheme":"semver-stage-v1","internalBuild":26,"apkSha256":"2c461a9f29bc9558eee6c57fd1e1e0ee274f461778d63c382128bb0d6b87c41f","sourceSha256":"4e860d48614ef445b1fa5b59cc1a0f1bfb31421c05024eaecfea0eda42128cfd","signerSha256":"daa53ddbb505e066542d3e821f73cec26d33a7a73363159e3ee381d6256066a8"}
+{
+  "channel": "stable",
+  "version": "1.0",
+  "versionCode": 10000020,
+  "tag": "v1.0",
+  "prerelease": false,
+  "package": "com.harleytg.forum",
+  "versionScheme": "major-release-v1",
+  "apkFile": "HarleysClanForum-1.0-VERSIONCODE20-INSTALL-FIX.apk",
+  "sourceFile": "HarleysClanForum-1.0-VERSIONCODE20-INSTALL-FIX-source.zip",
+  "verificationFile": "HarleysClanForum-1.0-VERSIONCODE20-INSTALL-FIX-VERIFICATION.txt",
+  "apkSha256": "722c0702dcbabae60aa21eb2d7ff0d142c1f7e2601f8f66ca059f15e91b14ff3",
+  "sourceSha256": "d1b813d86b051821c90bc4b6b9bb8fcf522097457c17d199b3d7dfed619b16c2",
+  "signerSha256": "d6512e546352c3061de6c1d426d3c9ada083a50ae814771bafd16fb073784e1b",
+  "targetSdk": 34,
+  "legacyReleaseSignerSha256": "6a5e1c51a05dd97bcfe46dda6dd283c368cfc43b36e4cae986d22371a118e22a",
+  "legacySignerMigrationRequired": true
+}
