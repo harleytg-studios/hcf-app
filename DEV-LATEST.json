@@ -1,15 +1,17 @@
 {
   "channel": "dev",
   "version": "1.0",
-  "versionCode": 10000017,
+  "versionCode": 10000021,
   "tag": "v1.0-dev",
   "prerelease": true,
   "package": "com.harleytg.forum.dev",
   "versionScheme": "major-release-v1-dev",
-  "internalBuild": 73,
-  "apkFile": "HarleysClanForum-1.0-dev.apk",
-  "sourceFile": "HarleysClanForum-1.0-dev-source.zip",
+  "apkFile": "HarleysClanForum-1.0-dev-PERMANENT-SIGNING-LINE-v10000021.apk",
+  "sourceFile": "HarleysClanForum-1.0-dev-PERMANENT-SIGNING-LINE-v10000021-source.zip",
   "verificationFile": "HarleysClanForum-1.0-dev-VERIFICATION.txt",
-  "apkSha256": "f97072bf84677d613263186fe59fa87af36ae9045c984a8868bee596406e1e24",
-  "sourceSha256": "a82c3e97edcb30071b4f6cd3b4621ae515942656eb59ef69ebff880a8ac83505"
+  "apkSha256": "3f5f175d1c1adab46208efda389e8a47f86a3d1f3959edbbecf9724e0356512d",
+  "sourceSha256": "b519ab1c063e80e077a46a2e2dddd5f2cf761d4ab090fe6c423472c4222c5809",
+  "signerSha256": "ac6b913ee0809483371f66a73cc5d0bbda1e45d491e143574d404674b023abce",
+  "targetSdk": 34,
+  "legacyDevSignerMigrationRequired": true
 }
