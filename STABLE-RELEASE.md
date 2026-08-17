@@ -1,30 +1,47 @@
-# Harley's Clan Forum 0.2.8
+# Harley's Clan Forum 1.0
 
-Stable telemetry diagnostics and identity-provider cleanup release.
+Stable 1.0 release metadata for the Harley's Clan Forum Android app.
 
 ## Release identity
+
 - App name: **Harley's Clan Forum**
 - Package: `com.harleytg.forum`
-- Version: `0.2.8`
-- Android versionCode: `2089999`
-- Internal build: `26`
-- GitHub tag: `v0.2.8`
+- Version: `1.0`
+- Android versionCode: `10000020`
+- GitHub tag: `v1.0`
 - Channel: **Stable / GitHub Latest**
+- Target SDK: `34`
 
-## Changes
-- Rebuilt **Telemetry Services** with two levels: **Basic** and **Diagnostics**.
-- Diagnostics mode can capture uncaught crashes locally and show a next-launch crash feedback prompt with an HCF report ID.
-- Crash reports can include sanitized stack traces and recent app-event breadcrumbs; credential-like values and URL query strings are redacted.
-- Added independent settings for automatic crash reports, ask-before-send, automatic WebView/update error reports, forum identity sharing, email sharing, device manufacturer/model sharing, and sanitized route sharing.
-- Added **Send Diagnostic Feedback**, **Preview Telemetry Report**, **View Report History**, and **Clear Local Telemetry Reports** controls.
-- Forum identity is a separate opt-in and remains OFF by default; email requires its own additional opt-in.
-- Passwords, cookies, access/session tokens, recovery codes, provider IDs, posts, messages, and page contents are never included in telemetry reports.
-- Removed Google completely from the native identity/provider UI. Account Identity now shows only **Email** and **Discord** provider chips/icons.
-- Keeps Account Security directly below Account Identity, compact portrait/landscape chrome, Follow phone/Day/Night themes, avatar anti-flicker, live forum updates, security hardening, and updater-owned APK cleanup.
+## Included 1.0 update set
 
-## Integrity
-- APK SHA-256: `2c461a9f29bc9558eee6c57fd1e1e0ee274f461778d63c382128bb0d6b87c41f`
-- Source ZIP SHA-256: `4e860d48614ef445b1fa5b59cc1a0f1bfb31421c05024eaecfea0eda42128cfd`
-- Stable signing certificate SHA-256: `daa53ddbb505e066542d3e821f73cec26d33a7a73363159e3ee381d6256066a8`
+- System-wide Day Theme/native UI improvements.
+- Performance profiles with **Auto** as the default.
+- Notification controls and notification-count badge work.
+- Simplified Android share chooser behavior.
+- Account and Forum Identity button/alignment fixes.
+- Profile-avatar fit correction.
+- Diagnostics/log UI cleanup and crash handling improvements.
+- Update/install handling improvements, including the versionCode 10000020 installer fix.
+- Reduced animation load for lower-end devices while retaining richer effects on capable devices.
 
-The private stable signing key must never be committed to this public repository. Every future `com.harleytg.forum` APK must be signed with the same stable key for in-place updates to work.
+## Release artifacts
+
+- `HarleysClanForum-1.0-VERSIONCODE20-INSTALL-FIX.apk`
+  - SHA-256: `722c0702dcbabae60aa21eb2d7ff0d142c1f7e2601f8f66ca059f15e91b14ff3`
+- `HarleysClanForum-1.0-VERSIONCODE20-INSTALL-FIX-source.zip`
+  - SHA-256: `d1b813d86b051821c90bc4b6b9bb8fcf522097457c17d199b3d7dfed619b16c2`
+- `HarleysClanForum-1.0-VERSIONCODE20-INSTALL-FIX-VERIFICATION.txt`
+
+## Signing and upgrade compatibility
+
+The 1.0 stable APK is signed with:
+
+`D6:51:2E:54:63:52:C3:06:1D:E6:C1:D4:26:D3:C9:AD:A0:83:A5:0A:E8:14:77:1B:AF:D1:6F:B0:73:78:4E:1B`
+
+The currently published v0.3.0 APK used an older Android Debug certificate with SHA-256:
+
+`6A:5E:1C:51:A0:5D:D9:7B:CF:E4:6D:DA:6D:D2:83:C3:68:CF:C4:3B:36:E4:CA:E9:86:D2:23:71:A1:18:E2:2A`
+
+Because Android requires the same signing certificate for an in-place package update, installations from that old signer cannot update directly to the new permanent stable signing line. A one-time uninstall/reinstall migration is required unless the exact legacy private key is recovered.
+
+Future `com.harleytg.forum` releases should stay on the current permanent stable signing certificate above.
