@@ -28,6 +28,9 @@ public final class HcfApplication extends Application {
                     BuildInfo.VERSION + " | SDK " + Build.VERSION.SDK_INT + " | " + Build.MANUFACTURER + " " + Build.MODEL);
         } catch (Throwable ignored) {}
 
+        try { StablePromoInjector.install(this); }
+        catch (Throwable ignored) {}
+
         try { AppUpdateDownloader.cleanupIfCurrentVersionWasDownloaded(this); }
         catch (Throwable ignored) {}
 
