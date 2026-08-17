@@ -5,15 +5,15 @@ final class BuildInfo {
     // MAJOR.MINOR.PATCH-dev.N and GitHub tags add the leading "v".
     static final String VERSION = "1.0";
     static final String VERSION_TAG = "v1.0";
-    static final int VERSION_CODE = 10000032;
-    static final int INTERNAL_BUILD = 85;
+    static final int VERSION_CODE = 10000033;
+    static final int INTERNAL_BUILD = 86;
     static final String CHANNEL = "Dev";
     static final String BRAND = "Harley's Studio's";
     static final String SESSION_CLIENT = "Harley's Clan Forum App";
     static final String APK_FILE_NAME = "Harley's Clan Forum [Beta].apk";
-    static final String DEVELOPMENT_BUILD_LABEL = "Harley's Clan Forum v1.0 [Development Build / Beta]";
-    static final String META_LINE = "1.0 • Development / Beta";
-    static final String VERSION_BUILD_LINE = "1.0 • Development / Beta • Foundation Release";
+    static final String DEVELOPMENT_BUILD_LABEL = "Harley's Clan Forum v1.0 [Development Build / Beta] • v10000033";
+    static final String META_LINE = "1.0 • Development / Beta • v10000033";
+    static final String VERSION_BUILD_LINE = "1.0 • Development / Beta • Build 10000033";
 
     // Small Beta/Development-only promotion for the daily-use Stable app.
     static final int STABLE_PROMO_VERSION_CODE = 10000033;
