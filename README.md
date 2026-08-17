@@ -7,7 +7,7 @@ Stable Android release branch for Harley's Clan Forum.
 - App name: **Harley's Clan Forum**
 - Android package: `com.harleytg.forum`
 - Current stable version: `1.0`
-- Android versionCode: `10000020`
+- Android versionCode: `10000032`
 - GitHub tag: `v1.0`
 - Release type: normal GitHub Release marked **Latest**
 - Update channel: Stable only
