@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.harleytg.forum.dev"
-    android:versionCode="10000032"
+    android:versionCode="10000033"
     android:versionName="1.0">
 
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34" />
@@ -82,38 +82,27 @@
             android:exported="false" />
         <activity
             android:name=".MediaViewerActivity"
-            android:exported="false"
-            android:screenOrientation="unspecified" />
+            android:exported="false" />
 
         <service
             android:name=".InstantNotificationService"
             android:enabled="true"
             android:exported="false"
-            android:stopWithTask="false"
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Continuously checks the authenticated Harley's Clan Forum account for time-sensitive user-visible forum notifications while the app is foregrounded or backgrounded." />
+                android:value="Real-time forum notification synchronization" />
         </service>
 
         <service
             android:name=".NotificationSyncJobService"
-            android:exported="false"
-            android:permission="android.permission.BIND_JOB_SERVICE" />
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
 
         <service
             android:name=".UpdateCheckJobService"
-            android:exported="false"
-            android:permission="android.permission.BIND_JOB_SERVICE" />
-
-        <receiver
-            android:name=".UpdateDownloadReceiver"
-            android:enabled="true"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
-            </intent-filter>
-        </receiver>
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
 
         <receiver
             android:name=".BootReceiver"
@@ -128,32 +117,19 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop">
+            android:launchMode="singleTask"
+            android:screenOrientation="unspecified">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Primary forum App Link. Verification requires the matching
-                 Digital Asset Links file on forum.harleytg.com. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="http" />
-                <data android:scheme="https" />
-                <data android:host="forum.harleytg.com" />
-            </intent-filter>
-
-            <!-- Backup forum deep/App Link. Android can route every path on
-                 the backup host into the same native shell. -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="http" />
-                <data android:scheme="https" />
-                <data android:host="harleysclan.freeflarum.com" />
+                <data android:scheme="https" android:host="forum.harleytg.com" />
+                <data android:scheme="https" android:host="forum.harleytg.online" />
             </intent-filter>
         </activity>
     </application>
