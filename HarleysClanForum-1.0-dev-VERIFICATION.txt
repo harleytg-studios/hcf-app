@@ -1,41 +1,37 @@
-Harley's Clan Forum 1.0 DEV Variant Verification
-===============================================
+Harley's Clan Forum DEV — Permanent Signing Line Verification
+=============================================================
 
-APK: HarleysClanForum-1.0-dev.apk
-Application ID: com.harleytg.forum.dev
-Development certificate subject: CN=Harley's Clan Forum Development, O=HTG, C=US
-Development build channel metadata: dev
-Updated 1.0 feature binary: preserved
-Old v0.1.7 logo/launcher PNG bytes preserved exactly: PASS
+Package: com.harleytg.forum.dev
+Version name: 1.0
+Version code: 10000021
+Minimum SDK: 26
+Target SDK: 34
+DEX format: dex 038
 
-Final APK SHA-256: f97072bf84677d613263186fe59fa87af36ae9045c984a8868bee596406e1e24
-Source ZIP SHA-256: a82c3e97edcb30071b4f6cd3b4621ae515942656eb59ef69ebff880a8ac83505
-JAR/APK Signature Scheme v1 verification: PASS
-ZIP CRC verification: PASS
-resources.arsc 4-byte alignment: PASS
+APK signature verification
+--------------------------
+APK Signature Scheme v2: PASS
+APK Signature Scheme v3: PASS
+Number of signers: 1
+Certificate subject: CN=Harley's Clan Forum Development, O=HTG, C=US
+Certificate SHA-256: AC:6B:91:3E:E0:80:94:83:37:1F:66:A7:3C:C5:D0:BB:DA:1E:45:D4:91:E1:43:57:4D:40:46:74:B0:23:AB:CE
+Key algorithm: RSA
+Key size: 4096 bits
 
-Current development certificate SHA-256:
-17:4F:64:C0:F5:29:FE:53:54:80:E2:EB:6D:E6:BF:01:75:D1:B8:31:4B:74:CF:0C:FF:69:38:F8:E9:2A:13:38
+Integrity
+---------
+ZIP CRC integrity: PASS
+classes.dex SHA-1 header signature: PASS
+classes.dex Adler-32 checksum: PASS
+APK SHA-256: 3f5f175d1c1adab46208efda389e8a47f86a3d1f3959edbbecf9724e0356512d
+DEX SHA-256: 4ddf941e9bf9f9aa0267a2a8528fc7ab8bc11d43da62c639a4e2cccdca0ede9d
+Source ZIP SHA-256: b519ab1c063e80e077a46a2e2dddd5f2cf761d4ab090fe6c423472c4222c5809
 
-Original v0.1.7 development certificate SHA-256:
-6D:67:00:5A:A7:78:E0:B7:71:D7:3D:6E:7F:3E:0C:AF:83:DB:08:48:85:F8:1C:E5:38:10:D3:A2:4A:DC:17:F0
+Signing guard
+-------------
+The DEV release build checks the expected permanent signer before build and again after APK signing.
+Expected permanent DEV signer: AC:6B:91:3E:E0:80:94:83:37:1F:66:A7:3C:C5:D0:BB:DA:1E:45:D4:91:E1:43:57:4D:40:46:74:B0:23:AB:CE
 
-IMPORTANT SIGNING NOTE
-----------------------
-The package/application ID now correctly matches the old development line: com.harleytg.forum.dev.
-The certificate SUBJECT also matches the old development identity, but the fingerprint does not. The original v0.1.7 private signing key is not contained in the APK and was not available in the provided files. Android will therefore not allow this newly signed APK to install as an in-place update over that exact old APK. The original dev keystore/private key is required for that.
-
-Current certificate details:
-Signer #1:
-
-Certificate #1:
-Owner: CN=Harley's Clan Forum Development, O=HTG, C=US
-Issuer: CN=Harley's Clan Forum Development, O=HTG, C=US
-Serial number: 3007ca0d36c26662
-Valid from: Sun Aug 16 20:42:08 UTC 2026 until: Wed Aug 13 20:42:08 UTC 2036
-Certificate fingerprints:
-	 SHA1: BA:2F:7B:C6:E1:7D:C3:A9:97:72:11:06:2E:89:8B:A6:91:F9:59:74
-	 SHA256: 17:4F:64:C0:F5:29:FE:53:54:80:E2:EB:6D:E6:BF:01:75:D1:B8:31:4B:74:CF:0C:FF:69:38:F8:E9:2A:13:38
-Signature algorithm name: SHA384withRSA
-Subject Public Key Algorithm: 3072-bit RSA key
-Version: 3
+IMPORTANT CURRENT-INSTALL LIMITATION
+------------------------------------
+If an existing com.harleytg.forum.dev installation was signed by an older development certificate, Android will reject this APK as a conflicting package. That legacy install must be removed before installing the permanent signing-line build unless the exact old private signing key is recovered.
