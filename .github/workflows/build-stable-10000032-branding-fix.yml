@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - stable
+    paths-ignore:
+      - 'build-output/**'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -24,6 +26,9 @@ jobs:
           ref: main
           path: main-repo
 
+      - name: Install Pillow
+        run: python3 -m pip install --user pillow
+
       - name: Apply exact Stable icons and logo
         shell: bash
         run: |
@@ -39,12 +44,14 @@ jobs:
           python3 - <<'PY'
           from PIL import Image
           from pathlib import Path
-          import os
+          import os, hashlib
           root = Path(os.environ['GITHUB_WORKSPACE'])
           src = root/'stable-repo'/'source code'
           stable = root/'main-repo'/'assets'/'stable.png'
           im = Image.open(stable).convert('RGBA')
-          # Exact Stable artwork for the in-app/splash/adaptive foreground.
+          print('Stable asset size:', im.size)
+          print('Stable asset SHA256:', hashlib.sha256(stable.read_bytes()).hexdigest())
+          # Exact Stable artwork for in-app/splash/adaptive foreground.
           out = src/'res'/'drawable-nodpi'/'htg_app_logo.png'
           out.parent.mkdir(parents=True, exist_ok=True)
           im.resize((512,512), Image.Resampling.LANCZOS).save(out)
@@ -59,7 +66,7 @@ jobs:
               icon = im.resize((size,size), Image.Resampling.LANCZOS)
               icon.save(d/'ic_launcher.png')
               icon.save(d/'ic_launcher_round.png')
-          print('Applied Stable branding:', stable)
+          print('Applied Stable branding to launcher, round/adaptive, and in-app logo resources.')
           PY
 
       - name: Install Android SDK components
@@ -110,7 +117,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/out/APK-SIGNATURE.txt"
           sha256sum "$APK" | tee "$GITHUB_WORKSPACE/out/APK-SHA256.txt"
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: HCF-Stable-v10000032-STABLE-BRANDING
@@ -120,3 +127,27 @@ jobs:
             out/APK-SIGNATURE.txt
             out/APK-SHA256.txt
           if-no-files-found: error
+
+      - name: Publish build pointer
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="$GITHUB_WORKSPACE/stable-repo"
+          mkdir -p "$REPO/build-output"
+          cp "$GITHUB_WORKSPACE/out/HCF-Stable-v1.0-v10000032-STABLE-BRANDING.apk" "$REPO/build-output/HCF-Stable-v1.0-v10000032-STABLE-BRANDING.apk"
+          cp "$GITHUB_WORKSPACE/out/APK-SHA256.txt" "$REPO/build-output/APK-SHA256.txt"
+          cat > "$REPO/build-output/BUILD.txt" <<EOF
+          run_id=$GITHUB_RUN_ID
+          artifact=HCF-Stable-v10000032-STABLE-BRANDING
+          apk=HCF-Stable-v1.0-v10000032-STABLE-BRANDING.apk
+          package=com.harleytg.forum
+          versionName=1.0
+          versionCode=10000032
+          branding=assets/stable.png
+          EOF
+          cd "$REPO"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add build-output/
+          git commit -m "[skip ci] publish Stable v10000032 branding-fix APK" || exit 0
+          git push origin HEAD:stable
