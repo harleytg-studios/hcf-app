@@ -8,22 +8,22 @@ platform_version="${ANDROID_PLATFORM_VERSION:-35}"
 build_tools="$sdk_root/build-tools/$build_tools_version"
 android_jar="$sdk_root/platforms/android-$platform_version/android.jar"
 keystore_path="${HCF_KEYSTORE:?Set HCF_KEYSTORE}"
-keystore_alias="${HCF_KEY_ALIAS:-hcf-dev}"
+keystore_alias="${HCF_KEY_ALIAS:-hcf-beta-v2}"
 keystore_password_file="${HCF_KEY_PASSWORD_FILE:?Set HCF_KEY_PASSWORD_FILE}"
 export HCF_APKSIGNER_PASSWORD="$(sed -n '1p' "$keystore_password_file")"
 output_dir="${HCF_OUTPUT_DIR:-$project_dir/out}"
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/hcf-build.XXXXXX")"
 trap 'rm -rf "$work_dir"' EXIT
 
-# Permanent DEV signing line. Every com.harleytg.forum.dev release must use this
-# exact certificate or Android will reject an in-place update as a package conflict.
-expected_signer_sha256="AC6B913EE0809483371F66A73CC5D0BBDA1E45D491E143574D404674B023ABCE"
+# Permanent Beta/DEV v2 signing line. Every com.harleytg.forum.dev release must use
+# this exact certificate or Android will reject an in-place update as a package conflict.
+expected_signer_sha256="93D49BF9A877C7CFB1B37F9064BD955CD67BD7DD8DB73A9E3F766B59C4BCCE63"
 
 normalize_fingerprint() {
   printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | tr -d ':[:space:]'
 }
 
-# Fail before compiling if somebody points this build at the wrong DEV key.
+# Fail before compiling if somebody points this build at the wrong Beta/DEV v2 key.
 key_fingerprint="$(keytool -list -v \
   -keystore "$keystore_path" \
   -storepass "$HCF_APKSIGNER_PASSWORD" \
@@ -31,9 +31,9 @@ key_fingerprint="$(keytool -list -v \
   | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -n 1)"
 key_fingerprint="$(normalize_fingerprint "$key_fingerprint")"
 if [[ -z "$key_fingerprint" || "$key_fingerprint" != "$expected_signer_sha256" ]]; then
-  echo "ERROR: Refusing to build DEV APK with the wrong signing certificate." >&2
-  echo "Expected DEV signer SHA-256: $expected_signer_sha256" >&2
-  echo "Actual DEV signer SHA-256:   ${key_fingerprint:-UNAVAILABLE}" >&2
+  echo "ERROR: Refusing to build Beta/DEV APK with the wrong signing certificate." >&2
+  echo "Expected Beta/DEV v2 signer SHA-256: $expected_signer_sha256" >&2
+  echo "Actual signer SHA-256:             ${key_fingerprint:-UNAVAILABLE}" >&2
   exit 22
 fi
 
@@ -68,7 +68,7 @@ cp "$work_dir/resources.apk" "$work_dir/unsigned.apk"
 
 output_apk="$output_dir/Harley's Clan Forum [Beta].apk"
 "$build_tools/apksigner" sign \
-  --v1-signing-enabled true \
+  --v1-signing-enabled false \
   --v2-signing-enabled true \
   --v3-signing-enabled true \
   --v4-signing-enabled false \
@@ -90,5 +90,5 @@ if [[ "$apk_fingerprint" != "$expected_signer_sha256" ]]; then
   exit 23
 fi
 
-echo "DEV signing-line verification: PASS"
-echo "DEV versionCode: 10000033"
+echo "Beta/DEV v2 signing-line verification: PASS"
+echo "Beta/DEV versionCode: 10000033"
