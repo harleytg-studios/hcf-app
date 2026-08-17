@@ -62,9 +62,6 @@ final class AppPrefs {
     static final String NOTIFICATION_LAST_SYNC_AT = "notification_last_sync_at";
     static final String NOTIFICATION_LAST_SYNC_STATUS = "notification_last_sync_status";
     static final String NOTIFICATION_LAST_SYNC_LATENCY_MS = "notification_last_sync_latency_ms";
-    static final String FIREBASE_CONFIG_URL = "firebase_config_url";
-    static final String FIREBASE_CONFIG_CACHE = "firebase_config_cache";
-    static final String FIREBASE_CONFIG_SOURCE = "firebase_config_source";
     static final String UPDATE_CHANNEL = "update_channel";
     static final String UPDATE_AUTO_CHECK = "update_auto_check";
     static final String UPDATE_LAST_CHECK = "update_last_check";
