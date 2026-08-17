@@ -4,19 +4,31 @@ Development Android release branch for Harley's Clan Forum.
 
 ## DEV identity
 
-- App name: **Harley's Clan Forum**
+- App name: **Harley's Clan Forum [Beta]**
 - Android package: `com.harleytg.forum.dev`
 - Current DEV version: `1.0`
-- Android versionCode: `10000021`
+- Android versionCode: `10000032`
 - GitHub prerelease tag: `v1.0-dev`
 - Release type: **Pre-release**
 - Target SDK: `34`
 
-The DEV package is separate from Stable (`com.harleytg.forum`), allowing the two channels to be installed side-by-side when their signing identities are compatible with any already-installed version of the same package.
+The DEV package is separate from Stable (`com.harleytg.forum`), allowing both apps to be installed side-by-side when the installed signing identities are compatible.
 
 ## Current 1.0 DEV line
 
-The current build includes Day Theme/native UI updates, Auto/default performance profiles, notification-count and notification-button work, simplified sharing, account/identity fixes, diagnostics/log UI improvements, installer/update fixes, profile-avatar fit correction, and reduced animation load for lower-end devices.
+The current build includes the 1.0 native shell, Day Theme/light-mode work, performance profiles with Auto as default, notification counts/badges, simplified sharing, Account & Identity fixes, diagnostics/log UI improvements, app-link handling, safe external links, updater/install improvements, profile-avatar fit correction, reduced animation load for lower-end devices, and the current forum-message notification parser fix.
+
+### Update system
+
+- DEV-only update channel.
+- Update detection uses the downloaded APK's embedded Android `versionCode` rather than the GitHub tag, visible version name, or APK filename.
+- Downloaded APKs are validated before install handoff.
+- After verification, HCF opens Android's installer automatically when allowed.
+- If Android blocks background installer launch, HCF falls back to an install-ready notification.
+
+### Forum message notifications
+
+Private-message payloads are unwrapped before displaying Android notifications. Raw API JSON is not shown to the user. Conversation notifications use `New message from <sender>` plus the readable message body, and notification taps route to `/conversations/<conversation_id>` when available.
 
 ## Permanent DEV signing
 
@@ -31,4 +43,6 @@ Older DEV APKs used different signing keys. Android cannot update an installed `
 - Stable: `v1.0` from branch `stable`, normal GitHub Release / Latest.
 - DEV: `v1.0-dev` from branch `dev`, GitHub Pre-release.
 
-Attach the matching APK to each GitHub Release because the app updater consumes the release APK asset. See `DEV-LATEST.json`, `DEV-RELEASE.md`, and `HarleysClanForum-1.0-dev-VERIFICATION.txt` for current DEV metadata and integrity details.
+Attach the matching APK to the `v1.0-dev` GitHub prerelease because the app updater consumes the release APK asset. The APK filename does not need to contain the versionCode.
+
+See `DEV-LATEST.json`, `DEV-RELEASE.md`, `HarleysClanForum-1.0-dev-VERIFICATION.txt`, and `STABLE-RELEASE-UPDATE-ITEMS.md` for current metadata and release-preparation notes.

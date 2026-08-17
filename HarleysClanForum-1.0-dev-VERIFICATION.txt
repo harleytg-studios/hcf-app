@@ -1,37 +1,69 @@
-Harley's Clan Forum DEV — Permanent Signing Line Verification
-=============================================================
+Harley's Clan Forum [Beta] v1.0 — DEV Verification
+==================================================
 
+Output APK: HCF-Beta-v10000032.apk
 Package: com.harleytg.forum.dev
-Version name: 1.0
-Version code: 10000021
-Minimum SDK: 26
-Target SDK: 34
-DEX format: dex 038
+Visible version: 1.0
+Android versionCode: 10000032
 
-APK signature verification
---------------------------
+Forum message notification fix
+------------------------------
+- Nested Messenger/private-message JSON is recursively unwrapped.
+- `message`, `body`, `text`, `excerpt`, `preview`, and `content` are treated as user-visible candidates.
+- Raw JSONObject/JSONArray containers are never directly converted into notification text.
+- `conversation_id` / `conversationId` marks the alert as a conversation message even when the extension uses an unfamiliar notification type.
+- Direct-message title: `New message from <sender>`.
+- Conversation taps route to `/conversations/<conversation_id>`.
+- Safe fallback: `You have a new private message.`
+
+Screenshot payload target behavior
+----------------------------------
+Input nested payload includes message=`Is this right`, conversation_id=`23`, sender=`Darsoul`.
+Expected visible notification:
+  New message from Darsoul
+  Is this right
+Expected tap route:
+  /conversations/23
+
+Update-system behavior
+----------------------
+- DEV channel remains fixed to the prerelease line.
+- Update comparison uses the downloaded APK's embedded numeric Android versionCode.
+- APK filename does not need to contain the versionCode.
+- Downloaded APK is parsed/validated before install handoff.
+- Package and expected DEV signer checks are required before install.
+- Installer handoff opens Android's package installer automatically when allowed.
+- Background restrictions fall back to an install-ready notification.
+
+Build/static verification
+-------------------------
+Java source compilation: PASS
+D8 release DEX generation: PASS
+DEX 038 header/declared size: PASS
+DEX SHA-1 header signature: PASS
+DEX Adler-32 checksum: PASS
+Binary manifest versionCode 10000032 marker: PASS
+Duplicate ZIP entries: NONE
+Stored ZIP entry 4-byte alignment: PASS
+Recursive extraction source check: PASS
+conversation_id source check: PASS
+Clean DM title source check: PASS
+Conversation tap route source check: PASS
+Raw JSON guard source check: PASS
+
+Signing
+-------
 APK Signature Scheme v2: PASS
 APK Signature Scheme v3: PASS
-Number of signers: 1
-Certificate subject: CN=Harley's Clan Forum Development, O=HTG, C=US
-Certificate SHA-256: AC:6B:91:3E:E0:80:94:83:37:1F:66:A7:3C:C5:D0:BB:DA:1E:45:D4:91:E1:43:57:4D:40:46:74:B0:23:AB:CE
-Key algorithm: RSA
-Key size: 4096 bits
+DEV signer SHA-256:
+AC:6B:91:3E:E0:80:94:83:37:1F:66:A7:3C:C5:D0:BB:DA:1E:45:D4:91:E1:43:57:4D:40:46:74:B0:23:AB:CE
 
-Integrity
----------
-ZIP CRC integrity: PASS
-classes.dex SHA-1 header signature: PASS
-classes.dex Adler-32 checksum: PASS
-APK SHA-256: 3f5f175d1c1adab46208efda389e8a47f86a3d1f3959edbbecf9724e0356512d
-DEX SHA-256: 4ddf941e9bf9f9aa0267a2a8528fc7ab8bc11d43da62c639a4e2cccdca0ede9d
-Source ZIP SHA-256: b519ab1c063e80e077a46a2e2dddd5f2cf761d4ab090fe6c423472c4222c5809
+SHA-256
+-------
+APK: 199e72d451ead4dde14fb1a09ea5fd1bbd101d1d674a216455f19cf3bf92e3e1
+DEX: a07f1099d360b9049ba31bddf32f131ef866749844cca395364f5600e51a7213
+Source ZIP: 1153b925a7d461fec40b8ec2d773efc324fd588c85afe3b7e83c83814635bf31
 
-Signing guard
--------------
-The DEV release build checks the expected permanent signer before build and again after APK signing.
-Expected permanent DEV signer: AC:6B:91:3E:E0:80:94:83:37:1F:66:A7:3C:C5:D0:BB:DA:1E:45:D4:91:E1:43:57:4D:40:46:74:B0:23:AB:CE
-
-IMPORTANT CURRENT-INSTALL LIMITATION
-------------------------------------
-If an existing com.harleytg.forum.dev installation was signed by an older development certificate, Android will reject this APK as a conflicting package. That legacy install must be removed before installing the permanent signing-line build unless the exact old private signing key is recovered.
+Runtime note
+------------
+No physical Android device was attached to the build environment for this verification, so live forum payload delivery, notification tap behavior, and OEM installer behavior require on-device testing.

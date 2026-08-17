@@ -4,16 +4,53 @@ Development-channel build for Harley's Clan Forum Android.
 
 ## Build identity
 
+- App name: **Harley's Clan Forum [Beta]**
 - Application ID: `com.harleytg.forum.dev`
 - Public version: `1.0`
-- Version code: `10000021`
+- Version code: `10000032`
 - Channel: `dev`
 - GitHub prerelease tag: `v1.0-dev`
 - Target SDK: `34`
 
 ## Included update set
 
-This DEV build carries the current 1.0 app work, including system-wide Day Theme changes, performance profiles with Auto as the default, notification controls/count badge work, simplified share chooser behavior, account/identity fixes, diagnostics/log UI changes, update/install handling, profile-avatar fit correction, and reduced animation load on lower-end devices.
+This DEV build carries the current 1.0 app work, including system-wide Day Theme changes, performance profiles with Auto as the default, notification controls/count badge work, simplified share chooser behavior, Account & Identity fixes, diagnostics/log UI changes, app-link handling, safe external-link handling, update/install improvements, profile-avatar fit correction, lower-end-device animation reductions, and forum-message notification cleanup.
+
+## Update-system behavior
+
+- DEV builds check only the DEV/prerelease channel.
+- Update availability is determined from the downloaded APK's embedded Android `versionCode`.
+- The APK filename does not need to include the versionCode.
+- Downloaded APKs are parsed and validated before install handoff.
+- Package identity and expected DEV signing identity are checked before installation.
+- After a valid download completes, HCF automatically opens Android's package installer when allowed.
+- If Android requires **Allow from this source**, HCF can open the correct settings flow and resume installation afterward.
+- If Android blocks the installer from opening while HCF is backgrounded, HCF shows an install-ready notification as a fallback.
+
+## Forum message notification fix
+
+Messenger/private-message notification payloads are recursively unwrapped before display. User-visible message candidates include `message`, `body`, `text`, `excerpt`, `preview`, and `content`. Raw JSON containers are never used as the visible notification body.
+
+When `conversation_id` or `conversationId` is available:
+
+- Notification title: `New message from <sender>`
+- Notification body: readable message text
+- Notification tap route: `/conversations/<conversation_id>`
+- Safe fallback body: `You have a new private message.`
+
+Example target behavior:
+
+- Sender: `Darsoul`
+- Message: `Is this right`
+- Conversation ID: `23`
+
+Visible Android notification:
+
+`New message from Darsoul`
+
+`Is this right`
+
+Tap route: `/conversations/23`
 
 ## Permanent DEV signing line
 
@@ -25,14 +62,14 @@ Certificate SHA-256:
 
 `AC:6B:91:3E:E0:80:94:83:37:1F:66:A7:3C:C5:D0:BB:DA:1E:45:D4:91:E1:43:57:4D:40:46:74:B0:23:AB:CE`
 
-The release build verifies with APK Signature Scheme v2 and v3. The DEV build tooling now guards this expected signer before and after signing.
+The release build verifies with APK Signature Scheme v2 and v3.
 
 ## Release artifacts
 
-- `HarleysClanForum-1.0-dev-PERMANENT-SIGNING-LINE-v10000021.apk`
-  - SHA-256: `3f5f175d1c1adab46208efda389e8a47f86a3d1f3959edbbecf9724e0356512d`
-- `HarleysClanForum-1.0-dev-PERMANENT-SIGNING-LINE-v10000021-source.zip`
-  - SHA-256: `b519ab1c063e80e077a46a2e2dddd5f2cf761d4ab090fe6c423472c4222c5809`
+- `HCF-Beta-v10000032.apk`
+  - SHA-256: `199e72d451ead4dde14fb1a09ea5fd1bbd101d1d674a216455f19cf3bf92e3e1`
+- `HCF-Beta-v10000032-source.zip`
+  - SHA-256: `1153b925a7d461fec40b8ec2d773efc324fd588c85afe3b7e83c83814635bf31`
 - `HarleysClanForum-1.0-dev-VERIFICATION.txt`
 
 ## Upgrade compatibility
