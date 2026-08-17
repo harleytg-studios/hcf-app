@@ -91,4 +91,4 @@ if [[ "$apk_fingerprint" != "$expected_signer_sha256" ]]; then
 fi
 
 echo "DEV signing-line verification: PASS"
-echo "DEV versionCode: 10000032"
+echo "DEV versionCode: 10000033"
