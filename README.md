@@ -6,33 +6,28 @@ Stable Android release branch for Harley's Clan Forum.
 
 - App name: **Harley's Clan Forum**
 - Android package: `com.harleytg.forum`
-- Current stable version: `0.2.8`
-- GitHub tag: `v0.2.8`
+- Current stable version: `1.0`
+- Android versionCode: `10000020`
+- GitHub tag: `v1.0`
 - Release type: normal GitHub Release marked **Latest**
 - Update channel: Stable only
 
 ## Native UI
 
-The app uses compact native chrome in portrait and an extra-compact landscape layout. Native app screens support **Follow phone (Auto)**, **Day (Light)** and **Night (Dark)** themes.
-
-## Forum identity
-
-The drawer contains a dedicated Account Identity card for the current signed-in Flarum user, with **Account Security** directly below it. Native provider chips/icons now show only **Email** and **Discord**. Google has been removed from the native identity UI. Provider state is inferred only from the current user's self-session/security summary; provider account IDs and OAuth/access tokens are not stored. Guest sessions use `Guest_Protocol`.
-
-The app also provides an Account Security shortcut to the current user's `/u/<profile>/security` route. While that page is open, the app stores only a safe security summary: session counts, current-session detection, connected provider labels, capability flags for password/email/two-factor controls, and sync time. Access-token values, passwords, recovery codes, cookie values, provider account IDs and individual session/device details are excluded.
+The 1.0 line includes the refreshed native UI, Follow phone/Day/Night themes, performance profiles with Auto as the default, notification-count work, simplified sharing, account/identity fixes, diagnostics/log cleanup, update/install fixes, and profile-avatar fit corrections.
 
 ## Update behavior
 
-The stable app checks normal GitHub Latest releases from this repository and does not install Dev prereleases. Android still requires the user to confirm APK installation. Updater-owned installer APKs are temporary and are cleaned after successful replacement or during stale-update recovery. APKs manually downloaded through another app remain user-owned.
+The stable app checks normal GitHub Latest releases from this repository and ignores Dev prereleases. Android still requires the user to confirm APK installation.
 
-## Telemetry & diagnostics
+## Signing migration
 
-Telemetry Services are optional and OFF by default. **Basic** mode sends coarse app-health events. **Diagnostics** mode can add crash reports, sanitized stack traces, recent app-event breadcrumbs, and optional WebView/update error reporting. Crash reports receive HCF report IDs and can be reviewed on the next launch before sending.
+The current permanent Stable signing certificate SHA-256 is:
 
-Identity sharing is a separate opt-in. Users can independently choose whether reports may include forum identity, email, device manufacturer/model, or a sanitized forum route. The app also provides manual diagnostic feedback, report preview, local report history, and local-report cleanup controls. Passwords, cookies, session/access tokens, recovery codes, provider IDs, posts, messages and page contents are excluded.
+`D6:51:2E:54:63:52:C3:06:1D:E6:C1:D4:26:D3:C9:AD:A0:83:A5:0A:E8:14:77:1B:AF:D1:6F:B0:73:78:4E:1B`
 
-## Signing
+The previously published v0.3.0 APK used a different Android Debug certificate. Android therefore cannot perform an in-place update from that legacy signer to the current permanent signing line. Users on the legacy signer need a one-time uninstall/reinstall unless the old private key is recovered.
 
-All future `com.harleytg.forum` APKs must use the same persistent Stable signing certificate established by 0.2.0. Never commit the private signing key to this public repository.
+All future `com.harleytg.forum` releases should remain on the current permanent Stable signing certificate. Never commit private signing keys to this public repository.
 
-See `STABLE-RELEASE.md` and `STABLE-LATEST.json` for the current release metadata.
+See `STABLE-RELEASE.md` and `STABLE-LATEST.json` for current release metadata and artifact hashes.
