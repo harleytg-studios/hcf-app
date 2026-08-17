@@ -1,0 +1,10 @@
+Harley's Clan Forum v1.0 — Notifications Button Blue Badge
+==========================================================
+
+Internal version code: 10000008
+
+Changes
+-------
+- Restored the blue right-side badge / dot style on the side-panel Notifications button.
+- Notifications button text remains simply: Notifications
+- Unread counts show in the separate badge again, up to 999+.

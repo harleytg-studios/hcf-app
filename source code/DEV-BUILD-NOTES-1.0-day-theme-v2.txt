@@ -1,0 +1,9 @@
+Harley's Clan Forum 1.0 DEV - System-wide Day Theme Fix v2
+
+Package: com.harleytg.forum.dev
+Version code: 10000018
+Internal build: 74
+Channel: Dev
+
+Shares the Activity pre-inflation theme-context fix with Stable.
+Preserves the original v0.1.7 DEV logo and launcher icon assets.
