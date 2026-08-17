@@ -1,0 +1,13 @@
+Harley's Clan Forum v1.0 — Simple Share
+========================================
+
+Internal version code: 10000015
+Internal build: 71
+
+Changes
+-------
+- Replaced the long custom app list with a simple share panel.
+- Share panel now has only Copy Link, Share with…, and Cancel.
+- Share with… opens Android's normal Sharesheet.
+- Browser/download-style destinations are no longer listed inside the HCF panel.
+- Public version remains v1.0.

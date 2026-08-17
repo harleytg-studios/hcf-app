@@ -1,0 +1,20 @@
+Harley's Clan Forum — v0.4.16
+True-Centered Header Icon Fix
+
+FIXED • HEADER ICON PLACEMENT
+• Replaced header icon-only text Buttons with dedicated ImageButtons.
+• Hamburger, copy and refresh glyphs are centered by the image layer itself.
+• Removed compound-drawable/text baseline behavior from header controls.
+• Added explicit center_vertical gravity to the button frames, logo/title row, URL field and URL actions.
+• Preserved the existing Font Awesome Solid-style vector icon set.
+
+PRESERVED
+• Notification unread badges 1–999 / 999+.
+• Swipe navigation.
+• Primary and backup forum link handling.
+• Custom HCF UI, Contact Support and updater improvements.
+
+VERSION
+• Version: 0.4.16
+• Version code: 4160000
+• Package: com.harleytg.forum

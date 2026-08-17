@@ -1,0 +1,29 @@
+<resources>
+    <!-- Landscape prioritizes forum content over native chrome. -->
+    <dimen name="app_header_height">44dp</dimen>
+    <dimen name="app_header_button">36dp</dimen>
+    <dimen name="app_header_logo">36dp</dimen>
+    <dimen name="app_header_title_text">14sp</dimen>
+    <dimen name="url_bar_height">40dp</dimen>
+    <dimen name="url_bar_inner_height">34dp</dimen>
+    <dimen name="url_copy_button">34dp</dimen>
+    <dimen name="url_reload_button">34dp</dimen>
+    <dimen name="compact_app_header_height">40dp</dimen>
+    <dimen name="compact_app_header_button">34dp</dimen>
+    <dimen name="compact_app_header_logo">34dp</dimen>
+    <dimen name="compact_app_header_title_text">12sp</dimen>
+    <dimen name="compact_url_bar_height">30dp</dimen>
+    <dimen name="compact_url_bar_inner_height">26dp</dimen>
+    <dimen name="compact_url_copy_button">26dp</dimen>
+    <dimen name="compact_url_reload_button">26dp</dimen>
+    <dimen name="welcome_vertical_padding">4dp</dimen>
+    <dimen name="drawer_width">270dp</dimen>
+    <dimen name="drawer_padding">6dp</dimen>
+    <dimen name="drawer_logo">40dp</dimen>
+    <dimen name="identity_card_min_height">72dp</dimen>
+    <dimen name="identity_avatar_size">52dp</dimen>
+    <dimen name="drawer_item_height">36dp</dimen>
+    <dimen name="drawer_item_text">12sp</dimen>
+    <dimen name="startup_logo_size">82dp</dimen>
+    <dimen name="bottom_nav_height">52dp</dimen>
+</resources>

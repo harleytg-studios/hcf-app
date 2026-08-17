@@ -1,0 +1,23 @@
+Harley's Clan Forum — v0.4.15
+Notification Badge & Header Alignment Update
+
+NEW • NOTIFICATION COUNT BADGES
+• Side navigation Notifications now shows a dedicated unread badge.
+• Counts display 1 through 999; counts over that display 999+.
+• The main menu button also shows the unread count before the drawer is opened.
+
+FIXED • HEADER ICON PLACEMENT
+• Hamburger, copy and refresh icons use normalized icon-only button geometry.
+• Removed hidden text/font baseline padding from icon-only header controls.
+• Icons remain centered at compact and landscape sizes.
+
+PRESERVED
+• Right-edge swipe navigation.
+• Font Awesome Solid-style native vector icon system.
+• Primary + backup forum App Links/deep links.
+• Custom HCF UI, updater/install system, Contact Support form, and Forum Identity integration.
+
+VERSION
+• Version: 0.4.15
+• Version code: 4150000
+• Package: com.harleytg.forum
