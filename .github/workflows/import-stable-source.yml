@@ -1,0 +1,136 @@
+name: Import Stable Source
+
+on:
+  push:
+    branches:
+      - stable
+    paths:
+      - '.github/workflows/import-stable-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-stable-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Stable
+        uses: actions/checkout@v4
+        with:
+          ref: stable
+          fetch-depth: 0
+
+      - name: Import current Android source from Development
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin dev
+          git checkout origin/dev -- .
+
+          # Keep the existing Stable release/verification metadata.
+          git checkout HEAD -- README.md STABLE-LATEST.json STABLE-RELEASE.md HarleysClanForum-1.0-VERSIONCODE20-INSTALL-FIX-VERIFICATION.txt
+          git checkout HEAD -- .github/workflows/import-stable-source.yml
+
+          # Do not bring Development/Beta automation into Stable.
+          if [ -d .github/workflows ]; then
+            find .github/workflows -type f ! -name 'import-stable-source.yml' -delete
+          fi
+
+      - name: Normalize Stable build metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          manifest = Path('AndroidManifest.xml')
+          text = manifest.read_text(encoding='utf-8')
+          text = re.sub(r'android:versionCode="[^"]+"', 'android:versionCode="10000032"', text, count=1)
+          text = re.sub(r'android:versionName="[^"]+"', 'android:versionName="1.0"', text, count=1)
+          manifest.write_text(text, encoding='utf-8')
+
+          build = Path('src/com/harleytg/forum/BuildInfo.java')
+          if build.exists():
+              text = build.read_text(encoding='utf-8')
+              text = re.sub(r'(?m)(VERSION_CODE\s*=\s*)\d+', r'\g<1>10000032', text)
+              text = re.sub(r'(?m)(VERSION_NAME\s*=\s*)"[^"]*"', r'\g<1>"1.0"', text)
+              text = re.sub(r'(?m)((?:BUILD_)?CHANNEL\s*=\s*)"[^"]*"', r'\g<1>"Stable"', text)
+              text = re.sub(r'(?m)(IS_BETA\s*=\s*)true', r'\g<1>false', text, flags=re.I)
+              text = re.sub(r'(?m)(IS_STABLE\s*=\s*)false', r'\g<1>true', text, flags=re.I)
+              build.write_text(text, encoding='utf-8')
+
+          # Stable must never opt into prerelease/Beta update discovery.
+          for path in Path('src').rglob('*.java'):
+              text = path.read_text(encoding='utf-8')
+              new = text
+              new = re.sub(r'(?m)(ALLOW_PRERELEASES\s*=\s*)true', r'\g<1>false', new, flags=re.I)
+              new = re.sub(r'(?m)(INCLUDE_PRERELEASES\s*=\s*)true', r'\g<1>false', new, flags=re.I)
+              new = re.sub(r'(?m)(IS_BETA\s*=\s*)true', r'\g<1>false', new, flags=re.I)
+              new = re.sub(r'(?m)(IS_STABLE\s*=\s*)false', r'\g<1>true', new, flags=re.I)
+              new = re.sub(r'(?m)((?:UPDATE_)?CHANNEL\s*=\s*)"(?:beta|development|dev)"', r'\g<1>"stable"', new, flags=re.I)
+              if new != text:
+                  path.write_text(new, encoding='utf-8')
+
+          strings = Path('res/values/strings.xml')
+          if strings.exists():
+              text = strings.read_text(encoding='utf-8')
+              text = re.sub(r'(<string\s+name="app_name"[^>]*>).*?(</string>)', r"\1Harley's Clan Forum\2", text, count=1)
+              strings.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Restore Stable artwork blobs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          fetch_blob() {
+            local sha="$1"
+            local out="$2"
+            mkdir -p "$(dirname "$out")"
+            curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H 'Accept: application/vnd.github+json' \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${sha}" \
+              | python3 -c 'import sys,json,base64; d=json.load(sys.stdin); sys.stdout.buffer.write(base64.b64decode(d["content"]))' \
+              > "$out"
+          }
+
+          fetch_blob 24f2f8581d952933f63d423559e2e55718762f41 branding/HTG-App-Icon.png
+          fetch_blob 24f2f8581d952933f63d423559e2e55718762f41 res/drawable-nodpi/htg_app_logo.png
+
+          fetch_blob 173c1060ae36eca563a0d1d968bec1be0fa4cd58 res/mipmap-mdpi/ic_launcher.png
+          fetch_blob 173c1060ae36eca563a0d1d968bec1be0fa4cd58 res/mipmap-mdpi/ic_launcher_round.png
+
+          fetch_blob 3c46f6597f910ff52f0e6674e0d5fc686c581ee5 res/mipmap-hdpi/ic_launcher.png
+          fetch_blob 3c46f6597f910ff52f0e6674e0d5fc686c581ee5 res/mipmap-hdpi/ic_launcher_round.png
+
+          fetch_blob 9671d17c95026740b0ba98b3470d35a8992405e8 res/mipmap-xhdpi/ic_launcher.png
+          fetch_blob 9671d17c95026740b0ba98b3470d35a8992405e8 res/mipmap-xhdpi/ic_launcher_round.png
+          fetch_blob 9671d17c95026740b0ba98b3470d35a8992405e8 res/mipmap-xxhdpi/ic_launcher.png
+          fetch_blob 9671d17c95026740b0ba98b3470d35a8992405e8 res/mipmap-xxhdpi/ic_launcher_round.png
+
+          fetch_blob dfeaf2dd7a8bc5c0479765e829e806bf93aa6bb4 res/mipmap-xxxhdpi/ic_launcher.png
+          fetch_blob dfeaf2dd7a8bc5c0479765e829e806bf93aa6bb4 res/mipmap-xxxhdpi/ic_launcher_round.png
+
+      - name: Commit Stable source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit.'
+            exit 0
+          fi
+          git commit -m 'Publish Stable v1.0 build 10000032 source'
+          git push origin HEAD:stable
+
+      - name: Clean temporary import branch
+        if: success()
+        shell: bash
+        run: |
+          git push origin --delete agent/stable-source-import-10000032 || true
