@@ -65,18 +65,20 @@ jobs:
             -I "$ANDROID_JAR" \
             -F "$WORK/resources.apk"
 
+          mapfile -d '' JAVA_SOURCES < <(find "$WORK/gen" "$SRC/src" -name '*.java' -print0)
           java -m jdk.compiler/com.sun.tools.javac.Main \
             --release 8 \
             -classpath "$ANDROID_JAR" \
             -d "$WORK/classes" \
-            $(find "$WORK/gen" "$SRC/src" -name '*.java' -print)
+            "${JAVA_SOURCES[@]}"
 
+          mapfile -d '' CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print0)
           "$BT/d8" \
             --lib "$ANDROID_JAR" \
             --min-api 26 \
             --release \
             --output "$WORK/dex" \
-            $(find "$WORK/classes" -name '*.class' -print)
+            "${CLASS_FILES[@]}"
 
           cp "$WORK/resources.apk" "$WORK/unsigned.apk"
           (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
