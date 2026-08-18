@@ -26,14 +26,41 @@ jobs:
       - name: Checkout dev branch
         uses: actions/checkout@v4
 
+      - name: Record build start
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ios
+          cat > ios/build-status.json <<EOF
+          {
+            "platform": "iOS/iPadOS",
+            "targets": ["iPhone", "iPad"],
+            "mac_catalyst": false,
+            "version": "1.0",
+            "build": "10000033",
+            "ui": "Android-matched native shell",
+            "status": "running",
+            "run_id": "${GITHUB_RUN_ID}",
+            "run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "source_sha": "${GITHUB_SHA}",
+            "artifact": "HarleysClanForum-iOS-v1.0-dev"
+          }
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ios/build-status.json
+          git commit -m "Start iOS dev build ${GITHUB_RUN_ID}" || true
+          git push origin HEAD:dev
+
       - name: Reconstruct iOS source project
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf ios/generated
           mkdir -p ios/generated
-          cat ios/source/HCF-iOS-source.part*.b64 > /tmp/hcf-ios-source.b64
-          /usr/bin/base64 -D -i /tmp/hcf-ios-source.b64 -o /tmp/hcf-ios-source.tar.gz
-          tar -xzf /tmp/hcf-ios-source.tar.gz -C ios/generated
+          cat ios/source/HCF-iOS-source.part*.b64 > "$RUNNER_TEMP/hcf-ios-source.b64"
+          /usr/bin/base64 -D -i "$RUNNER_TEMP/hcf-ios-source.b64" -o "$RUNNER_TEMP/hcf-ios-source.tar.gz"
+          tar -xzf "$RUNNER_TEMP/hcf-ios-source.tar.gz" -C ios/generated
 
           PROJECT="$(find ios/generated -name 'HarleysClanForumIOS.xcodeproj' -type d -print -quit)"
           if [ -z "$PROJECT" ]; then
@@ -71,17 +98,14 @@ jobs:
               let s = CGFloat(size)
               let image = NSImage(size: NSSize(width: s, height: s))
               image.lockFocus()
-
               NSColor(calibratedRed: 0.027, green: 0.059, blue: 0.090, alpha: 1).setFill()
               NSBezierPath(rect: NSRect(x: 0, y: 0, width: s, height: s)).fill()
-
               let cyan = NSColor(calibratedRed: 0.0, green: 0.72, blue: 0.94, alpha: 1)
               cyan.setStroke()
               let inset = s * 0.07
               let border = NSBezierPath(roundedRect: NSRect(x: inset, y: inset, width: s-inset*2, height: s-inset*2), xRadius: s*0.16, yRadius: s*0.16)
               border.lineWidth = max(2, s * 0.025)
               border.stroke()
-
               cyan.setFill()
               func circle(_ x: CGFloat, _ y: CGFloat, _ r: CGFloat) {
                   NSBezierPath(ovalIn: NSRect(x: x-r, y: y-r, width: r*2, height: r*2)).fill()
@@ -91,13 +115,14 @@ jobs:
               circle(s*0.48, s*0.74, s*0.055)
               circle(s*0.59, s*0.70, s*0.052)
               circle(s*0.68, s*0.61, s*0.049)
-
               let p = NSMutableParagraphStyle()
               p.alignment = .center
-              let font = NSFont.boldSystemFont(ofSize: s * 0.16)
-              let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.white, .paragraphStyle: p]
+              let attrs: [NSAttributedString.Key: Any] = [
+                  .font: NSFont.boldSystemFont(ofSize: s * 0.16),
+                  .foregroundColor: NSColor.white,
+                  .paragraphStyle: p
+              ]
               NSString(string: "HCF").draw(in: NSRect(x: 0, y: s*0.19, width: s, height: s*0.2), withAttributes: attrs)
-
               image.unlockFocus()
               guard let data = image.tiffRepresentation,
                     let rep = NSBitmapImageRep(data: data),
@@ -167,17 +192,18 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf "$RUNNER_TEMP/hcf-derived"
-
           xcodebuild \
             -project "$PROJECT" \
             -scheme HarleysClanForumIOS \
             -configuration Release \
             -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath "$RUNNER_TEMP/hcf-derived" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY='' \
-            build
+            DEVELOPMENT_TEAM='' \
+            clean build
 
       - name: Package compiled iOS app
         shell: bash
@@ -188,14 +214,17 @@ jobs:
             echo 'Compiled iOS .app was not found.'
             exit 1
           fi
-
           rm -rf "$RUNNER_TEMP/ipa"
           mkdir -p "$RUNNER_TEMP/ipa/Payload"
           cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
-
           cd "$RUNNER_TEMP/ipa"
           /usr/bin/zip -qry "$GITHUB_WORKSPACE/HarleysClanForum-iOS-v1.0-dev-unsigned.ipa" Payload
+          cd "$GITHUB_WORKSPACE"
           ditto -c -k --sequesterRsrc --keepParent "$APP" "$GITHUB_WORKSPACE/HarleysClanForum-iOS-v1.0-dev-app.zip"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist"
+          shasum -a 256 HarleysClanForum-iOS-v1.0-dev-unsigned.ipa > HarleysClanForum-iOS-v1.0-dev-unsigned.sha256
 
       - name: Upload compiled iPhone and iPad app
         uses: actions/upload-artifact@v4
@@ -205,6 +234,7 @@ jobs:
           retention-days: 30
           path: |
             HarleysClanForum-iOS-v1.0-dev-unsigned.ipa
+            HarleysClanForum-iOS-v1.0-dev-unsigned.sha256
             HarleysClanForum-iOS-v1.0-dev-app.zip
 
       - name: Record build result
@@ -222,6 +252,7 @@ jobs:
             "mac_catalyst": false,
             "version": "1.0",
             "build": "10000033",
+            "ui": "Android-matched native shell",
             "status": "$JOB_STATUS",
             "run_id": "${GITHUB_RUN_ID}",
             "run_attempt": "${GITHUB_RUN_ATTEMPT}",
@@ -229,7 +260,6 @@ jobs:
             "artifact": "HarleysClanForum-iOS-v1.0-dev"
           }
           EOF
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add ios/build-status.json
