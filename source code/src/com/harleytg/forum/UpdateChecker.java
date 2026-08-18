@@ -62,8 +62,9 @@ final class UpdateChecker {
         }
 
         String assetKey() {
-            if (assetId > 0L) return tag + "#" + assetId;
-            if (!assetUpdatedAt.isEmpty()) return tag + "#" + assetUpdatedAt;
+            if (assetId > 0L) return tag + "#" + assetId + (versionCode > 0L ? "#vc" + versionCode : "");
+            if (!assetUpdatedAt.isEmpty()) return tag + "#" + assetUpdatedAt + (versionCode > 0L ? "#vc" + versionCode : "");
+            if (versionCode > 0L) return tag + "#vc" + versionCode + "#" + apkUrl;
             return tag + "#" + apkUrl;
         }
     }
@@ -75,14 +76,31 @@ final class UpdateChecker {
         final String normalized = CHANNEL_STABLE; // Stable package never consumes the DEV/Beta feed.
         new Thread(() -> {
             try {
-                Release release = CHANNEL_STABLE.equals(normalized) ? fetchStable() : fetchDev();
+                Release release;
+                long remoteCode;
+                if (CHANNEL_STABLE.equals(normalized)) {
+                    try {
+                        release = fetchStable();
+                        remoteCode = resolveApkVersionCode(app, release);
+                        if (release.apkUrl == null || release.apkUrl.trim().isEmpty() || remoteCode <= 0L) {
+                            throw new IllegalStateException("Latest Stable release metadata did not include a readable APK.");
+                        }
+                    } catch (Throwable primary) {
+                        release = fetchStableDirect(app, primary);
+                        remoteCode = release.versionCode;
+                    }
+                } else {
+                    release = fetchDev();
+                    remoteCode = resolveApkVersionCode(app, release);
+                }
                 if (release == null) throw new IllegalStateException("No " + normalized + " release is published yet.");
-                long remoteCode = resolveApkVersionCode(app, release);
                 release.versionCode = remoteCode;
                 boolean newer = remoteCode > 0L
                         ? remoteCode > BuildInfo.VERSION_CODE
                         : compareVersions(release.tag, BuildInfo.VERSION) > 0;
-                post(() -> callback.onResult(release, newer));
+                final Release resultRelease = release;
+                final boolean resultNewer = newer;
+                post(() -> callback.onResult(resultRelease, resultNewer));
             } catch (Throwable t) {
                 String msg = t.getMessage();
                 if (msg == null || msg.trim().isEmpty()) msg = t.getClass().getSimpleName();
@@ -112,18 +130,61 @@ final class UpdateChecker {
     }
 
     private static Release fetchStable() throws Exception {
-        JSONArray arr = new JSONArray(get(API_BASE + "/releases?per_page=30"));
-        Release best = null;
-        for (int i = 0; i < arr.length(); i++) {
-            JSONObject item = arr.optJSONObject(i);
-            if (item == null) continue;
-            if (item.optBoolean("draft", false) || item.optBoolean("prerelease", false)) continue;
-            Release candidate = parseRelease(item);
-            if (candidate.tag == null || candidate.tag.trim().isEmpty()) continue;
-            if (best == null || compareVersions(candidate.tag, best.tag) > 0) best = candidate;
+        JSONObject item = new JSONObject(get(API_BASE + "/releases/latest"));
+        if (item.optBoolean("draft", false) || item.optBoolean("prerelease", false)) {
+            throw new IllegalStateException("GitHub latest release is not a Stable release.");
         }
-        if (best != null) return best;
-        throw new IllegalStateException("No stable app release is published yet.");
+        Release release = parseRelease(item);
+        if (release.tag == null || release.tag.trim().isEmpty()) {
+            throw new IllegalStateException("Latest Stable release metadata is missing its tag.");
+        }
+        return release;
+    }
+
+    private static Release fetchStableDirect(Context context, Throwable primary) throws Exception {
+        final String base = "https://github.com/" + BuildInfo.UPDATE_REPOSITORY + "/releases/latest/download/";
+        final String[] names = new String[]{
+                "HCF-1.0.apk",
+                "HCF-Stable.apk",
+                "HarleysClanForum-1.0.apk",
+                "HarleysClanForum.apk"
+        };
+        Throwable last = null;
+        for (String name : names) {
+            String apkUrl = base + name;
+            if (!AppSecurity.isTrustedReleaseDownload(apkUrl)) continue;
+            Release fallback = new Release(
+                    BuildInfo.VERSION_TAG,
+                    "Latest Stable release",
+                    "",
+                    "https://github.com/" + BuildInfo.UPDATE_REPOSITORY + "/releases/latest",
+                    apkUrl,
+                    name,
+                    false,
+                    -1L,
+                    "");
+            try {
+                long code = resolveApkVersionCode(context, fallback);
+                if (code > 0L) {
+                    fallback.versionCode = code;
+                    return fallback;
+                }
+            } catch (Throwable t) {
+                last = t;
+            }
+        }
+        String primaryMessage = safeMessage(primary);
+        String fallbackMessage = safeMessage(last);
+        throw new IllegalStateException(
+                "Stable update service unavailable. API: " + primaryMessage
+                        + (fallbackMessage.isEmpty() ? "" : " • Direct release: " + fallbackMessage));
+    }
+
+    private static String safeMessage(Throwable t) {
+        if (t == null) return "unknown error";
+        String msg = t.getMessage();
+        if (msg == null || msg.trim().isEmpty()) msg = t.getClass().getSimpleName();
+        return msg == null ? "unknown error" : msg.trim();
     }
 
     private static Release fetchDev() throws Exception {
@@ -250,11 +311,16 @@ final class UpdateChecker {
         c.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
         c.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER);
         int code = c.getResponseCode();
+        String remaining = c.getHeaderField("X-RateLimit-Remaining");
         InputStream in = code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream();
         String body = read(in);
         c.disconnect();
         if (code < 200 || code >= 300) {
             if (code == 404) throw new IllegalStateException("No release is published for this channel yet.");
+            if (code == 403 || code == 429) {
+                throw new IllegalStateException("GitHub update API temporarily limited the check (HTTP " + code
+                        + (remaining == null ? "" : ", remaining=" + remaining) + ").");
+            }
             throw new IllegalStateException("Update service check failed (HTTP " + code + ").");
         }
         return body;
