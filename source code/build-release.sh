@@ -40,6 +40,7 @@ fi
 mkdir -p "$work_dir/gen" "$work_dir/classes" "$work_dir/dex" "$output_dir"
 
 "$build_tools/aapt" package -f -m \
+  --custom-package com.harleytg.forum.dev \
   -J "$work_dir/gen" \
   -M "$project_dir/AndroidManifest.xml" \
   -S "$project_dir/res" \
@@ -91,4 +92,5 @@ if [[ "$apk_fingerprint" != "$expected_signer_sha256" ]]; then
 fi
 
 echo "Beta/DEV v2 signing-line verification: PASS"
+echo "Beta/DEV package: com.harleytg.forum.devbuild"
 echo "Beta/DEV versionCode: 10000033"

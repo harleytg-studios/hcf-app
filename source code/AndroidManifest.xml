@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.harleytg.forum.dev"
+    package="com.harleytg.forum.devbuild"
     android:versionCode="10000033"
     android:versionName="1.0">
 
@@ -39,7 +39,7 @@
     </queries>
 
     <application
-        android:name=".HcfApplication"
+        android:name="com.harleytg.forum.dev.HcfApplication"
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:appCategory="social"
@@ -58,35 +58,34 @@
         <meta-data android:name="com.harleytg.SESSION_CLIENT" android:value="Harley's Clan Forum App" />
         <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="true" />
 
-
         <provider
-            android:name=".UpdateFileProvider"
-            android:authorities="com.harleytg.forum.dev.updatefiles"
+            android:name="com.harleytg.forum.dev.UpdateFileProvider"
+            android:authorities="com.harleytg.forum.devbuild.updatefiles"
             android:exported="false"
             android:grantUriPermissions="true" />
 
         <activity
-            android:name=".SettingsActivity"
+            android:name="com.harleytg.forum.dev.SettingsActivity"
             android:exported="false" />
         <activity
-            android:name=".LogsActivity"
+            android:name="com.harleytg.forum.dev.LogsActivity"
             android:exported="false" />
         <activity
-            android:name=".CookieManagerActivity"
+            android:name="com.harleytg.forum.dev.CookieManagerActivity"
             android:exported="false" />
         <activity
-            android:name=".IdentityActivity"
+            android:name="com.harleytg.forum.dev.IdentityActivity"
             android:exported="false" />
         <activity
-            android:name=".SupportContactActivity"
+            android:name="com.harleytg.forum.dev.SupportContactActivity"
             android:exported="false" />
         <activity
-            android:name=".MediaViewerActivity"
+            android:name="com.harleytg.forum.dev.MediaViewerActivity"
             android:exported="false"
             android:screenOrientation="unspecified" />
 
         <service
-            android:name=".InstantNotificationService"
+            android:name="com.harleytg.forum.dev.InstantNotificationService"
             android:enabled="true"
             android:exported="false"
             android:stopWithTask="false"
@@ -97,17 +96,17 @@
         </service>
 
         <service
-            android:name=".NotificationSyncJobService"
+            android:name="com.harleytg.forum.dev.NotificationSyncJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <service
-            android:name=".UpdateCheckJobService"
+            android:name="com.harleytg.forum.dev.UpdateCheckJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <receiver
-            android:name=".UpdateDownloadReceiver"
+            android:name="com.harleytg.forum.dev.UpdateDownloadReceiver"
             android:enabled="true"
             android:exported="false">
             <intent-filter>
@@ -116,7 +115,7 @@
         </receiver>
 
         <receiver
-            android:name=".BootReceiver"
+            android:name="com.harleytg.forum.dev.BootReceiver"
             android:enabled="true"
             android:exported="false">
             <intent-filter>
@@ -126,7 +125,7 @@
         </receiver>
 
         <activity
-            android:name=".MainActivity"
+            android:name="com.harleytg.forum.dev.MainActivity"
             android:exported="true"
             android:launchMode="singleTop">
             <intent-filter>
