@@ -2,13 +2,11 @@ name: Temporary DEV clean unsigned APK build
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/temp-dev-clean-build.yml'
+    branches: [main]
+    paths: ['.github/workflows/temp-dev-clean-build.yml']
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -19,14 +17,17 @@ jobs:
         with:
           ref: dev
           path: dev-repo
-
+      - name: Checkout main for disposable output
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-repo
       - name: Install Android SDK build tools
         shell: bash
         run: |
           set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-
       - name: Build aligned unsigned APK
         shell: bash
         run: |
@@ -38,47 +39,28 @@ jobs:
           OUT="$GITHUB_WORKSPACE/out"
           rm -rf "$WORK" "$OUT"
           mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
-
-          "$BT/aapt" package -f -m \
-            -J "$WORK/gen" \
-            -M "$SRC/AndroidManifest.xml" \
-            -S "$SRC/res" \
-            -I "$ANDROID_JAR" \
-            -F "$WORK/resources.apk"
-
-          java -m jdk.compiler/com.sun.tools.javac.Main \
-            --release 8 \
-            -classpath "$ANDROID_JAR" \
-            -d "$WORK/classes" \
-            $(find "$WORK/gen" "$SRC/src" -name '*.java' -print)
-
-          "$BT/d8" \
-            --lib "$ANDROID_JAR" \
-            --min-api 26 \
-            --release \
-            --output "$WORK/dex" \
-            $(find "$WORK/classes" -name '*.class' -print)
-
+          "$BT/aapt" package -f -m -J "$WORK/gen" -M "$SRC/AndroidManifest.xml" -S "$SRC/res" -I "$ANDROID_JAR" -F "$WORK/resources.apk"
+          java -m jdk.compiler/com.sun.tools.javac.Main --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" $(find "$WORK/gen" "$SRC/src" -name '*.java' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" $(find "$WORK/classes" -name '*.class' -print)
           cp "$WORK/resources.apk" "$WORK/unsigned.apk"
-          (
-            cd "$WORK/dex"
-            "$BT/aapt" add "$WORK/unsigned.apk" classes.dex
-          )
+          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
           "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Beta-v10000033-clean-unsigned.apk"
           "$BT/zipalign" -c -p 4 "$OUT/HCF-Beta-v10000033-clean-unsigned.apk"
           "$BT/aapt" dump badging "$OUT/HCF-Beta-v10000033-clean-unsigned.apk" | tee "$OUT/APK-BADGING.txt"
           sha256sum "$OUT/HCF-Beta-v10000033-clean-unsigned.apk" | tee "$OUT/APK-SHA256.txt"
           git -C "$GITHUB_WORKSPACE/dev-repo" rev-parse HEAD | tee "$OUT/DEV-COMMIT.txt"
           git -C "$GITHUB_WORKSPACE/dev-repo" rev-parse HEAD:"source code" | tee "$OUT/SOURCE-TREE.txt"
-
-      - name: Upload unsigned APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: HCF-Beta-v10000033-clean-unsigned
-          path: |
-            out/HCF-Beta-v10000033-clean-unsigned.apk
-            out/APK-BADGING.txt
-            out/APK-SHA256.txt
-            out/DEV-COMMIT.txt
-            out/SOURCE-TREE.txt
-          if-no-files-found: error
+      - name: Publish disposable unsigned build to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="$GITHUB_WORKSPACE/main-repo"
+          rm -rf "$REPO/.temp-dev-build"
+          mkdir -p "$REPO/.temp-dev-build"
+          cp "$GITHUB_WORKSPACE/out/"* "$REPO/.temp-dev-build/"
+          cd "$REPO"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .temp-dev-build/
+          git commit -m "[skip ci] Temporary clean DEV APK build output"
+          git push origin HEAD:main
