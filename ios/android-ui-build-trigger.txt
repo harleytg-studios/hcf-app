@@ -1,0 +1,4 @@
+Android-style iOS/iPadOS shell rebuild trigger
+Source package: ios/source/HCF-iOS-source.part00.b64 .. part03.b64
+Target: iPhone + iPad only
+Mac Catalyst: disabled
