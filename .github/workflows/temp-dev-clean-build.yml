@@ -1,0 +1,84 @@
+name: Temporary DEV clean unsigned APK build
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/temp-dev-clean-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout clean DEV source
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: dev-repo
+
+      - name: Install Android SDK build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Build aligned unsigned APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$GITHUB_WORKSPACE/dev-repo/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-clean-build"
+          OUT="$GITHUB_WORKSPACE/out"
+          rm -rf "$WORK" "$OUT"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
+
+          "$BT/aapt" package -f -m \
+            -J "$WORK/gen" \
+            -M "$SRC/AndroidManifest.xml" \
+            -S "$SRC/res" \
+            -I "$ANDROID_JAR" \
+            -F "$WORK/resources.apk"
+
+          java -m jdk.compiler/com.sun.tools.javac.Main \
+            --release 8 \
+            -classpath "$ANDROID_JAR" \
+            -d "$WORK/classes" \
+            $(find "$WORK/gen" "$SRC/src" -name '*.java' -print)
+
+          "$BT/d8" \
+            --lib "$ANDROID_JAR" \
+            --min-api 26 \
+            --release \
+            --output "$WORK/dex" \
+            $(find "$WORK/classes" -name '*.class' -print)
+
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (
+            cd "$WORK/dex"
+            "$BT/aapt" add "$WORK/unsigned.apk" classes.dex
+          )
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Beta-v10000033-clean-unsigned.apk"
+          "$BT/zipalign" -c -p 4 "$OUT/HCF-Beta-v10000033-clean-unsigned.apk"
+          "$BT/aapt" dump badging "$OUT/HCF-Beta-v10000033-clean-unsigned.apk" | tee "$OUT/APK-BADGING.txt"
+          sha256sum "$OUT/HCF-Beta-v10000033-clean-unsigned.apk" | tee "$OUT/APK-SHA256.txt"
+          git -C "$GITHUB_WORKSPACE/dev-repo" rev-parse HEAD | tee "$OUT/DEV-COMMIT.txt"
+          git -C "$GITHUB_WORKSPACE/dev-repo" rev-parse HEAD:"source code" | tee "$OUT/SOURCE-TREE.txt"
+
+      - name: Upload unsigned APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-Beta-v10000033-clean-unsigned
+          path: |
+            out/HCF-Beta-v10000033-clean-unsigned.apk
+            out/APK-BADGING.txt
+            out/APK-SHA256.txt
+            out/DEV-COMMIT.txt
+            out/SOURCE-TREE.txt
+          if-no-files-found: error
