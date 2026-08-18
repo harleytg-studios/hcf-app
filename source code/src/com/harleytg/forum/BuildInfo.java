@@ -7,13 +7,13 @@ final class BuildInfo {
     static final String VERSION_TAG = "v1.0";
     static final int VERSION_CODE = 10000033;
     static final int INTERNAL_BUILD = 86;
-    static final String CHANNEL = "Dev";
+    static final String CHANNEL = "DevBuild";
     static final String BRAND = "Harley's Studio's";
     static final String SESSION_CLIENT = "Harley's Clan Forum App";
-    static final String APK_FILE_NAME = "Harley's Clan Forum [Beta].apk";
-    static final String DEVELOPMENT_BUILD_LABEL = "Harley's Clan Forum v1.0 [Development Build / Beta]";
-    static final String META_LINE = "1.0 • Development / Beta";
-    static final String VERSION_BUILD_LINE = "1.0 • Development / Beta • Foundation Release";
+    static final String APK_FILE_NAME = "Harley's Clan Forum [DevBuild].apk";
+    static final String DEVELOPMENT_BUILD_LABEL = "Harley's Clan Forum v1.0 [DevBuild]";
+    static final String META_LINE = "1.0 • DevBuild";
+    static final String VERSION_BUILD_LINE = "1.0 • DevBuild • Foundation Release";
 
     // v1.0 starts the major-release versionCode range at 10,000,000.
     // Future builds must remain monotonic for Android in-place updates.
