@@ -14,12 +14,28 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Limited package visibility for the app's custom HCF chooser. -->
     <queries>
-        <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="https" /></intent>
-        <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="http" /></intent>
-        <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="mailto" /></intent>
-        <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="tel" /></intent>
-        <intent><action android:name="android.intent.action.SEND" /><data android:mimeType="text/plain" /></intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="mailto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SEND" />
+            <data android:mimeType="text/plain" />
+        </intent>
     </queries>
 
     <application
@@ -42,7 +58,11 @@
         <meta-data android:name="com.harleytg.SESSION_CLIENT" android:value="Harley's Clan Forum App" />
         <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="true" />
 
-        <provider android:name=".UpdateFileProvider" android:authorities="com.harleytg.forum.updatefiles" android:exported="false" android:grantUriPermissions="true" />
+        <provider
+            android:name=".UpdateFileProvider"
+            android:authorities="com.harleytg.forum.updatefiles"
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
         <activity android:name=".SettingsActivity" android:exported="false" />
         <activity android:name=".LogsActivity" android:exported="false" />
@@ -51,15 +71,26 @@
         <activity android:name=".SupportContactActivity" android:exported="false" />
         <activity android:name=".MediaViewerActivity" android:exported="false" android:screenOrientation="unspecified" />
 
-        <service android:name=".InstantNotificationService" android:enabled="true" android:exported="false" android:stopWithTask="false" android:foregroundServiceType="specialUse">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Continuously checks the authenticated Harley's Clan Forum account for time-sensitive user-visible forum notifications while the app is foregrounded or backgrounded." />
+        <service
+            android:name=".InstantNotificationService"
+            android:enabled="true"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Continuously checks the authenticated Harley's Clan Forum account for time-sensitive user-visible forum notifications while the app is foregrounded or backgrounded." />
         </service>
+
         <service android:name=".NotificationSyncJobService" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE" />
         <service android:name=".UpdateCheckJobService" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <receiver android:name=".UpdateDownloadReceiver" android:enabled="true" android:exported="false">
-            <intent-filter><action android:name="android.intent.action.DOWNLOAD_COMPLETE" /></intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
+            </intent-filter>
         </receiver>
+
         <receiver android:name=".BootReceiver" android:enabled="true" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
