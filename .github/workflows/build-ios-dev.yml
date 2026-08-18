@@ -1,0 +1,112 @@
+name: Build iPhone & iPad Dev IPA
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'ios/**'
+      - '.github/workflows/build-ios-dev.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ios:
+    name: Build iOS / iPadOS app
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout dev branch
+        uses: actions/checkout@v4
+
+      - name: Reconstruct iOS source project
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ios/generated
+          cat ios/source/HCF-iOS-source.part*.b64 > /tmp/hcf-ios-source.b64
+          /usr/bin/base64 -D -i /tmp/hcf-ios-source.b64 -o /tmp/hcf-ios-source.tar.gz
+          tar -xzf /tmp/hcf-ios-source.tar.gz -C ios/generated
+
+          PROJECT="$(find ios/generated -name 'HarleysClanForumIOS.xcodeproj' -type d -print -quit)"
+          if [ -z "$PROJECT" ]; then
+            echo 'HarleysClanForumIOS.xcodeproj was not found after source reconstruction.'
+            find ios/generated -maxdepth 5 -type f | sort | head -200
+            exit 1
+          fi
+
+          echo "PROJECT=$PROJECT" >> "$GITHUB_ENV"
+          echo "PROJECT_DIR=$(dirname "$PROJECT")" >> "$GITHUB_ENV"
+
+      - name: Confirm iPhone and iPad target
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Project: $PROJECT"
+          grep -q 'TARGETED_DEVICE_FAMILY = "1,2"' "$PROJECT/project.pbxproj"
+          grep -q 'SUPPORTS_MACCATALYST = NO' "$PROJECT/project.pbxproj"
+          echo 'Target is iPhone + iPad only; Mac Catalyst is disabled.'
+
+      - name: Show Apple build tools
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Build unsigned iOS device app
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/hcf-derived"
+
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme HarleysClanForumIOS \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/hcf-derived" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            build
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$(find "$RUNNER_TEMP/hcf-derived/Build/Products/Release-iphoneos" -maxdepth 1 -name '*.app' -type d -print -quit)"
+          if [ -z "$APP" ]; then
+            echo 'Compiled iOS .app was not found.'
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/HarleysClanForum-iOS-v1.0-dev-unsigned.ipa" Payload -x '*.DS_Store' -i '*' -- "$RUNNER_TEMP/ipa" 2>/dev/null || true
+          if [ ! -s "$GITHUB_WORKSPACE/HarleysClanForum-iOS-v1.0-dev-unsigned.ipa" ]; then
+            cd "$RUNNER_TEMP/ipa"
+            /usr/bin/zip -qry "$GITHUB_WORKSPACE/HarleysClanForum-iOS-v1.0-dev-unsigned.ipa" Payload
+          fi
+
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$GITHUB_WORKSPACE/HarleysClanForum-iOS-v1.0-dev-app.zip"
+
+          echo "Compiled app: $APP"
+          ls -lh "$GITHUB_WORKSPACE/HarleysClanForum-iOS-v1.0-dev-unsigned.ipa"
+          ls -lh "$GITHUB_WORKSPACE/HarleysClanForum-iOS-v1.0-dev-app.zip"
+
+      - name: Upload compiled iPhone and iPad app
+        uses: actions/upload-artifact@v4
+        with:
+          name: HarleysClanForum-iOS-v1.0-dev
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            HarleysClanForum-iOS-v1.0-dev-unsigned.ipa
+            HarleysClanForum-iOS-v1.0-dev-app.zip
