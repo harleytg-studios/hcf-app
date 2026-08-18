@@ -1,0 +1,12 @@
+{
+  "platform": "iOS/iPadOS",
+  "targets": ["iPhone", "iPad"],
+  "mac_catalyst": false,
+  "version": "1.0",
+  "build": "10000033",
+  "status": "success",
+  "run_id": "32188420110",
+  "run_attempt": "1",
+  "source_sha": "1d2a885f8760c24a87fdbfe31e99309c43437246",
+  "artifact": "HarleysClanForum-iOS-v1.0-dev"
+}
