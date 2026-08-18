@@ -19,7 +19,6 @@ final class BuildInfo {
     // Future builds must remain monotonic for Android in-place updates.
     static final String VERSION_CODE_SCHEME = "major-release-v1";
 
-    static final boolean FIREBASE_WEB_CONFIG_BUNDLED = true;
     static final boolean FCM_CONFIGURED = false;
     static final String USER_AGENT_MARKER = "HarleysClanForumApp/1.0";
     static final String UPDATE_REPOSITORY = "markhitchk/hcf-app";
