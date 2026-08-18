@@ -1,3 +1,0 @@
-run_id=32086033263
-artifact=HCF-Stable-v10000034-UpdaterFix-unsigned
-source_branch=fix/stable-updater-unavailable-v10000034
