@@ -37,9 +37,11 @@ final class AppSecurity {
             if (!"github.com".equalsIgnoreCase(uri.getHost())) return false;
             String path = uri.getPath();
             if (path == null) return false;
-            String prefix = "/" + BuildInfo.UPDATE_REPOSITORY + "/releases/download/";
-            return path.toLowerCase(Locale.US).startsWith(prefix.toLowerCase(Locale.US))
-                    && path.toLowerCase(Locale.US).endsWith(".apk");
+            String normalizedPath = path.toLowerCase(Locale.US);
+            String releasePrefix = ("/" + BuildInfo.UPDATE_REPOSITORY + "/releases/download/").toLowerCase(Locale.US);
+            String latestPrefix = ("/" + BuildInfo.UPDATE_REPOSITORY + "/releases/latest/download/").toLowerCase(Locale.US);
+            return (normalizedPath.startsWith(releasePrefix) || normalizedPath.startsWith(latestPrefix))
+                    && normalizedPath.endsWith(".apk");
         } catch (Throwable ignored) {
             return false;
         }
