@@ -8,7 +8,7 @@ platform_version="${ANDROID_PLATFORM_VERSION:-35}"
 build_tools="$sdk_root/build-tools/$build_tools_version"
 android_jar="$sdk_root/platforms/android-$platform_version/android.jar"
 keystore_path="${HCF_KEYSTORE:?Set HCF_KEYSTORE}"
-keystore_alias="${HCF_KEY_ALIAS:-hcf-beta-v2}"
+keystore_alias="${HCF_KEY_ALIAS:-hcf-devbuild-v2}"
 keystore_password_file="${HCF_KEY_PASSWORD_FILE:?Set HCF_KEY_PASSWORD_FILE}"
 export HCF_APKSIGNER_PASSWORD="$(sed -n '1p' "$keystore_password_file")"
 output_dir="${HCF_OUTPUT_DIR:-$project_dir/out}"
@@ -16,7 +16,8 @@ work_dir="$(mktemp -d "${TMPDIR:-/tmp}/hcf-build.XXXXXX")"
 trap 'rm -rf "$work_dir"' EXIT
 
 # Permanent DevBuild v2 signing line for the v10000033 v2-key build.
-# This certificate matches the existing development signing identity.
+# HCF-DevBuild-v2.jks uses alias hcf-devbuild-v2 and preserves the
+# existing development signing certificate for Android update compatibility.
 expected_signer_sha256="93D49BF9A877C7CFB1B37F9064BD955CD67BD7DD8DB73A9E3F766B59C4BCCE63"
 
 normalize_fingerprint() {
@@ -92,5 +93,6 @@ if [[ "$apk_fingerprint" != "$expected_signer_sha256" ]]; then
 fi
 
 echo "DevBuild v2 signing-line verification: PASS"
+echo "DevBuild key alias: hcf-devbuild-v2"
 echo "DevBuild package: com.harleytg.forum.devbuild"
 echo "DevBuild versionCode: 10000033"
