@@ -48,19 +48,22 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK components
+      - name: Bootstrap Android SDK and install components
         shell: bash
         run: |
           set -euo pipefail
-          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDK="$RUNNER_TEMP/android-sdk"
+          mkdir -p "$SDK/cmdline-tools"
+          curl -fL --retry 3 \
+            'https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip' \
+            -o "$RUNNER_TEMP/cmdline-tools.zip"
+          echo '4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583  '"$RUNNER_TEMP/cmdline-tools.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/cmdline-tools.zip" -d "$RUNNER_TEMP/cmdline-unpacked"
+          mkdir -p "$SDK/cmdline-tools/latest"
+          cp -a "$RUNNER_TEMP/cmdline-unpacked/cmdline-tools/." "$SDK/cmdline-tools/latest/"
           SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
-          if [ ! -x "$SDKMANAGER" ]; then
-            SDKMANAGER="$(find "$SDK/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -n 1 || true)"
-          fi
-          test -n "$SDKMANAGER"
-          test -x "$SDKMANAGER"
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" 'platforms;android-35' 'build-tools;35.0.0'
+          yes | "$SDKMANAGER" --sdk_root="$SDK" --licenses >/dev/null || true
+          "$SDKMANAGER" --sdk_root="$SDK" 'platforms;android-35' 'build-tools;35.0.0'
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
 
@@ -119,7 +122,7 @@ jobs:
           unzip -t "$APK" | tee "$GITHUB_WORKSPACE/out/ZIP-VERIFY.txt"
           sha256sum "$APK" | tee "$GITHUB_WORKSPACE/out/APK-SHA256.txt"
 
-      - name: Upload unsigned artifact
+      - name: Upload unsigned artifact and signer tooling
         uses: actions/upload-artifact@v4
         with:
           name: HCF-Stable-v10000034-UpdaterFix-unsigned
@@ -128,4 +131,6 @@ jobs:
             out/APK-BADGING.txt
             out/ZIP-VERIFY.txt
             out/APK-SHA256.txt
+            ${{ env.ANDROID_HOME }}/build-tools/35.0.0/apksigner
+            ${{ env.ANDROID_HOME }}/build-tools/35.0.0/lib/apksigner.jar
           if-no-files-found: error
