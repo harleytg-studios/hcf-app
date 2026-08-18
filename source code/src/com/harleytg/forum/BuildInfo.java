@@ -1,21 +1,17 @@
 package com.harleytg.forum;
 
 final class BuildInfo {
-    // Public versioning now follows SemVer. Development releases use
-    // MAJOR.MINOR.PATCH-dev.N and GitHub tags add the leading "v".
     static final String VERSION = "1.0";
     static final String VERSION_TAG = "v1.0";
-    static final int VERSION_CODE = 10000032;
-    static final int INTERNAL_BUILD = 77;
+    static final int VERSION_CODE = 10000034;
+    static final int INTERNAL_BUILD = 79;
     static final String CHANNEL = "Stable";
     static final String BRAND = "Harley's Studio's";
     static final String SESSION_CLIENT = "Harley's Clan Forum App";
     static final String APK_FILE_NAME = "HarleysClanForum-1.0.apk";
-    static final String META_LINE = "1.0 • Stable • Build 10000032";
-    static final String VERSION_BUILD_LINE = "1.0 • Stable • Feature Update • Build 10000032";
+    static final String META_LINE = "1.0 • Stable • Build 10000034";
+    static final String VERSION_BUILD_LINE = "1.0 • Stable • Updater Fix • Build 10000034";
 
-    // v1.0 starts the major-release versionCode range at 10,000,000.
-    // Future builds must remain monotonic for Android in-place updates.
     static final String VERSION_CODE_SCHEME = "major-release-v1";
 
     static final boolean FIREBASE_WEB_CONFIG_BUNDLED = true;
