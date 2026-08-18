@@ -73,7 +73,7 @@ final class UpdateChecker {
     static void check(Context context, String channel, Callback callback) {
         final Context app = context == null ? null : context.getApplicationContext();
         final String normalized = CHANNEL_DEV; // DEV/Beta package never consumes the stable feed.
-        new Thread(() -> {
+        AppExecutors.network().execute(() -> {
             try {
                 Release release = CHANNEL_STABLE.equals(normalized) ? fetchStable() : fetchDev();
                 if (release == null) throw new IllegalStateException("No " + normalized + " release is published yet.");
@@ -89,7 +89,7 @@ final class UpdateChecker {
                 final String out = msg;
                 post(() -> callback.onError(out));
             }
-        }, "hcf-update-check").start();
+        });
     }
 
     static int compareReleaseToInstalled(Release release) {

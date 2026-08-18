@@ -136,27 +136,27 @@ final class TelemetryService {
         final Context app = context.getApplicationContext();
         final String safeEvent = safeToken(event, "app_event");
         final String safeDetail = safeDetail(detail, 240);
-        new Thread(() -> {
+        AppExecutors.network().execute(() -> {
             try {
                 JSONObject report = buildBaseReport(app, "event", safeEvent, safeDetail, null);
                 postReport(app, report);
             } catch (Throwable t) {
                 saveResult(app, "Last send failed");
             }
-        }, "hcf-telemetry-event").start();
+        });
     }
 
     static void sendDiagnosticEvent(Context context, String event, String detail) {
         if (context == null || !isDiagnostics(context)) return;
         if (!safeBoolean(prefs(context), AppPrefs.TELEMETRY_AUTO_ERROR_REPORTS, false)) return;
         final Context app = context.getApplicationContext();
-        new Thread(() -> {
+        AppExecutors.network().execute(() -> {
             try {
                 JSONObject report = buildBaseReport(app, "diagnostic_error", safeToken(event, "error"), safeDetail(detail, 420), null);
                 report.put("breadcrumbs", breadcrumbs(app));
                 postReport(app, report);
             } catch (Throwable ignored) {}
-        }, "hcf-telemetry-error").start();
+        });
     }
 
     static void sendTest(Context context) {
@@ -170,13 +170,13 @@ final class TelemetryService {
     private static void sendDiagnosticEventForced(Context context, String event, String detail) {
         if (context == null || !isEnabled(context)) return;
         final Context app = context.getApplicationContext();
-        new Thread(() -> {
+        AppExecutors.network().execute(() -> {
             try {
                 JSONObject report = buildBaseReport(app, "diagnostic_test", safeToken(event, "diagnostic_test"), safeDetail(detail, 420), null);
                 report.put("breadcrumbs", breadcrumbs(app));
                 postReport(app, report);
             } catch (Throwable ignored) {}
-        }, "hcf-telemetry-test").start();
+        });
     }
 
     static void captureCrash(Context context, Thread thread, Throwable throwable) {
@@ -348,7 +348,7 @@ final class TelemetryService {
         final Context app = context.getApplicationContext();
         final JSONObject pending = readPendingCrash(app);
         if (pending == null) return;
-        new Thread(() -> {
+        AppExecutors.network().execute(() -> {
             try {
                 JSONObject prepared = prepareReportForSend(app, pending, note, includeIdentity);
                 boolean success = postReport(app, prepared);
@@ -356,18 +356,18 @@ final class TelemetryService {
             } catch (Throwable t) {
                 saveResult(app, "Crash report send failed");
             }
-        }, "hcf-crash-report").start();
+        });
     }
 
     private static void sendManualFeedback(Context context, String note, boolean includeIdentity) {
         final Context app = context.getApplicationContext();
-        new Thread(() -> {
+        AppExecutors.network().execute(() -> {
             try {
                 JSONObject report = buildBaseReport(app, "feedback", "manual_feedback", note, includeIdentity);
                 if (LEVEL_DIAGNOSTICS.equals(level(app))) report.put("breadcrumbs", breadcrumbs(app));
                 postReport(app, report);
             } catch (Throwable ignored) {}
-        }, "hcf-manual-feedback").start();
+        });
     }
 
     private static JSONObject prepareReportForSend(Context context, JSONObject original, String note, boolean includeIdentity) throws Exception {

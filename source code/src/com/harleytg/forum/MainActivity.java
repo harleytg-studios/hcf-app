@@ -650,6 +650,7 @@ public class MainActivity extends ThemedActivity {
         closeDrawer();
         updateUrlChrome(target);
         if (liveUpdater != null) liveUpdater.reset();
+        if (safePath.startsWith("/notifications")) InstantNotificationService.requestImmediateSync(this);
         webView.loadUrl(target);
         AppLogger.info(this, "quick_navigation", source + " | " + AppLogger.safeUrl(target));
     }
@@ -1072,6 +1073,8 @@ public class MainActivity extends ThemedActivity {
                             && System.currentTimeMillis() - lastPullRefreshAt > 1200L) {
                         lastPullRefreshAt = System.currentTimeMillis();
                         showTransientBanner("Refreshing forum…");
+                        InstantNotificationService.requestImmediateSync(this);
+                        if (liveUpdater != null) liveUpdater.poke();
                         reloadCurrentPage();
                         AppLogger.info(this, "pull_to_refresh", AppLogger.safeUrl(webView.getUrl()));
                     }
@@ -1162,6 +1165,8 @@ public class MainActivity extends ThemedActivity {
                     runOnUiThread(() -> {
                         String before = liveState;
                         updateLiveState("SYNCING");
+                        InstantNotificationService.requestImmediateSync(MainActivity.this);
+                        if (liveUpdater != null) liveUpdater.poke();
                         if ("OFFLINE".equals(before)) {
                             showTransientBanner("Connection restored • syncing forum…");
                             if (statusOverlay != null && statusOverlay.getVisibility() == View.VISIBLE && webView != null) {
@@ -2095,6 +2100,7 @@ public class MainActivity extends ThemedActivity {
                 "}catch(e){}" +
                 "};" +
                 "var reportRoute=function(){try{var u=String(location.href||'');if(u!==lastRoute){lastRoute=u;HCFNative.routeChanged(u);}}catch(e){}};" +
+                "try{if(!window.__HCF_MUTATION_HOOK__&&window.XMLHttpRequest){window.__HCF_MUTATION_HOOK__=true;var XO=XMLHttpRequest.prototype.open,XS=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__hcfM=String(m||'GET').toUpperCase();this.__hcfU=String(u||'');return XO.apply(this,arguments);};XMLHttpRequest.prototype.send=function(){try{if((this.__hcfM==='POST'||this.__hcfM==='PATCH'||this.__hcfM==='DELETE')&&this.__hcfU.indexOf('/api/')>=0){this.addEventListener('load',function(){try{if(this.status>=200&&this.status<300)HCFNative.forumMutation(String(this.__hcfU||''));}catch(e){}});}}catch(e){}return XS.apply(this,arguments);};}}catch(e){}" +
                 "var fixText=function(root){try{if(!root)return;if(root.nodeType===3){var v=root.nodeValue||'';if(v.indexOf(WARNING)>=0)root.nodeValue=v.split(WARNING).join(REPLACEMENT);return;}var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);var n,c=0;while((n=w.nextNode())&&c++<500){var v=n.nodeValue||'';if(v.indexOf(WARNING)>=0)n.nodeValue=v.split(WARNING).join(REPLACEMENT);}}catch(e){}};" +
                 "var fixSecurityLabels=function(){try{if(String(location.pathname||'').indexOf('/security')<0)return;var active=document.querySelectorAll('.AccessTokensList-item--active .AccessTokensList-item-title-main');for(var i=0;i<active.length;i++){var t=(active[i].textContent||'').trim();if(t&&t.indexOf(\"Harley's Clan Forum App\")<0)active[i].textContent=\"Harley's Clan Forum App on AndroidOS\";}}catch(e){}};" +
                 "var sync=function(){reportRoute();syncIdentity();syncSecurity();fixSecurityLabels();};" +
@@ -2328,7 +2334,7 @@ public class MainActivity extends ThemedActivity {
         identityAvatarRequestedUrl = requested;
         drawerIdentityAvatar.setTag(requested);
 
-        new Thread(() -> {
+        AppExecutors.network().execute(() -> {
             HttpsURLConnection connection = null;
             try {
                 connection = (HttpsURLConnection) new URL(requested).openConnection();
@@ -2358,7 +2364,7 @@ public class MainActivity extends ThemedActivity {
             } finally {
                 if (connection != null) connection.disconnect();
             }
-        }, "hcf-identity-avatar").start();
+        });
     }
 
     private void handleSecuritySummaryUpdate(String json, String host) {
@@ -2458,6 +2464,10 @@ public class MainActivity extends ThemedActivity {
         }
         resumeUpdateInstallPermissionIfNeeded();
         if (launchFailed || webView == null) return;
+        try {
+            webView.resumeTimers();
+            if (Build.VERSION.SDK_INT >= 26) webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
+        } catch (Throwable ignored) {}
         long pausedAt = prefs.getLong(AppPrefs.LAST_MAIN_PAUSED_AT, 0L);
         if (pausedAt > 0L && System.currentTimeMillis() - pausedAt >= 20000L) {
             welcomeBackPending = true;
@@ -2500,6 +2510,12 @@ public class MainActivity extends ThemedActivity {
         AppLogger.info(this, "main_pause", activeHost == null ? "" : activeHost);
         if (prefs != null) prefs.edit().putLong(AppPrefs.LAST_MAIN_PAUSED_AT, System.currentTimeMillis()).apply();
         if (liveUpdater != null) liveUpdater.stop();
+        if (webView != null) {
+            try {
+                webView.pauseTimers();
+                if (Build.VERSION.SDK_INT >= 26) webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true);
+            } catch (Throwable ignored) {}
+        }
         unregisterNotificationEvents();
         unregisterNetworkState();
         super.onPause();
@@ -2511,6 +2527,8 @@ public class MainActivity extends ThemedActivity {
             if (!launchFailed && event != null && drawerPanel != null) {
                 switch (event.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
+                        RuntimeState.noteUserInteraction();
+                        if (liveUpdater != null) liveUpdater.noteUserInteraction();
                         drawerSwipeStartX = event.getX();
                         drawerSwipeStartY = event.getY();
                         drawerSwipeStartAt = System.currentTimeMillis();
@@ -2670,6 +2688,16 @@ public class MainActivity extends ThemedActivity {
                 if (now - lastBridgeNotificationAt < 2500L) return;
                 lastBridgeNotificationAt = now;
                 NotificationHelper.post(MainActivity.this, title, body, url);
+            });
+        }
+
+        @JavascriptInterface
+        public void forumMutation(String path) {
+            runOnUiThread(() -> {
+                RuntimeState.noteUserInteraction();
+                InstantNotificationService.requestImmediateSync(MainActivity.this);
+                if (liveUpdater != null) liveUpdater.poke();
+                AppLogger.info(MainActivity.this, "forum_mutation", AppLogger.safeUrl(path));
             });
         }
 
@@ -2901,7 +2929,7 @@ public class MainActivity extends ThemedActivity {
                     showTransientBanner("Forum viewer restarted • page restored");
                 }
                 installForumBridge();
-                if (liveUpdater != null) liveUpdater.reset();
+                if (liveUpdater != null) { liveUpdater.reset(); liveUpdater.poke(); }
                 finishLiveRefresh(view);
             }
         }
@@ -2963,7 +2991,9 @@ public class MainActivity extends ThemedActivity {
             if (recover == null || recover.trim().isEmpty()) {
                 recover = ForumUrlRouter.home(activeHost == null ? chooseInitialHost() : activeHost);
             }
-            AppLogger.error(MainActivity.this, "webview_renderer_gone", appError.code + " | " + appError.technical + " | " + AppLogger.safeUrl(recover));
+            int recoveryCount = prefs.getInt(AppPrefs.RENDERER_RECOVERY_COUNT, 0) + 1;
+            prefs.edit().putInt(AppPrefs.RENDERER_RECOVERY_COUNT, recoveryCount).apply();
+            AppLogger.error(MainActivity.this, "webview_renderer_gone", appError.code + " | " + appError.technical + " | recoveries=" + recoveryCount + " | " + AppLogger.safeUrl(recover));
             TelemetryService.sendDiagnosticEvent(MainActivity.this, "webview_renderer_gone", appError.code + " | " + appError.technical);
             return recoverWebViewRenderer(view, recover, appError);
         }

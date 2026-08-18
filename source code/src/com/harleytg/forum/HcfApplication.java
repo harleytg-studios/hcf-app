@@ -8,6 +8,8 @@ public final class HcfApplication extends Application {
     public void onCreate() {
         super.onCreate();
 
+        RuntimeState.install(this);
+
         // Install the crash boundary before any optional startup subsystem runs.
         final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
@@ -28,13 +30,28 @@ public final class HcfApplication extends Application {
                     BuildInfo.VERSION + " | SDK " + Build.VERSION.SDK_INT + " | " + Build.MANUFACTURER + " " + Build.MODEL);
         } catch (Throwable ignored) {}
 
-        try { StablePromoInjector.install(this); }
-        catch (Throwable ignored) {}
+        // v10000033 keeps noncritical disk/network work off the cold-start path.
+        AppExecutors.main().postDelayed(() -> {
+            AppExecutors.disk().execute(() -> {
+                try { AppUpdateDownloader.cleanupIfCurrentVersionWasDownloaded(HcfApplication.this); }
+                catch (Throwable ignored) {}
+            });
+            AppExecutors.network().execute(() -> {
+                try { TelemetryService.heartbeat(HcfApplication.this); }
+                catch (Throwable ignored) {}
+            });
+        }, 3500L);
+    }
 
-        try { AppUpdateDownloader.cleanupIfCurrentVersionWasDownloaded(this); }
-        catch (Throwable ignored) {}
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        RuntimeState.noteTrimMemory(level);
+    }
 
-        try { TelemetryService.heartbeat(this); }
-        catch (Throwable ignored) {}
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        RuntimeState.noteTrimMemory(android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE);
     }
 }

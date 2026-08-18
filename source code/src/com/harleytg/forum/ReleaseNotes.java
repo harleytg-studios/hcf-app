@@ -17,17 +17,20 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 final class ReleaseNotes {
-    static final String SUMMARY = "This is the release for Harley's Clan Forum (app) v1.0";
+    static final String SUMMARY = "Beta/Dev v10000033 • Adaptive real-time optimization update";
 
     static final String NOTES =
-            "Harley\'s Clan Forum (app) v1.0\n" +
-            "• This is the release for Harley\'s Clan Forum (app) v1.0.\n" +
-            "• Public version remains 1.0; this revision uses internal version code 10000011 for an in-place update.\n\n" +
-            "Updated • Account & Identity\n" +
-            "• Account & Identity action controls now use the app's standard rectangular cyan-outline button style instead of pill/oval styling.\n" +
-            "• Account & Identity actions now use the exact same standard HCF Button implementation as the rest of the app, removing the oval/pill appearance.\n\n" +
-            "Preserved\n" +
-            "• Contact Support HTG header, Logs & Diagnostics fixes, updater, notifications, App Links, identity sync, media, recovery, and forum routing remain available.";
+            "Harley\'s Clan Forum (app) v1.0 • Beta/Dev v10000033\n" +
+            "• Development/Beta versionCode 10000033.\n" +
+            "• Auto can now promote capable devices to Auto • Real-Time for faster foreground notification and forum freshness checks.\n" +
+            "• Notification polling is adaptive: fast while actively using HCF, progressively slower after backgrounding, screen-off, Battery Saver, or constrained-device conditions.\n" +
+            "• Live forum checks use smaller change signatures and HTTP validators instead of repeatedly hashing large API responses.\n" +
+            "• Shared executors reduce repeated background thread creation.\n" +
+            "• WebView timers/renderer priority now follow foreground/background state, while renderer-crash recovery remains enabled.\n" +
+            "• Notification state writes and routine success logging are reduced to meaningful changes.\n" +
+            "• Network restoration, app resume, pull-to-refresh, notification opening, and successful forum API mutations request immediate freshness sync.\n" +
+            "• Native FCM transport is not bundled in this source build, so adaptive polling remains the active fallback transport.\n\n" +
+            "Stable remains separate; this feature set is scoped to com.harleytg.forum.dev.";
 
     static void seedForFreshInstall(SharedPreferences prefs) {
         markSeen(prefs);

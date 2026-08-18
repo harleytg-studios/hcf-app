@@ -648,8 +648,9 @@ public final class LogsActivity extends ThemedActivity {
 
     private void colorDiagnosticLabels(SpannableStringBuilder styled) {
         String[] labels = {"App:", "Package:", "Android:", "Device:", "Network:", "Forum host:",
-                "Theme:", "Performance profile:", "Notifications:", "Live sync:", "Auto failover:",
-                "Telemetry:", "WebView:", "Renderer recovery:", "Last route:", "Privacy:"};
+                "Theme:", "Performance profile:", "Runtime reason:", "Notification mode:", "Notification poll:",
+                "Live page poll:", "FCM:", "Battery Saver:", "API failures:", "Notifications:", "Live sync:",
+                "Auto failover:", "Telemetry:", "WebView:", "Renderer recovery:", "Last count change:", "Last route:", "Privacy:"};
         String value = styled.toString();
         for (String label : labels) {
             int from = 0;
@@ -687,14 +688,38 @@ public final class LogsActivity extends ThemedActivity {
                 + "Forum host: " + host + "\n"
                 + "Theme: " + ThemeManager.label(this) + "\n"
                 + "Performance profile: " + PerformanceProfile.settingLabel(this, prefs) + "\n"
+                + "Runtime reason: " + RuntimeDiagnostics.profileReason() + "\n"
+                + "Notification mode: " + RuntimeDiagnostics.notificationMode() + "\n"
+                + "Notification poll: " + formatRuntimeInterval(RuntimeDiagnostics.notificationPollMs()) + "\n"
+                + "Live page poll: " + formatRuntimeInterval(RuntimeDiagnostics.livePollMs()) + "\n"
+                + "FCM: " + RuntimeDiagnostics.fcmState() + "\n"
+                + "Battery Saver: " + (PerformanceProfile.isBatterySaver(this) ? "On" : "Off") + "\n"
+                + "API failures: " + RuntimeDiagnostics.failures() + "\n"
                 + "Notifications: " + notificationPermission + " • " + NotificationHelper.status(this) + "\n"
                 + "Live sync: " + safe(sync) + (latency > 0L ? " • " + latency + " ms" : "") + "\n"
                 + "Auto failover: " + (prefs.getBoolean(AppPrefs.AUTO_FAILOVER, true) ? "On" : "Off") + "\n"
                 + "Telemetry: " + TelemetryService.status(this) + "\n"
                 + "WebView: " + webViewProvider + "\n"
-                + "Renderer recovery: Enabled (HCF-WV-001)\n"
+                + "Renderer recovery: Enabled (HCF-WV-001) • count " + prefs.getInt(AppPrefs.RENDERER_RECOVERY_COUNT, 0) + "\n"
+                + "Last count change: " + formatDiagnosticAge(prefs.getLong(AppPrefs.NOTIFICATION_LAST_COUNT_CHANGE_AT, 0L)) + "\n"
                 + "Last route: " + lastRoute + "\n"
                 + "Privacy: Cookies, session tokens, passwords and email are not included.";
+    }
+
+    private String formatRuntimeInterval(long ms) {
+        if (ms <= 0L) return "idle";
+        if (ms < 1000L) return ms + " ms";
+        if (ms % 1000L == 0L) return (ms / 1000L) + " s";
+        return String.format(java.util.Locale.US, "%.2f s", ms / 1000.0d);
+    }
+
+    private String formatDiagnosticAge(long at) {
+        if (at <= 0L) return "not recorded yet";
+        long seconds = Math.max(0L, (System.currentTimeMillis() - at) / 1000L);
+        if (seconds < 60L) return seconds + " s ago";
+        long minutes = seconds / 60L;
+        if (minutes < 60L) return minutes + " min ago";
+        return (minutes / 60L) + " h ago";
     }
 
     private String notificationPermissionLabel() {

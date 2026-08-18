@@ -1,0 +1,14 @@
+Harley's Clan Forum (app) v1.0 — Notification Count Fix
+
+Internal version code: 10000006
+Visible version: v1.0
+
+Fixed:
+- Unread notification count now stays visible in the side menu next to Notifications.
+- The hamburger/header notification badge now uses the same latest unread count.
+- Opening the side menu or resuming the app no longer resets the badge to 0 when background sync has a newer count than the cached Forum Identity snapshot.
+- Native sync now considers Flarum unreadNotificationCount as well as newNotificationCount, so already-seen but still-unread alerts remain counted.
+- Counts above 999 display as 999+.
+
+Package ID remains com.harleytg.forum.
+Release signing identity remains HCF Release v1.

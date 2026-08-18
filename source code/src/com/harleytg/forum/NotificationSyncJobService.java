@@ -8,7 +8,7 @@ import android.content.SharedPreferences;
 public final class NotificationSyncJobService extends JobService {
     @Override
     public boolean onStartJob(JobParameters params) {
-        new Thread(() -> {
+        AppExecutors.network().execute(() -> {
             try {
                 syncNow();
             } catch (Throwable t) {
@@ -17,7 +17,7 @@ public final class NotificationSyncJobService extends JobService {
             } finally {
                 jobFinished(params, false);
             }
-        }, "hcf-notification-sync-fallback").start();
+        });
         return true;
     }
 

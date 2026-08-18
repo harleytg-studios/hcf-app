@@ -15,8 +15,8 @@ output_dir="${HCF_OUTPUT_DIR:-$project_dir/out}"
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/hcf-build.XXXXXX")"
 trap 'rm -rf "$work_dir"' EXIT
 
-# Permanent Beta/DEV v2 signing line. Every com.harleytg.forum.dev release must use
-# this exact certificate or Android will reject an in-place update as a package conflict.
+# Permanent Beta/DEV v2 signing line for the v10000033 v2-key build.
+# This certificate matches HCF-Beta-v10000033-v2key.apk.
 expected_signer_sha256="93D49BF9A877C7CFB1B37F9064BD955CD67BD7DD8DB73A9E3F766B59C4BCCE63"
 
 normalize_fingerprint() {
@@ -31,9 +31,9 @@ key_fingerprint="$(keytool -list -v \
   | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -n 1)"
 key_fingerprint="$(normalize_fingerprint "$key_fingerprint")"
 if [[ -z "$key_fingerprint" || "$key_fingerprint" != "$expected_signer_sha256" ]]; then
-  echo "ERROR: Refusing to build Beta/DEV APK with the wrong signing certificate." >&2
+  echo "ERROR: Refusing to build Beta/DEV APK with the wrong v2 signing certificate." >&2
   echo "Expected Beta/DEV v2 signer SHA-256: $expected_signer_sha256" >&2
-  echo "Actual signer SHA-256:             ${key_fingerprint:-UNAVAILABLE}" >&2
+  echo "Actual Beta/DEV v2 signer SHA-256:   ${key_fingerprint:-UNAVAILABLE}" >&2
   exit 22
 fi
 
@@ -43,6 +43,7 @@ mkdir -p "$work_dir/gen" "$work_dir/classes" "$work_dir/dex" "$output_dir"
   -J "$work_dir/gen" \
   -M "$project_dir/AndroidManifest.xml" \
   -S "$project_dir/res" \
+  -A "$project_dir/assets" \
   -I "$android_jar" \
   -F "$work_dir/resources.apk"
 

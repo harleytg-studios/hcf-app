@@ -1,0 +1,32 @@
+Harley's Clan Forum — v0.4.14
+Navigation, App Links & Solid Icon Update
+
+NEW • SWIPE SIDE NAV
+• Swipe right-to-left from the right edge in one motion to open the side navigation.
+• The gesture is horizontal-only and edge-gated so normal vertical forum scrolling is left alone.
+
+NEW • FORUM URL HANDLING
+• Every HTTP/HTTPS route on forum.harleytg.com is registered to open with the app.
+• Every HTTP/HTTPS route on harleysclan.freeflarum.com is registered to open with the app.
+• Incoming links preserve the exact primary/backup host, path, query and fragment.
+• HTTP forum links are upgraded to HTTPS inside the app.
+• App Settings → Connection now includes Open Forum Link Settings for Android supported-link/default handling.
+
+IMPROVED • SOLID ICON SYSTEM
+• Account Security now uses a solid shield icon.
+• Main navigation, drawer items, settings actions, back controls, notifications, copy/reload and status actions use one consistent Font Awesome Solid-style vector icon system.
+• Icons are native Android vectors and work offline without an icon-font dependency.
+
+IMPROVED • CUSTOM UI
+• App-initiated Open with and Share choices now use a custom Harley's Clan Forum chooser instead of the generic Android chooser where the app controls the handoff.
+• In-app AlertDialogs inherit HCF panel, border, accent and text styling.
+• Android-owned system screens (permissions, installer, supported-links settings and external app chooser invoked by another app) remain controlled by Android.
+
+VERSIONING
+• Version: 0.4.14
+• Version code: 4140000
+• Replaces the old trailing-9999 stable version-code convention with a cleaner monotonic code.
+
+CONTINUED
+• Contact Support form with Forum Identity autofill and harleytg.hq@gmail.com recipient remains included.
+• Linked Accounts, smart recovery, safe links and secure update verification remain included.

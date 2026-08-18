@@ -467,7 +467,7 @@ public final class SettingsActivity extends ThemedActivity {
         performance.setContentDescription("Choose app performance profile");
         performance.setOnClickListener(v -> showPerformanceProfileDialog(performance));
         card.addView(performance);
-        card.addView(text("Auto adapts to low-RAM devices and Android battery saver. Performance minimizes motion, Balanced keeps short transitions, and Quality uses full visual effects.", 10, getColor(R.color.hcf_muted)));
+        card.addView(text("Auto is the default adaptive engine. Capable devices can promote to Auto • Real-Time; HCF automatically drops to Balanced, Performance, or Extreme Saver when network, memory, battery, thermal, or renderer conditions require it.", 10, getColor(R.color.hcf_muted)));
 
         Switch live = toggle("Live forum updates", prefs.getBoolean(AppPrefs.LIVE_FORUM_UPDATES, true));
         live.setOnCheckedChangeListener((buttonView, checked) -> {
@@ -1113,7 +1113,11 @@ public final class SettingsActivity extends ThemedActivity {
             String relative = formatAge(System.currentTimeMillis() - at);
             String age = at <= 0L ? "not synced yet" : ("just now".equals(relative) ? relative : relative + " ago");
             liveSyncStatus.setText("Live sync: " + status + " • " + age
-                    + (latency > 0L ? " • " + latency + " ms" : ""));
+                    + (latency > 0L ? " • " + latency + " ms" : "")
+                    + "\n" + PerformanceProfile.settingLabel(this, prefs)
+                    + " • " + RuntimeDiagnostics.notificationMode()
+                    + " • poll " + formatRuntimeInterval(RuntimeDiagnostics.notificationPollMs())
+                    + " • " + RuntimeState.networkType(this));
         }
         if (notificationStatus != null) {
             NotificationHelper.createChannel(this);
@@ -1154,6 +1158,13 @@ public final class SettingsActivity extends ThemedActivity {
         int primary = countCookies(cm.getCookie("https://" + ForumConfig.PRIMARY_HOST + "/"));
         int backup = countCookies(cm.getCookie("https://" + ForumConfig.BACKUP_HOST + "/"));
         return "Cookie data: " + (primary + backup) + " visible • Primary " + primary + " • Backup " + backup;
+    }
+
+    private String formatRuntimeInterval(long ms) {
+        if (ms <= 0L) return "idle";
+        if (ms < 1000L) return ms + "ms";
+        if (ms % 1000L == 0L) return (ms / 1000L) + "s";
+        return String.format(Locale.US, "%.2fs", ms / 1000.0d);
     }
 
     private String formatAge(long elapsedMs) {
@@ -1218,7 +1229,7 @@ public final class SettingsActivity extends ThemedActivity {
                 "Auto — Recommended",
                 "Performance — Minimal motion",
                 "Balanced — Short smooth motion",
-                "Quality — Full visual effects"
+                "High Performance — Full visual effects"
         };
         String current = PerformanceProfile.saved(prefs);
         int checked = 0;

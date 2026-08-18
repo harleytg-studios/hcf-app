@@ -1,20 +1,23 @@
 package com.harleytg.forum.dev;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.webkit.CookieManager;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.security.MessageDigest;
+import java.util.HashMap;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.Map;
 
 /** Lightweight, foreground-only freshness watcher for supported Flarum routes. */
 final class LiveForumUpdater {
@@ -24,17 +27,17 @@ final class LiveForumUpdater {
         void onStateChanged(String state);
     }
 
-    private static final long FIRST_POLL_MS = 350L;
-    private static final long POLL_MS = 1250L;
-    private static final long IDLE_ROUTE_POLL_MS = 4000L;
+    private static final long FIRST_POLL_MS = 250L;
+    private static final long IDLE_ROUTE_POLL_MS = 5000L;
     private static final int CONNECT_TIMEOUT_MS = 4500;
     private static final int READ_TIMEOUT_MS = 4500;
-    private static final int MAX_BODY_CHARS = 700000;
+    private static final int MAX_BODY_CHARS = 180000;
 
     private final Context app;
     private final Listener listener;
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final SharedPreferences prefs;
+    private final Map<String, CacheEntry> cache = new HashMap<>();
 
     private boolean running;
     private boolean inFlight;
@@ -46,6 +49,7 @@ final class LiveForumUpdater {
     LiveForumUpdater(Context context, Listener listener) {
         this.app = context.getApplicationContext();
         this.listener = listener;
+        this.prefs = app.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
     }
 
     void start() {
@@ -62,10 +66,7 @@ final class LiveForumUpdater {
         state("PAUSED");
     }
 
-    void destroy() {
-        stop();
-        worker.shutdownNow();
-    }
+    void destroy() { stop(); }
 
     void reset() {
         baselineKey = null;
@@ -75,6 +76,11 @@ final class LiveForumUpdater {
     void poke() {
         if (!running) return;
         schedule(0L);
+    }
+
+    void noteUserInteraction() {
+        RuntimeState.noteUserInteraction();
+        if (running) schedule(Math.min(250L, PerformanceProfile.livePollInterval(app, prefs)));
     }
 
     void acknowledge(String key, String fingerprint) {
@@ -87,14 +93,21 @@ final class LiveForumUpdater {
 
     private void schedule(long delay) {
         if (!running) return;
+        long safe = Math.max(0L, delay);
+        RuntimeDiagnostics.livePoll(safe);
         main.removeCallbacks(tick);
-        main.postDelayed(tick, Math.max(0L, delay));
+        main.postDelayed(tick, safe);
     }
 
     private void poll() {
         if (!running) return;
         if (inFlight) {
             schedule(250L);
+            return;
+        }
+        if (!RuntimeState.networkAvailable(app)) {
+            state("OFFLINE");
+            schedule(IDLE_ROUTE_POLL_MS);
             return;
         }
 
@@ -113,20 +126,20 @@ final class LiveForumUpdater {
         final String endpoint = endpointFor(page);
         final String key = pageKey(page, endpoint);
         if (key == null || endpoint == null) {
-            // Alerts still remain live through the foreground notification service;
-            // this route simply has no lightweight page-refresh endpoint.
             state("LIVE");
             schedule(IDLE_ROUTE_POLL_MS);
             return;
         }
 
         inFlight = true;
-        worker.execute(() -> {
+        AppExecutors.network().execute(() -> {
             String fingerprint = null;
             try {
                 fingerprint = fetchFingerprint(endpoint);
             } catch (Throwable t) {
-                AppLogger.warn(app, "live_update_poll", t.getClass().getSimpleName());
+                if (failures == 0 || failures == 2) {
+                    AppLogger.warn(app, "live_update_poll", t.getClass().getSimpleName());
+                }
             }
             final String result = fingerprint;
             main.post(() -> handleResult(key, result));
@@ -138,8 +151,8 @@ final class LiveForumUpdater {
         if (!running) return;
         if (result == null || result.isEmpty()) {
             failures = Math.min(failures + 1, 5);
-            state("WAITING");
-            schedule(Math.min(15000L, 2000L << Math.min(failures - 1, 3)));
+            state(RuntimeState.networkAvailable(app) ? "WAITING" : "OFFLINE");
+            schedule(Math.min(15000L, 2000L << Math.min(Math.max(0, failures - 1), 3)));
             return;
         }
 
@@ -151,7 +164,7 @@ final class LiveForumUpdater {
         } else if (!result.equals(baselineFingerprint)) {
             listener.onChangeCandidate(key, result);
         }
-        schedule(POLL_MS);
+        schedule(PerformanceProfile.livePollInterval(app, prefs));
     }
 
     private void state(String value) {
@@ -173,14 +186,18 @@ final class LiveForumUpdater {
             if (slash >= 0) tail = tail.substring(0, slash);
             int dash = tail.indexOf('-');
             String id = dash >= 0 ? tail.substring(0, dash) : tail;
-            if (id.matches("[0-9]+")) return base + "/api/discussions/" + id;
+            if (id.matches("[0-9]+")) {
+                return base + "/api/discussions/" + id
+                        + "?fields%5Bdiscussions%5D=lastPostedAt%2ClastPostNumber%2CcommentCount";
+            }
         }
         if ("/".equals(lower) || lower.startsWith("/all") || lower.startsWith("/following")
                 || lower.startsWith("/tags") || lower.startsWith("/t/")) {
-            return base + "/api/discussions?sort=-lastPostedAt&page%5Blimit%5D=1";
+            return base + "/api/discussions?sort=-lastPostedAt&page%5Blimit%5D=1"
+                    + "&fields%5Bdiscussions%5D=lastPostedAt%2ClastPostNumber%2CcommentCount";
         }
         if (lower.startsWith("/notifications")) {
-            return base + "/api/notifications?page%5Blimit%5D=8";
+            return base + "/api/notifications?page%5Blimit%5D=1";
         }
         return null;
     }
@@ -192,42 +209,110 @@ final class LiveForumUpdater {
     }
 
     private String fetchFingerprint(String endpoint) throws Exception {
+        CacheEntry previous = cache.get(endpoint);
         URL url = new URL(endpoint);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         try {
             connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
             connection.setReadTimeout(READ_TIMEOUT_MS);
-            connection.setUseCaches(false);
+            connection.setUseCaches(true);
             connection.setInstanceFollowRedirects(false);
             connection.setRequestProperty("Accept", "application/vnd.api+json, application/json");
-            connection.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0");
-            connection.setRequestProperty("Pragma", "no-cache");
+            connection.setRequestProperty("Cache-Control", "no-cache, max-age=0");
             connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " LiveUpdate");
+            if (previous != null) {
+                if (!previous.etag.isEmpty()) connection.setRequestProperty("If-None-Match", previous.etag);
+                if (previous.lastModified > 0L) connection.setIfModifiedSince(previous.lastModified);
+            }
 
             String origin = url.getProtocol() + "://" + url.getHost() + "/";
             String cookies = CookieManager.getInstance().getCookie(origin);
             if (cookies != null && !cookies.trim().isEmpty()) connection.setRequestProperty("Cookie", cookies);
 
             int code = connection.getResponseCode();
+            if (code == HttpURLConnection.HTTP_NOT_MODIFIED && previous != null) return previous.signature;
             if (code < 200 || code >= 300) return null;
 
-            InputStream input = connection.getInputStream();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(input, "UTF-8"));
-            StringBuilder body = new StringBuilder();
-            char[] buffer = new char[8192];
-            int read;
-            while ((read = reader.read(buffer)) != -1 && body.length() < MAX_BODY_CHARS) {
-                body.append(buffer, 0, Math.min(read, MAX_BODY_CHARS - body.length()));
-            }
-            reader.close();
+            String body = readLimited(connection.getInputStream());
+            String signature = compactSignature(body);
+            if (signature == null || signature.isEmpty()) return null;
 
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(body.toString().getBytes("UTF-8"));
-            StringBuilder hex = new StringBuilder(bytes.length * 2);
-            for (byte b : bytes) hex.append(String.format(Locale.US, "%02x", b & 0xff));
-            return hex.toString();
+            CacheEntry next = new CacheEntry();
+            String etag = connection.getHeaderField("ETag");
+            next.etag = etag == null ? "" : etag;
+            next.lastModified = connection.getLastModified();
+            next.signature = signature;
+            cache.put(endpoint, next);
+            return signature;
         } finally {
             connection.disconnect();
         }
+    }
+
+    private String compactSignature(String body) {
+        if (body == null || body.trim().isEmpty()) return null;
+        try {
+            JSONObject root = new JSONObject(body);
+            Object data = root.opt("data");
+            StringBuilder out = new StringBuilder(160);
+            if (data instanceof JSONObject) {
+                appendResourceSignature(out, (JSONObject) data);
+            } else if (data instanceof JSONArray) {
+                JSONArray array = (JSONArray) data;
+                for (int i = 0; i < array.length() && i < 2; i++) {
+                    JSONObject item = array.optJSONObject(i);
+                    if (item != null) appendResourceSignature(out, item);
+                }
+            }
+            if (out.length() > 0) return out.toString();
+        } catch (Throwable ignored) {}
+
+        // Small bounded fallback only; v10000033 no longer SHA-256 hashes a huge response.
+        int length = Math.min(body.length(), 32768);
+        String sample = body.substring(0, length);
+        return "fallback|" + body.length() + "|" + Integer.toHexString(sample.hashCode());
+    }
+
+    private void appendResourceSignature(StringBuilder out, JSONObject resource) {
+        out.append(resource.optString("type", "")).append(':')
+                .append(resource.optString("id", ""));
+        JSONObject attrs = resource.optJSONObject("attributes");
+        if (attrs != null) {
+            appendAttr(out, attrs, "lastPostNumber");
+            appendAttr(out, attrs, "lastPostedAt");
+            appendAttr(out, attrs, "commentCount");
+            appendAttr(out, attrs, "newNotificationCount");
+            appendAttr(out, attrs, "unreadNotificationCount");
+            appendAttr(out, attrs, "time");
+            appendAttr(out, attrs, "createdAt");
+            appendAttr(out, attrs, "isRead");
+            appendAttr(out, attrs, "type");
+        }
+        out.append('|');
+    }
+
+    private void appendAttr(StringBuilder out, JSONObject attrs, String name) {
+        if (!attrs.has(name)) return;
+        Object value = attrs.opt(name);
+        if (value == null || value == JSONObject.NULL) return;
+        out.append(';').append(name).append('=').append(String.valueOf(value));
+    }
+
+    private String readLimited(InputStream stream) throws Exception {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(stream, "UTF-8"));
+        StringBuilder body = new StringBuilder();
+        char[] buffer = new char[4096];
+        int read;
+        while ((read = reader.read(buffer)) != -1 && body.length() < MAX_BODY_CHARS) {
+            body.append(buffer, 0, Math.min(read, MAX_BODY_CHARS - body.length()));
+        }
+        reader.close();
+        return body.toString();
+    }
+
+    private static final class CacheEntry {
+        String etag = "";
+        long lastModified;
+        String signature = "";
     }
 }

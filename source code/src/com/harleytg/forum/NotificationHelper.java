@@ -270,16 +270,25 @@ final class NotificationHelper {
         int normalized = Math.max(0, newCount);
         boolean hadBaseline = prefs.contains(AppPrefs.LAST_NOTIFICATION_COUNT);
         int previous = prefs.getInt(AppPrefs.LAST_NOTIFICATION_COUNT, normalized);
-        prefs.edit()
-                .putInt(AppPrefs.LAST_NOTIFICATION_COUNT, normalized)
-                .putString(AppPrefs.ACTIVE_HOST, host)
-                .apply();
+        String previousHost = prefs.getString(AppPrefs.ACTIVE_HOST, "");
+        boolean countChanged = !hadBaseline || normalized != previous;
+        boolean hostChanged = !host.equalsIgnoreCase(previousHost == null ? "" : previousHost);
 
-        if (!hadBaseline || normalized != previous) {
-            broadcastEvent(context, "", "", ForumUrlRouter.home(host), normalized);
+        if (countChanged || hostChanged) {
+            SharedPreferences.Editor edit = prefs.edit();
+            if (countChanged) {
+                edit.putInt(AppPrefs.LAST_NOTIFICATION_COUNT, normalized);
+                edit.putLong(AppPrefs.NOTIFICATION_LAST_COUNT_CHANGE_AT, System.currentTimeMillis());
+            }
+            if (hostChanged) edit.putString(AppPrefs.ACTIVE_HOST, host);
+            edit.apply();
         }
-        AppLogger.info(context, "notification_count",
-                (source == null ? "sync" : source) + " | count=" + normalized + " previous=" + previous);
+
+        if (countChanged) {
+            broadcastEvent(context, "", "", ForumUrlRouter.home(host), normalized);
+            AppLogger.info(context, "notification_count_changed",
+                    (source == null ? "sync" : source) + " | count=" + normalized + " previous=" + previous);
+        }
         return hadBaseline && normalized > previous ? normalized - previous : 0;
     }
 

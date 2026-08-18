@@ -41,7 +41,8 @@ final class ForumNotificationClient {
 
     static int fetchNewCount(Context context, String host, String userId) throws Exception {
         String base = trustedBase(host);
-        String body = get(context, base, "api/users/" + userId, "Count");
+        String body = get(context, base, "api/users/" + userId
+                + "?fields%5Busers%5D=unreadNotificationCount%2CnewNotificationCount", "Count");
         JSONObject attrs = new JSONObject(body).getJSONObject("data").getJSONObject("attributes");
         // The native badge is an unread-notification badge. Flarum may report
         // unreadNotificationCount and newNotificationCount differently after
@@ -334,12 +335,11 @@ final class ForumNotificationClient {
         try {
             connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
             connection.setReadTimeout(READ_TIMEOUT_MS);
-            connection.setUseCaches(false);
+            connection.setUseCaches(true);
             connection.setInstanceFollowRedirects(false);
             connection.setRequestMethod("GET");
             connection.setRequestProperty("Accept", "application/vnd.api+json, application/json");
-            connection.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0");
-            connection.setRequestProperty("Pragma", "no-cache");
+            connection.setRequestProperty("Cache-Control", "no-cache, max-age=0");
             connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " Notification" + client);
             String cookies = CookieManager.getInstance().getCookie(base);
             if (cookies != null && !cookies.trim().isEmpty()) connection.setRequestProperty("Cookie", cookies);

@@ -346,7 +346,7 @@ public final class IdentityActivity extends ThemedActivity {
         identityAvatarRequestedUrl = requested;
         identityAvatar.setTag(requested);
 
-        new Thread(() -> {
+        AppExecutors.network().execute(() -> {
             HttpsURLConnection connection = null;
             try {
                 connection = (HttpsURLConnection) new URL(requested).openConnection();
@@ -377,7 +377,7 @@ public final class IdentityActivity extends ThemedActivity {
             } finally {
                 if (connection != null) connection.disconnect();
             }
-        }, "hcf-identity-page-avatar").start();
+        });
     }
 
     private LinearLayout card() {

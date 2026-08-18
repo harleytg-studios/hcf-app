@@ -1,0 +1,26 @@
+Harley's Clan Forum Android v0.4.17
+Version code: 4170000
+Package: com.harleytg.forum
+
+Fixed — Diagnostics & Logs stability
+- Diagnostics/Telemetry settings are protected against stale SharedPreferences values stored with the wrong data type.
+- Startup now repairs malformed preference types before typed settings are read.
+- HcfApplication installs its uncaught-exception boundary before optional logging, updater, or telemetry startup work.
+- App Logs has a recovery screen instead of allowing viewer initialization failures to close the app.
+- On-screen logs are bounded to the newest entries to reduce memory pressure on lower-memory devices.
+- Log export remains available for the complete local history.
+
+Fixed — App Settings back-button geometry
+- Replaced the Settings back Button/compound-drawable implementation with a dedicated ImageButton.
+- Removed Button text metrics/minimum sizing from the icon layout.
+- Back arrow is centered with equal padding inside the existing rounded-square chrome.
+
+Updated — Title-case native UI
+- App Settings and settings subsection headers no longer force uppercase.
+- Native drawer/header/status/identity/cookie/media/release-note labels now use normal title case.
+- Technical identifiers such as HCF error codes and protocol/internal state values remain unchanged.
+
+Additional hardening
+- Identity, notification, updater, UI, telemetry, and routing preferences are type-checked during migration.
+- Telemetry preference reads self-repair if malformed state is encountered later.
+- Existing package ID, compact header, notification badges, App Links, support form, updater, and forum routing are preserved.
