@@ -20,6 +20,16 @@ The 1.0 line includes the refreshed native UI, Follow phone/Day/Night themes, pe
 
 The stable app checks normal GitHub Latest releases from this repository and ignores Dev prereleases. Android still requires the user to confirm APK installation.
 
+## Repository layout
+
+- `.github/workflows/` — Stable build automation
+- `source code/` — authoritative buildable Stable Android source
+- `STABLE-RELEASE.md` — Stable release details
+- `STABLE-LATEST.json` — machine-readable Stable release metadata
+- `build-output/` — workflow-published APK/build pointer when present
+
+The branch no longer keeps duplicate source ZIP snapshots beside the extracted source tree. Git history and GitHub Releases provide historical snapshots without cluttering the working branch.
+
 ## Signing migration
 
 The current permanent Stable signing certificate SHA-256 is:

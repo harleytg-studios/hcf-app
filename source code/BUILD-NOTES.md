@@ -1,27 +1,32 @@
-Harley's Clan Forum Android v1.0 — System-wide Day Theme Fix
-============================================================
+Harley's Clan Forum Android v1.0 — Stable Build Notes
+=====================================================
 
 Version: 1.0  
-Version code: 10000017  
-Internal build: 73  
+Version code: 10000032  
+Internal build: 77  
 Package: com.harleytg.forum  
 Channel: Stable
 
-Changes
--------
-- Share forum page now uses a curated sharing-app list instead of every ACTION_SEND handler.
-- Browser, Bluetooth, Download/Documents and similar non-sharing destinations are excluded from this dialog.
-- Multiple share surfaces from the same package are collapsed into one app row.
-- Messaging/email apps are prioritized, followed by social and other compatible share apps.
-- Share forum media uses the same curated behavior.
-- Open in Browser keeps its separate full external-app chooser.
-- Auto remains the default performance profile.
-- Contact Support and What's New button alignment fixes are preserved.
-- Blue notification count badge is preserved.
+Current Stable baseline
+-----------------------
+- Stable-only update channel; Development/Beta prereleases are ignored.
+- Android update detection uses the numeric APK `versionCode` and does not depend on the release filename.
+- Follow phone / Day / Night theme support is included across native app surfaces.
+- Performance profiles are included with Auto as the default.
+- Notification-count badge, simplified sharing, account/identity UI fixes, diagnostics/log cleanup, update/install fixes, and profile-avatar fitting are included in the current Stable source.
+- The current source-of-truth version metadata is `src/com/harleytg/forum/BuildInfo.java`.
 
-- v1.0 internal revision: 10000015 / build 71. Simplified the HCF share panel to Copy Link, Share with…, and Cancel; destination selection now uses Android Sharesheet.
+Build
+-----
+Use `build-release.sh` with Android SDK build-tools/platform 35 and the required signing environment variables:
 
-- v1.0 internal revision: 10000016 / build 72. Fixed Forum Identity profile-photo fitting: real avatars now fill and clip cleanly inside the rounded cyan frame while the HTG placeholder remains uncropped.
+- `ANDROID_SDK_ROOT`
+- `HCF_KEYSTORE`
+- `HCF_KEY_PASSWORD_FILE`
+- Optional: `HCF_KEY_ALIAS` (defaults to `hcf-release`)
 
+The script compiles resources and Java source, runs D8, zipaligns, signs, verifies, and writes `out/HarleysClanForum-1.0.apk` unless `HCF_OUTPUT_DIR` is set.
 
-- v1.0 internal revision: 10000017 / build 73. Day theme now propagates system-wide across native app surfaces and refreshes the main shell when changed in Settings.
+Repository cleanup
+------------------
+Historical one-off patch-note and verification files were removed from the active source folder to keep Stable maintainable. Their contents remain recoverable from Git history. Current release metadata is maintained at the branch root in `README.md`, `STABLE-RELEASE.md`, and `STABLE-LATEST.json`.
