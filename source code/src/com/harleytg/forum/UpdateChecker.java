@@ -98,7 +98,9 @@ final class UpdateChecker {
                 boolean newer = remoteCode > 0L
                         ? remoteCode > BuildInfo.VERSION_CODE
                         : compareVersions(release.tag, BuildInfo.VERSION) > 0;
-                post(() -> callback.onResult(release, newer));
+                final Release resultRelease = release;
+                final boolean resultNewer = newer;
+                post(() -> callback.onResult(resultRelease, resultNewer));
             } catch (Throwable t) {
                 String msg = t.getMessage();
                 if (msg == null || msg.trim().isEmpty()) msg = t.getClass().getSimpleName();
