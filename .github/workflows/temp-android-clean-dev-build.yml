@@ -1,0 +1,86 @@
+name: Temporary clean DEV Android artifact build
+
+on:
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - 'TEMP-ANDROID-BUILD-TRIGGER.txt'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build exact clean DEV APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout pinned clean DEV source
+        uses: actions/checkout@v4
+        with:
+          ref: 9ed3a8fc2bc28037cbf7f19e9b216c4628199f8d
+
+      - name: Install Android SDK build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Build aligned unsigned APK from source code
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$GITHUB_WORKSPACE/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-clean-build"
+          OUT="$GITHUB_WORKSPACE/out"
+          rm -rf "$WORK" "$OUT"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
+
+          "$BT/aapt" package -f -m \
+            -J "$WORK/gen" \
+            -M "$SRC/AndroidManifest.xml" \
+            -S "$SRC/res" \
+            -I "$ANDROID_JAR" \
+            -F "$WORK/resources.apk"
+
+          java -m jdk.compiler/com.sun.tools.javac.Main \
+            --release 8 \
+            -classpath "$ANDROID_JAR" \
+            -d "$WORK/classes" \
+            $(find "$WORK/gen" "$SRC/src" -name '*.java' -print)
+
+          "$BT/d8" \
+            --lib "$ANDROID_JAR" \
+            --min-api 26 \
+            --release \
+            --output "$WORK/dex" \
+            $(find "$WORK/classes" -name '*.class' -print)
+
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Beta-v10000033-clean-unsigned.apk"
+          "$BT/zipalign" -c -p 4 "$OUT/HCF-Beta-v10000033-clean-unsigned.apk"
+
+          cp "$BT/lib/apksigner.jar" "$OUT/apksigner.jar"
+          "$BT/aapt" dump badging "$OUT/HCF-Beta-v10000033-clean-unsigned.apk" > "$OUT/APK-BADGING.txt"
+          sha256sum "$OUT/HCF-Beta-v10000033-clean-unsigned.apk" > "$OUT/APK-SHA256.txt"
+          git rev-parse HEAD > "$OUT/DEV-COMMIT.txt"
+          git rev-parse HEAD:"source code" > "$OUT/SOURCE-TREE.txt"
+
+      - name: Upload unsigned APK and local signing tool
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-clean-dev-unsigned-and-apksigner
+          retention-days: 1
+          if-no-files-found: error
+          path: |
+            out/HCF-Beta-v10000033-clean-unsigned.apk
+            out/apksigner.jar
+            out/APK-BADGING.txt
+            out/APK-SHA256.txt
+            out/DEV-COMMIT.txt
+            out/SOURCE-TREE.txt
