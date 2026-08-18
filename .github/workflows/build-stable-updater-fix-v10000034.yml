@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - fix/stable-updater-unavailable-v10000034
+    paths-ignore:
+      - 'build-output-ci/**'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -24,6 +26,7 @@ jobs:
           test -f "$SRC/build-release.sh"
           grep -q 'package="com.harleytg.forum"' "$SRC/AndroidManifest.xml"
           grep -q 'android:versionCode="10000034"' "$SRC/AndroidManifest.xml"
+          grep -q 'android:versionName="1.0 (10000034)"' "$SRC/AndroidManifest.xml"
 
       - name: Install Android SDK build tools
         shell: bash
@@ -62,8 +65,9 @@ jobs:
           HCF_OUTPUT_DIR="$OUT" \
           "$SRC/build-release.sh"
           mv "$OUT/HarleysClanForum-1.0.apk" "$OUT/HCF-Stable-v10000034-UpdaterFix-CI.apk"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$OUT/HCF-Stable-v10000034-UpdaterFix-CI.apk" > "$OUT/APK-BADGING.txt"
-          sha256sum "$OUT/HCF-Stable-v10000034-UpdaterFix-CI.apk" > "$OUT/APK-SHA256.txt"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$OUT/HCF-Stable-v10000034-UpdaterFix-CI.apk" | tee "$OUT/APK-BADGING.txt"
+          grep -q "package: name='com.harleytg.forum' versionCode='10000034' versionName='1.0 (10000034)'" "$OUT/APK-BADGING.txt"
+          sha256sum "$OUT/HCF-Stable-v10000034-UpdaterFix-CI.apk" | tee "$OUT/APK-SHA256.txt"
 
       - name: Upload CI artifact
         uses: actions/upload-artifact@v4
@@ -74,3 +78,17 @@ jobs:
             out/APK-BADGING.txt
             out/APK-SHA256.txt
           if-no-files-found: error
+
+      - name: Publish CI APK on isolated branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build-output-ci
+          cp out/HCF-Stable-v10000034-UpdaterFix-CI.apk build-output-ci/
+          cp out/APK-BADGING.txt build-output-ci/
+          cp out/APK-SHA256.txt build-output-ci/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add build-output-ci/
+          git commit -m "[skip ci] Publish Stable v10000034 updater-fix CI APK" || exit 0
+          git push origin HEAD:fix/stable-updater-unavailable-v10000034
