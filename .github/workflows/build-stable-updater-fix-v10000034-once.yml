@@ -2,7 +2,8 @@ name: Build Stable v10000034 Updater Fix Once
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - '.github/workflows/build-stable-updater-fix-v10000034-once.yml'
 
@@ -13,72 +14,109 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout updater fix source
+      - name: Checkout updater-fix source
         uses: actions/checkout@v4
         with:
           ref: fix/stable-updater-unavailable-v10000034
+          path: fix-repo
 
-      - name: Verify identity
+      - name: Checkout main metadata branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-repo
+          token: ${{ github.token }}
+
+      - name: Record build run ID
         shell: bash
         run: |
           set -euo pipefail
-          SRC="$GITHUB_WORKSPACE/source code"
-          grep -q 'package="com.harleytg.forum"' "$SRC/AndroidManifest.xml"
-          grep -q 'android:versionCode="10000034"' "$SRC/AndroidManifest.xml"
-          grep -q 'android:versionName="1.0 (10000034)"' "$SRC/AndroidManifest.xml"
-          grep -q 'releases/latest' "$SRC/src/com/harleytg/forum/UpdateChecker.java"
+          REPO="$GITHUB_WORKSPACE/main-repo"
+          mkdir -p "$REPO/build-output"
+          printf 'run_id=%s\nartifact=HCF-Stable-v10000034-UpdaterFix-unsigned\nsource_branch=fix/stable-updater-unavailable-v10000034\n' \
+            "$GITHUB_RUN_ID" > "$REPO/build-output/STABLE-V10000034-UPDATER-FIX-RUN.txt"
+          cd "$REPO"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add build-output/STABLE-V10000034-UPDATER-FIX-RUN.txt
+          git commit -m '[skip ci] Record Stable v10000034 updater-fix run'
+          git push origin HEAD:main
 
-      - name: Install Android SDK tools
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android SDK components
         shell: bash
         run: |
           set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
 
-      - name: Create CI-only signer
+      - name: Compile unsigned Stable updater-fix APK
         shell: bash
         run: |
           set -euo pipefail
-          keytool -genkeypair -v \
-            -keystore "$RUNNER_TEMP/hcf-ci.jks" \
-            -storepass hcf-ci-v10000034 \
-            -keypass hcf-ci-v10000034 \
-            -alias hcf-release \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=HCF Stable CI Updater Fix,O=Harley's Studios,C=US"
-          printf '%s\n' hcf-ci-v10000034 > "$RUNNER_TEMP/hcf-pass.txt"
-
-      - name: Build APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          SRC="$GITHUB_WORKSPACE/source code"
+          SRC="$GITHUB_WORKSPACE/fix-repo/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-stable-v10000034-updater-fix"
           OUT="$GITHUB_WORKSPACE/out"
-          mkdir -p "$OUT"
-          chmod +x "$SRC/build-release.sh"
-          ANDROID_SDK_ROOT="$ANDROID_HOME" \
-          BUILD_TOOLS_VERSION='35.0.0' \
-          ANDROID_PLATFORM_VERSION='35' \
-          HCF_KEYSTORE="$RUNNER_TEMP/hcf-ci.jks" \
-          HCF_KEY_ALIAS='hcf-release' \
-          HCF_KEY_PASSWORD_FILE="$RUNNER_TEMP/hcf-pass.txt" \
-          HCF_OUTPUT_DIR="$OUT" \
-          "$SRC/build-release.sh"
-          mv "$OUT/HarleysClanForum-1.0.apk" "$OUT/HCF-Stable-v10000034-UpdaterFix-CI.apk"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$OUT/HCF-Stable-v10000034-UpdaterFix-CI.apk" | tee "$OUT/APK-BADGING.txt"
-          grep -q "package: name='com.harleytg.forum' versionCode='10000034' versionName='1.0 (10000034)'" "$OUT/APK-BADGING.txt"
-          sha256sum "$OUT/HCF-Stable-v10000034-UpdaterFix-CI.apk" | tee "$OUT/APK-SHA256.txt"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
 
-      - name: Publish CI build to fix branch
+          grep -q 'package="com.harleytg.forum"' "$SRC/AndroidManifest.xml"
+          grep -q 'android:versionCode="10000034"' "$SRC/AndroidManifest.xml"
+          grep -q 'android:versionName="1.0 (10000034)"' "$SRC/AndroidManifest.xml"
+          grep -q 'releases/latest' "$SRC/src/com/harleytg/forum/UpdateChecker.java"
+          grep -q 'latest/download' "$SRC/src/com/harleytg/forum/UpdateChecker.java"
+
+          "$BT/aapt" package -f -m \
+            -J "$WORK/gen" \
+            -M "$SRC/AndroidManifest.xml" \
+            -S "$SRC/res" \
+            -A "$SRC/assets" \
+            -I "$ANDROID_JAR" \
+            -F "$WORK/resources.apk"
+
+          java -m jdk.compiler/com.sun.tools.javac.Main \
+            --release 8 \
+            -classpath "$ANDROID_JAR" \
+            -d "$WORK/classes" \
+            $(find "$WORK/gen" "$SRC/src" -name '*.java' -print)
+
+          "$BT/d8" \
+            --lib "$ANDROID_JAR" \
+            --min-api 26 \
+            --release \
+            --output "$WORK/dex" \
+            $(find "$WORK/classes" -name '*.class' -print)
+
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (
+            cd "$WORK/dex"
+            "$BT/aapt" add "$WORK/unsigned.apk" classes.dex
+          )
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Stable-v10000034-UpdaterFix-unsigned.apk"
+
+      - name: Verify unsigned package
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p build-output-ci
-          cp out/HCF-Stable-v10000034-UpdaterFix-CI.apk build-output-ci/
-          cp out/APK-BADGING.txt build-output-ci/
-          cp out/APK-SHA256.txt build-output-ci/
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add build-output-ci/
-          git commit -m "[skip ci] Publish Stable v10000034 updater-fix CI APK"
-          git push origin HEAD:fix/stable-updater-unavailable-v10000034
+          APK="$GITHUB_WORKSPACE/out/HCF-Stable-v10000034-UpdaterFix-unsigned.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee "$GITHUB_WORKSPACE/out/APK-BADGING.txt"
+          grep -q "package: name='com.harleytg.forum' versionCode='10000034' versionName='1.0 (10000034)'" "$GITHUB_WORKSPACE/out/APK-BADGING.txt"
+          unzip -t "$APK" | tee "$GITHUB_WORKSPACE/out/ZIP-VERIFY.txt"
+          sha256sum "$APK" | tee "$GITHUB_WORKSPACE/out/APK-SHA256.txt"
+
+      - name: Upload unsigned artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-Stable-v10000034-UpdaterFix-unsigned
+          path: |
+            out/HCF-Stable-v10000034-UpdaterFix-unsigned.apk
+            out/APK-BADGING.txt
+            out/ZIP-VERIFY.txt
+            out/APK-SHA256.txt
+          if-no-files-found: error
