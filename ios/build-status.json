@@ -5,7 +5,7 @@
   "version": "1.0",
   "build": "10000033",
   "ui": "Android-matched native shell",
-  "status": "running",
+  "status": "success",
   "run_id": "32190675447",
   "run_attempt": "1",
   "source_sha": "d07aabe33a161d87fb2a8c97971bc846ef67a5b4",
