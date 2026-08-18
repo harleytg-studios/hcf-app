@@ -39,8 +39,10 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add build-output/STABLE-V10000034-UPDATER-FIX-RUN.txt
-          git commit -m '[skip ci] Record Stable v10000034 updater-fix run'
-          git push origin HEAD:main
+          if ! git diff --cached --quiet; then
+            git commit -m '[skip ci] Record Stable v10000034 updater-fix run'
+            git push origin HEAD:main
+          fi
 
       - name: Set up Java
         uses: actions/setup-java@v4
