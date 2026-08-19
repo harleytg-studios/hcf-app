@@ -1,3 +1,4 @@
+# Temporary one-shot workflow for the v10000036 Dev settings UI.
 name: Temporary theme selection update
 
 on:
