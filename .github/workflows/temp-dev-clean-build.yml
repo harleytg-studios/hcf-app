@@ -1,66 +1,172 @@
-name: Temporary DEV clean unsigned APK build
+name: Temporary DEV architecture compile validation
 
 on:
   push:
     branches: [main]
     paths: ['.github/workflows/temp-dev-clean-build.yml']
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build:
+  validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout clean DEV source
+      - name: Checkout current DEV source
         uses: actions/checkout@v4
         with:
           ref: dev
           path: dev-repo
-      - name: Checkout main for disposable output
+          fetch-depth: 0
+
+      - name: Checkout MAIN global configuration
         uses: actions/checkout@v4
         with:
           ref: main
           path: main-repo
+
       - name: Install Android SDK build tools
         shell: bash
         run: |
           set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-      - name: Build aligned unsigned APK
+
+      - name: Generate and validate MAIN runtime configuration
         shell: bash
         run: |
           set -euo pipefail
           SRC="$GITHUB_WORKSPACE/dev-repo/source code"
+          MAIN="$GITHUB_WORKSPACE/main-repo"
+          GEN="$RUNNER_TEMP/hcf-generated"
+          rm -rf "$GEN"
+          mkdir -p "$GEN/assets"
+
+          test -f "$MAIN/configs/domains.config"
+          test -f "$MAIN/configs/firebase.config"
+          test -f "$SRC/AndroidManifest.xml.in"
+          test ! -e "$SRC/AndroidManifest.xml"
+          test ! -e "$SRC/assets/firebase-config.js"
+
+          if grep -R -n -E 'forum\.harleytg\.com|harleysclan\.freeflarum\.com|forum\.harleytg\.online' "$SRC/src" --include='*.java'; then
+            echo 'Hardcoded forum domain found in Java source' >&2
+            exit 20
+          fi
+
+          mapfile -t HOSTS < <(awk '
+            /^\[primary\]$/ {s="primary"; next}
+            /^\[backups\]$/ {s="backups"; next}
+            /^\[/ {s=""; next}
+            s=="primary" && /^domain=/ {sub(/^domain=/, ""); print}
+            s=="backups" && /^domain_[0-9]+=/ {sub(/^domain_[0-9]+=/, ""); print}
+          ' "$MAIN/configs/domains.config")
+          [ "${#HOSTS[@]}" -ge 1 ]
+          declare -A seen=()
+          for host in "${HOSTS[@]}"; do
+            [ -n "$host" ]
+            [ "$host" = "${host,,}" ]
+            [[ "$host" =~ ^[a-z0-9.-]+$ ]]
+            [[ "$host" == *.* ]]
+            [[ "$host" != *..* ]]
+            [[ "$host" != .* && "$host" != *. ]]
+            [[ "$host" != *".online" ]]
+            [[ "$host" != *"://"* && "$host" != *"/"* ]]
+            [ -z "${seen[$host]:-}" ]
+            seen[$host]=1
+          done
+          grep -q '^https_only=true$' "$MAIN/configs/domains.config"
+          grep -q '^open_registered_domains_in_app=true$' "$MAIN/configs/domains.config"
+          grep -q '^preserve_path=true$' "$MAIN/configs/domains.config"
+          grep -q '^preserve_query=true$' "$MAIN/configs/domains.config"
+          grep -q '^preserve_fragment=true$' "$MAIN/configs/domains.config"
+          ! grep -qi '\.online' "$MAIN/configs/domains.config"
+
+          for key in api_key auth_domain project_id storage_bucket messaging_sender_id app_id measurement_id; do
+            grep -Eq "^${key}=.+$" "$MAIN/configs/firebase.config"
+          done
+
+          cp "$MAIN/configs/domains.config" "$GEN/assets/domains.runtime"
+          cp "$MAIN/configs/firebase.config" "$GEN/assets/firebase.runtime"
+
+          declare -A fb=()
+          while IFS='=' read -r key value; do
+            case "$key" in api_key|auth_domain|project_id|storage_bucket|messaging_sender_id|app_id|measurement_id) fb[$key]="$value" ;; esac
+          done < "$MAIN/configs/firebase.config"
+          cat > "$GEN/assets/firebase-config.js" <<EOF
+          // GENERATED from MAIN configs/firebase.config. Do not edit or commit.
+          const firebaseConfig = {
+            apiKey: "${fb[api_key]}",
+            authDomain: "${fb[auth_domain]}",
+            projectId: "${fb[project_id]}",
+            storageBucket: "${fb[storage_bucket]}",
+            messagingSenderId: "${fb[messaging_sender_id]}",
+            appId: "${fb[app_id]}",
+            measurementId: "${fb[measurement_id]}"
+          };
+          EOF
+
+          python3 - "$SRC/AndroidManifest.xml.in" "$GEN/AndroidManifest.xml" "${HOSTS[@]}" <<'PY'
+          import sys
+          template, output, *hosts = sys.argv[1:]
+          text = open(template, encoding='utf-8').read()
+          filters = []
+          for host in hosts:
+              filters.append(f'''            <intent-filter android:autoVerify="true">
+                          <action android:name="android.intent.action.VIEW" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <category android:name="android.intent.category.BROWSABLE" />
+                          <data android:scheme="https" android:host="{host}" />
+                      </intent-filter>''')
+          assert '@@HCF_APP_LINK_FILTERS@@' in text
+          text = text.replace('@@HCF_APP_LINK_FILTERS@@', '\n'.join(filters))
+          assert '@@HCF_APP_LINK_FILTERS@@' not in text
+          open(output, 'w', encoding='utf-8').write(text)
+          PY
+
+          for host in "${HOSTS[@]}"; do grep -q "android:host=\"$host\"" "$GEN/AndroidManifest.xml"; done
+          ! grep -q 'android:scheme="http" android:host=' "$GEN/AndroidManifest.xml"
+          bash -n "$SRC/build-release.sh"
+          printf '%s\n' "${HOSTS[@]}" > "$GEN/REGISTERED-DOMAINS.txt"
+
+      - name: Compile, D8 and zipalign current DEV source
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$GITHUB_WORKSPACE/dev-repo/source code"
+          GEN="$RUNNER_TEMP/hcf-generated"
           BT="$ANDROID_HOME/build-tools/35.0.0"
           ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
           WORK="$RUNNER_TEMP/hcf-clean-build"
           OUT="$GITHUB_WORKSPACE/out"
           rm -rf "$WORK" "$OUT"
           mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
-          "$BT/aapt" package -f -m -J "$WORK/gen" -M "$SRC/AndroidManifest.xml" -S "$SRC/res" -I "$ANDROID_JAR" -F "$WORK/resources.apk"
+
+          "$BT/aapt" package -f -m -J "$WORK/gen" -M "$GEN/AndroidManifest.xml" -S "$SRC/res" -A "$GEN/assets" -I "$ANDROID_JAR" -F "$WORK/resources.apk"
           java -m jdk.compiler/com.sun.tools.javac.Main --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" $(find "$WORK/gen" "$SRC/src" -name '*.java' -print)
           "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" $(find "$WORK/classes" -name '*.class' -print)
           cp "$WORK/resources.apk" "$WORK/unsigned.apk"
           (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
-          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Beta-v10000033-clean-unsigned.apk"
-          "$BT/zipalign" -c -p 4 "$OUT/HCF-Beta-v10000033-clean-unsigned.apk"
-          "$BT/aapt" dump badging "$OUT/HCF-Beta-v10000033-clean-unsigned.apk" | tee "$OUT/APK-BADGING.txt"
-          sha256sum "$OUT/HCF-Beta-v10000033-clean-unsigned.apk" | tee "$OUT/APK-SHA256.txt"
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Beta-v10000035-architecture-validation-UNSIGNED.apk"
+          "$BT/zipalign" -c -p 4 "$OUT/HCF-Beta-v10000035-architecture-validation-UNSIGNED.apk"
+
+          "$BT/aapt" dump badging "$OUT/HCF-Beta-v10000035-architecture-validation-UNSIGNED.apk" | tee "$OUT/APK-BADGING.txt"
+          unzip -p "$OUT/HCF-Beta-v10000035-architecture-validation-UNSIGNED.apk" assets/domains.runtime > "$OUT/DOMAINS-RUNTIME.txt"
+          unzip -p "$OUT/HCF-Beta-v10000035-architecture-validation-UNSIGNED.apk" assets/firebase.runtime > "$OUT/FIREBASE-RUNTIME.txt"
           git -C "$GITHUB_WORKSPACE/dev-repo" rev-parse HEAD | tee "$OUT/DEV-COMMIT.txt"
-          git -C "$GITHUB_WORKSPACE/dev-repo" rev-parse HEAD:"source code" | tee "$OUT/SOURCE-TREE.txt"
-      - name: Publish disposable unsigned build to main
-        shell: bash
-        run: |
-          set -euo pipefail
-          REPO="$GITHUB_WORKSPACE/main-repo"
-          rm -rf "$REPO/.temp-dev-build"
-          mkdir -p "$REPO/.temp-dev-build"
-          cp "$GITHUB_WORKSPACE/out/"* "$REPO/.temp-dev-build/"
-          cd "$REPO"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .temp-dev-build/
-          git commit -m "[skip ci] Temporary clean DEV APK build output"
-          git push origin HEAD:main
+          find "$SRC/src" -name '*.java' | wc -l | tr -d ' ' | tee "$OUT/JAVA-FILE-COUNT.txt"
+          sha256sum "$OUT/HCF-Beta-v10000035-architecture-validation-UNSIGNED.apk" | tee "$OUT/UNSIGNED-APK-SHA256.txt"
+
+          grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
+          grep -q "versionCode='10000035'" "$OUT/APK-BADGING.txt"
+          grep -q "versionName='1.0 (10000035)'" "$OUT/APK-BADGING.txt"
+          grep -q '^domain=forum.harleytg.com$' "$OUT/DOMAINS-RUNTIME.txt"
+          grep -q '^domain_1=harleysclan.freeflarum.com$' "$OUT/DOMAINS-RUNTIME.txt"
+          grep -q '^project_id=hcf-9ad64$' "$OUT/FIREBASE-RUNTIME.txt"
+
+      - name: Upload disposable compile-validation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hcf-dev-v10000035-architecture-validation
+          path: out/
+          retention-days: 1
