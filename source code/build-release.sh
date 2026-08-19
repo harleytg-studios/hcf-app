@@ -21,8 +21,8 @@ trap 'rm -rf "$work_dir" "$generated_dir"' EXIT
 
 expected_signer_sha256="93D49BF9A877C7CFB1B37F9064BD955CD67BD7DD8DB73A9E3F766B59C4BCCE63"
 expected_package="com.harleytg.forum.dev"
-expected_version_code="10000035"
-expected_version_name="1.0 (10000035)"
+expected_version_code="10000036"
+expected_version_name="1.0 (10000036)"
 
 fail() { echo "ERROR: $*" >&2; exit 20; }
 normalize_fingerprint() { printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | tr -d ':[:space:]'; }
