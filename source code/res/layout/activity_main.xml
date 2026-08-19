@@ -270,11 +270,16 @@ android:visibility="gone"
                 android:visibility="gone" />
 
             <!-- Simple startup / connection state. -->
+            <!-- ErrorSys/startup overlay lives only inside contentFrame, so native app chrome
+                 remains usable while the WebView area is replaced by recovery UI. -->
             <FrameLayout
                 android:id="@+id/statusOverlay"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:background="@color/hcf_bg"
+                android:clickable="true"
+                android:focusable="true"
+                android:elevation="2dp"
                 android:padding="24dp">
 
                 <LinearLayout

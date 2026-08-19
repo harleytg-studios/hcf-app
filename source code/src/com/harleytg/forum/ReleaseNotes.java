@@ -17,19 +17,15 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 final class ReleaseNotes {
-    static final String SUMMARY = "Beta/Dev v10000033 • Adaptive real-time optimization update";
+    static final String SUMMARY = "Beta/Dev v10000036 • Settings, notifications & ErrorSys UI update";
 
     static final String NOTES =
-            "Harley\'s Clan Forum (app) v1.0 • Beta/Dev v10000033\n" +
-            "• Development/Beta versionCode 10000033.\n" +
-            "• Auto can now promote capable devices to Auto • Real-Time for faster foreground notification and forum freshness checks.\n" +
-            "• Notification polling is adaptive: fast while actively using HCF, progressively slower after backgrounding, screen-off, Battery Saver, or constrained-device conditions.\n" +
-            "• Live forum checks use smaller change signatures and HTTP validators instead of repeatedly hashing large API responses.\n" +
-            "• Shared executors reduce repeated background thread creation.\n" +
-            "• WebView timers/renderer priority now follow foreground/background state, while renderer-crash recovery remains enabled.\n" +
-            "• Notification state writes and routine success logging are reduced to meaningful changes.\n" +
-            "• Network restoration, app resume, pull-to-refresh, notification opening, and successful forum API mutations request immediate freshness sync.\n" +
-            "• Native FCM transport is not bundled in this source build, so adaptive polling remains the active fallback transport.\n\n" +
+            "Harley\'s Clan Forum (app) v1.0 • Beta/Dev v10000036\n" +
+            "• Development/Beta versionCode 10000036.\n" +
+            "• App Settings now exposes the native Notification Center, Notification History, and Do Not Disturb schedule controls.\n" +
+            "• Changing Day, Night, AMOLED, or Follow phone theme now returns to the Settings section you were editing instead of jumping back to Settings home.\n" +
+            "• ErrorSys is explicitly layered over the forum WebView content area while the native header and app chrome remain available.\n" +
+            "• Runtime domain/Firebase routing and the notification reply composer remain included in this Dev build.\n\n" +
             "Stable remains separate; this feature set is scoped to com.harleytg.forum.dev.";
 
     static void seedForFreshInstall(SharedPreferences prefs) {
@@ -112,17 +108,17 @@ final class ReleaseNotes {
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(0, dp(activity, 10), 0, dp(activity, 6));
 
-        addSection(activity, body, "Harley's Clan Forum (app) v1.0",
-                "This is the release for Harley's Clan Forum (app) v1.0. The public version remains 1.0 while the internal build number advances so it installs over the earlier v1.0 package.");
+        addSection(activity, body, "New • Notification Center in Settings",
+                "Open Notification Center & History directly from App Settings → Notifications. The same area now shows current Do Not Disturb state and links to DND scheduling.");
 
-        addSection(activity, body, "Updated • Account & Identity",
-                "Account & Identity action controls now use the standard rectangular cyan-outline HCF button treatment, removing the pill/oval appearance while preserving icons, labels, subtitles, chevrons and full-row touch targets.");
+        addSection(activity, body, "Fixed • Theme Settings Stay Put",
+                "Changing Follow phone, Day, Night, or AMOLED now recreates the themed Settings screen and restores the section and scroll position you were using.");
 
-        addSection(activity, body, "Preserved • v1.0 Foundation",
-                "Contact Support branding, Logs & Diagnostics, notification badges, App Links, updater behavior, identity sync, recovery and forum routing remain intact.");
+        addSection(activity, body, "Updated • ErrorSys WebView Overlay",
+                "Connection, HTTP, SSL, timeout and renderer recovery states are shown over the forum WebView content area. Native app chrome remains outside the overlay so the app does not look like a full-screen crash.");
 
-        addSection(activity, body, "New • Performance Profiles",
-                "Choose Auto, Performance, Balanced or Quality in App Settings. Auto reduces motion automatically on low-RAM devices or while Android battery saver is active.");
+        addSection(activity, body, "Preserved • Dev Foundation",
+                "Notification reply composer, adaptive sync, domain failover, Firebase runtime config, App Links, updater verification, identity sync and diagnostics remain intact.");
 
         scroll.addView(body, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);

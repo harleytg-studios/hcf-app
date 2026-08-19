@@ -41,8 +41,11 @@ import java.util.Locale;
 public final class SettingsActivity extends ThemedActivity {
     private static final int REQUEST_NOTIFICATIONS = 901;
     private static final int UPDATE_INSTALL_PERMISSION_REQUEST = 2410;
+    private static final String STATE_SETTINGS_SECTION = "settings_section";
+    private static final String STATE_SETTINGS_SCROLL_Y = "settings_scroll_y";
     private SharedPreferences prefs;
     private TextView notificationStatus;
+    private TextView dndStatus;
     private TextView serverStatus;
     private TextView cookieStatus;
     private TextView securityStatus;
@@ -69,11 +72,29 @@ public final class SettingsActivity extends ThemedActivity {
             getWindow().setStatusBarColor(ThemeManager.isAmoled(this) ? Color.BLACK : getColor(R.color.hcf_bg));
             getWindow().setNavigationBarColor(ThemeManager.isAmoled(this) ? Color.BLACK : getColor(R.color.hcf_bg));
             setContentView(buildUi());
+            restoreSettingsLocation(savedInstanceState);
             handleInstallIntent(getIntent());
-            AppLogger.info(this, "settings_open", BuildInfo.VERSION);
+            AppLogger.info(this, "settings_open", BuildInfo.VERSION + " | section=" + currentSettingsSection);
         } catch (Throwable t) {
             AppLogger.crash(this, t);
             showSettingsRecovery(t);
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        outState.putString(STATE_SETTINGS_SECTION, currentSettingsSection == null ? "" : currentSettingsSection);
+        if (settingsScroll != null) outState.putInt(STATE_SETTINGS_SCROLL_Y, settingsScroll.getScrollY());
+        super.onSaveInstanceState(outState);
+    }
+
+    private void restoreSettingsLocation(Bundle savedInstanceState) {
+        if (savedInstanceState == null) return;
+        String section = savedInstanceState.getString(STATE_SETTINGS_SECTION, "");
+        int scrollY = savedInstanceState.getInt(STATE_SETTINGS_SCROLL_Y, 0);
+        if (section != null && !section.trim().isEmpty()) showSettingsSection(section.trim());
+        if (settingsScroll != null && scrollY > 0) {
+            settingsScroll.post(() -> settingsScroll.scrollTo(0, scrollY));
         }
     }
 
@@ -415,6 +436,19 @@ public final class SettingsActivity extends ThemedActivity {
         notificationStatus = text("Checking notification status…", 12, getColor(R.color.hcf_muted));
         card.addView(notificationStatus);
 
+        TextView centerTitle = text("Notification Center", 10, getColor(R.color.hcf_cyan));
+        centerTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+        centerTitle.setPadding(0, dp(8), 0, 0);
+        card.addView(centerTitle);
+        card.addView(actionButton("Open Notification Center & History", v ->
+                startActivity(new Intent(this, NotificationHistoryActivity.class))));
+        dndStatus = text("Do Not Disturb: " + AppSettings.dndLabel(this), 11, getColor(R.color.hcf_meta));
+        dndStatus.setTypeface(null, android.graphics.Typeface.BOLD);
+        card.addView(dndStatus);
+        card.addView(actionButton("Do Not Disturb & Schedule", v ->
+                startActivity(new Intent(this, NotificationHistoryActivity.class))));
+        card.addView(text("Notification History keeps recent app alerts locally. Do Not Disturb can be Off, always On, or Scheduled inside the Notification Center.", 10, getColor(R.color.hcf_muted)));
+
         Switch notifications = toggle("Allow forum notifications", prefs.getBoolean(AppPrefs.NOTIFICATIONS_ENABLED, true));
         notifications.setOnCheckedChangeListener((buttonView, checked) -> {
             prefs.edit().putBoolean(AppPrefs.NOTIFICATIONS_ENABLED, checked).apply();
@@ -457,7 +491,7 @@ public final class SettingsActivity extends ThemedActivity {
         Button themeButton = actionButton("Theme: " + ThemeManager.label(this), v -> {
             String next = ThemeManager.next(ThemeManager.mode(this));
             prefs.edit().putString(AppPrefs.APP_THEME, next).apply();
-            AppLogger.info(this, "setting_theme", next);
+            AppLogger.info(this, "setting_theme", next + " | keep_section=" + currentSettingsSection);
             recreate();
         });
         themeButton.setContentDescription("Change app day, night and AMOLED theme");
@@ -1129,6 +1163,11 @@ public final class SettingsActivity extends ThemedActivity {
             }
             notificationStatus.setText("Status: " + state);
             notificationStatus.setTextColor(allowed && headsUp ? getColor(R.color.hcf_accent_text) : getColor(R.color.hcf_yellow));
+        }
+        if (dndStatus != null) {
+            dndStatus.setText("Do Not Disturb: " + AppSettings.dndLabel(this));
+            dndStatus.setTextColor(AppSettings.isDndActive(this)
+                    ? getColor(R.color.hcf_yellow) : getColor(R.color.hcf_meta));
         }
         if (cookieStatus != null) {
             cookieStatus.setText(cookieSummary());
