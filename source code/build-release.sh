@@ -15,16 +15,15 @@ output_dir="${HCF_OUTPUT_DIR:-$project_dir/out}"
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/hcf-build.XXXXXX")"
 trap 'rm -rf "$work_dir"' EXIT
 
-# Recovered Beta/DEV v2 signing line for HCF-Beta-v10000035-FIXED.apk.
-# Android versionCode/versionName are 10000035; the recovered compiled Java
-# payload intentionally retains BuildInfo.VERSION_CODE 10000055 to match that APK.
+# Permanent DEV signing line. Every com.harleytg.forum.dev release must use this
+# exact certificate or Android will reject an in-place update as a package conflict.
 expected_signer_sha256="93D49BF9A877C7CFB1B37F9064BD955CD67BD7DD8DB73A9E3F766B59C4BCCE63"
 
 normalize_fingerprint() {
   printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | tr -d ':[:space:]'
 }
 
-# Fail before compiling if somebody points this build at the wrong Beta/DEV v2 key.
+# Fail before compiling if somebody points this build at the wrong DEV key.
 key_fingerprint="$(keytool -list -v \
   -keystore "$keystore_path" \
   -storepass "$HCF_APKSIGNER_PASSWORD" \
@@ -32,9 +31,9 @@ key_fingerprint="$(keytool -list -v \
   | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -n 1)"
 key_fingerprint="$(normalize_fingerprint "$key_fingerprint")"
 if [[ -z "$key_fingerprint" || "$key_fingerprint" != "$expected_signer_sha256" ]]; then
-  echo "ERROR: Refusing to build Beta/DEV APK with the wrong v2 signing certificate." >&2
-  echo "Expected Beta/DEV v2 signer SHA-256: $expected_signer_sha256" >&2
-  echo "Actual Beta/DEV v2 signer SHA-256:   ${key_fingerprint:-UNAVAILABLE}" >&2
+  echo "ERROR: Refusing to build DEV APK with the wrong signing certificate." >&2
+  echo "Expected DEV signer SHA-256: $expected_signer_sha256" >&2
+  echo "Actual DEV signer SHA-256:   ${key_fingerprint:-UNAVAILABLE}" >&2
   exit 22
 fi
 
@@ -44,6 +43,7 @@ mkdir -p "$work_dir/gen" "$work_dir/classes" "$work_dir/dex" "$output_dir"
   -J "$work_dir/gen" \
   -M "$project_dir/AndroidManifest.xml" \
   -S "$project_dir/res" \
+  -A "$project_dir/assets" \
   -I "$android_jar" \
   -F "$work_dir/resources.apk"
 
@@ -69,7 +69,7 @@ cp "$work_dir/resources.apk" "$work_dir/unsigned.apk"
 
 output_apk="$output_dir/Harley's Clan Forum [Beta].apk"
 "$build_tools/apksigner" sign \
-  --v1-signing-enabled false \
+  --v1-signing-enabled true \
   --v2-signing-enabled true \
   --v3-signing-enabled true \
   --v4-signing-enabled false \
@@ -91,7 +91,5 @@ if [[ "$apk_fingerprint" != "$expected_signer_sha256" ]]; then
   exit 23
 fi
 
-echo "Beta/DEV v2 signing-line verification: PASS"
-echo "Beta/DEV key alias: hcf-beta-v2"
-echo "Beta/DEV package: com.harleytg.forum.dev"
-echo "Beta/DEV versionCode: 10000035"
+echo "DEV signing-line verification: PASS"
+echo "DEV versionCode: 10000035"
