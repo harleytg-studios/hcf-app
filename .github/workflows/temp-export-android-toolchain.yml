@@ -7,12 +7,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   export:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
       - name: Ensure Android 35 tools
         shell: bash
         run: |
@@ -42,3 +46,14 @@ jobs:
           name: hcf-android-35-local-build-toolchain
           path: ${{ runner.temp }}/hcf-android-toolchain/
           retention-days: 1
+      - name: Publish temporary run locator
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .temp-toolchain-run
+          printf 'RUN_ID=%s\nHEAD_SHA=%s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > .temp-toolchain-run/INFO.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .temp-toolchain-run/INFO.txt
+          git commit -m 'TEMP: Android toolchain export run locator'
+          git push origin HEAD:main
