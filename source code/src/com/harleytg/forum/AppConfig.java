@@ -29,9 +29,14 @@ final class AppConfig {
 
     static void initialize(Context context) {
         if (context == null) throw new IllegalArgumentException("context == null");
-        appContext = context.getApplicationContext();
-        domains = loadDomains(appContext);
-        firebase = loadFirebase(appContext);
+        Context app = context.getApplicationContext();
+        if (appContext == app && domains != null && firebase != null) return;
+        synchronized (AppConfig.class) {
+            if (appContext == app && domains != null && firebase != null) return;
+            appContext = app;
+            domains = loadDomains(app);
+            firebase = loadFirebase(app);
+        }
     }
 
     static Domains domains() {
@@ -94,13 +99,13 @@ final class AppConfig {
         final String measurementId;
 
         Firebase(Map<String, String> values) {
-            apiKey = required(values, "api_key");
-            authDomain = required(values, "auth_domain");
-            projectId = required(values, "project_id");
-            storageBucket = required(values, "storage_bucket");
-            messagingSenderId = required(values, "messaging_sender_id");
-            appId = required(values, "app_id");
-            measurementId = required(values, "measurement_id");
+            apiKey = required(values, "firebase.api_key");
+            authDomain = required(values, "firebase.auth_domain");
+            projectId = required(values, "firebase.project_id");
+            storageBucket = required(values, "firebase.storage_bucket");
+            messagingSenderId = required(values, "firebase.messaging_sender_id");
+            appId = required(values, "firebase.app_id");
+            measurementId = required(values, "firebase.measurement_id");
         }
 
         boolean isValid() {
