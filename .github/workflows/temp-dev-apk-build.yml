@@ -133,29 +133,29 @@ jobs:
             "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" $(find "$WORK/classes" -name '*.class' -print)
             cp "$WORK/resources.apk" "$WORK/unsigned.apk"
             (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
-            "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Beta-v10000035-UNSIGNED-ZIPALIGNED.apk"
-            "$BT/zipalign" -c -p 4 "$OUT/HCF-Beta-v10000035-UNSIGNED-ZIPALIGNED.apk"
+            "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Beta-v10000036-UNSIGNED-ZIPALIGNED.apk"
+            "$BT/zipalign" -c -p 4 "$OUT/HCF-Beta-v10000036-UNSIGNED-ZIPALIGNED.apk"
             cp "$BT/lib/apksigner.jar" "$OUT/apksigner.jar"
 
-            "$BT/aapt" dump badging "$OUT/HCF-Beta-v10000035-UNSIGNED-ZIPALIGNED.apk" > "$OUT/APK-BADGING.txt"
+            "$BT/aapt" dump badging "$OUT/HCF-Beta-v10000036-UNSIGNED-ZIPALIGNED.apk" > "$OUT/APK-BADGING.txt"
             head -n 8 "$OUT/APK-BADGING.txt"
             grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
-            grep -q "versionCode='10000035'" "$OUT/APK-BADGING.txt"
-            grep -q "versionName='1.0 (10000035)'" "$OUT/APK-BADGING.txt"
+            grep -q "versionCode='10000036'" "$OUT/APK-BADGING.txt"
+            grep -q "versionName='1.0 (10000036)'" "$OUT/APK-BADGING.txt"
             grep -q "sdkVersion:'26'" "$OUT/APK-BADGING.txt"
             grep -q "targetSdkVersion:'34'" "$OUT/APK-BADGING.txt"
-            unzip -p "$OUT/HCF-Beta-v10000035-UNSIGNED-ZIPALIGNED.apk" assets/domains.runtime > "$OUT/DOMAINS-RUNTIME.txt"
+            unzip -p "$OUT/HCF-Beta-v10000036-UNSIGNED-ZIPALIGNED.apk" assets/domains.runtime > "$OUT/DOMAINS-RUNTIME.txt"
             grep -q '^domain=forum.harleytg.com$' "$OUT/DOMAINS-RUNTIME.txt"
             grep -q '^domain_1=harleysclan.freeflarum.com$' "$OUT/DOMAINS-RUNTIME.txt"
-            unzip -l "$OUT/HCF-Beta-v10000035-UNSIGNED-ZIPALIGNED.apk" | grep -q 'assets/firebase.runtime'
-            unzip -l "$OUT/HCF-Beta-v10000035-UNSIGNED-ZIPALIGNED.apk" | grep -q 'assets/firebase-config.js'
+            unzip -l "$OUT/HCF-Beta-v10000036-UNSIGNED-ZIPALIGNED.apk" | grep -q 'assets/firebase.runtime'
+            unzip -l "$OUT/HCF-Beta-v10000036-UNSIGNED-ZIPALIGNED.apk" | grep -q 'assets/firebase-config.js'
 
             {
               echo 'STATUS=PASS'
               echo "DEV_COMMIT=$(git rev-parse HEAD)"
               echo 'PACKAGE=com.harleytg.forum.dev'
-              echo 'VERSION_CODE=10000035'
-              echo 'VERSION_NAME=1.0 (10000035)'
+              echo 'VERSION_CODE=10000036'
+              echo 'VERSION_NAME=1.0 (10000036)'
               echo 'MIN_SDK=26'
               echo 'TARGET_SDK=34'
               echo "JAVA_FILE_COUNT=$(find "$SRC/src" -name '*.java' | wc -l | tr -d ' ')"
@@ -163,7 +163,7 @@ jobs:
               echo 'ZIPALIGN=PASS'
               echo 'SIGNED=NO'
             } > "$OUT/BUILD-STATUS.txt"
-            sha256sum "$OUT/HCF-Beta-v10000035-UNSIGNED-ZIPALIGNED.apk" > "$OUT/UNSIGNED-SHA256.txt"
+            sha256sum "$OUT/HCF-Beta-v10000036-UNSIGNED-ZIPALIGNED.apk" > "$OUT/UNSIGNED-SHA256.txt"
           } > "$OUT/BUILD.log" 2>&1 || build_status=$?
 
           if [[ "$build_status" -ne 0 ]]; then
