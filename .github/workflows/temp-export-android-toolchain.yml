@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="$RUNNER_TEMP/hcf-android-toolchain"
-          mkdir -p "$ROOT/build-tools/35.0.0/lib" "$ROOT/platforms/android-35"
+          mkdir -p "$ROOT/build-tools/35.0.0/lib" "$ROOT/build-tools/35.0.0/lib64" "$ROOT/platforms/android-35"
           BT="$ANDROID_HOME/build-tools/35.0.0"
           cp "$BT/d8" "$ROOT/build-tools/35.0.0/"
           cp "$BT/lib/d8.jar" "$ROOT/build-tools/35.0.0/lib/"
@@ -50,9 +50,12 @@ jobs:
           cp "$BT/zipalign" "$ROOT/build-tools/35.0.0/"
           cp "$BT/aapt" "$ROOT/build-tools/35.0.0/"
           cp "$BT/aapt2" "$ROOT/build-tools/35.0.0/"
+          LIBCPP="$(find "$BT" -maxdepth 3 -type f -name 'libc++.so' -print -quit)"
+          test -n "$LIBCPP"
+          cp "$LIBCPP" "$ROOT/build-tools/35.0.0/lib64/libc++.so"
           cp "$ANDROID_HOME/platforms/android-35/android.jar" "$ROOT/platforms/android-35/"
           chmod +x "$ROOT/build-tools/35.0.0/d8" "$ROOT/build-tools/35.0.0/apksigner" "$ROOT/build-tools/35.0.0/zipalign" "$ROOT/build-tools/35.0.0/aapt" "$ROOT/build-tools/35.0.0/aapt2"
-          sha256sum "$ROOT"/build-tools/35.0.0/lib/*.jar "$ROOT/platforms/android-35/android.jar" > "$ROOT/SHA256SUMS.txt"
+          sha256sum "$ROOT"/build-tools/35.0.0/lib/*.jar "$ROOT/build-tools/35.0.0/lib64/libc++.so" "$ROOT/platforms/android-35/android.jar" > "$ROOT/SHA256SUMS.txt"
       - name: Upload toolchain
         uses: actions/upload-artifact@v4
         with:
