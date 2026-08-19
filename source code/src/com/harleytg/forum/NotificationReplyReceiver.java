@@ -29,12 +29,25 @@ public final class NotificationReplyReceiver extends BroadcastReceiver {
                 return;
             }
 
-            // The current authenticated notification client is read-only and the installed
-            // Messenger extension does not expose a verified write endpoint to this native
-            // layer. Preserve the user's reply locally and explicitly require completion in
-            // Messenger rather than falsely reporting that a network send succeeded.
-            NotificationCenter.showReplyFallback(context, conversationId, reply, destination, notificationId);
-            AppLogger.info(context, "notification_reply", "draft_preserved | conversation=" + conversationId);
+            // The native notification reader does not hold a verified CSRF-authenticated
+            // Messenger write session. Preserve the reply locally and open the actual forum
+            // conversation with the text restored into its composer. The app does not report
+            // success until the user explicitly taps Send in Messenger.
+            AppSettings.saveReplyDraft(context, conversationId, reply, destination.toString());
+            Intent composer = new Intent(context, NotificationReplyComposerActivity.class)
+                    .setData(destination)
+                    .putExtra(NotificationCenter.EXTRA_CONVERSATION_ID, conversationId)
+                    .putExtra(NotificationCenter.REMOTE_INPUT_KEY, reply)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            try {
+                context.startActivity(composer);
+                AppLogger.info(context, "notification_reply", "composer_opened | conversation=" + conversationId);
+            } catch (Throwable openError) {
+                NotificationCenter.showReplyFallback(context, conversationId, reply, destination, notificationId);
+                AppSettings.prefs(context).edit().putString(AppPrefs.NOTIFICATION_LAST_ERROR,
+                        "Inline reply composer could not open: " + openError.getClass().getSimpleName()).apply();
+                AppLogger.warn(context, "notification_reply", "composer_fallback | " + openError.getClass().getSimpleName());
+            }
         } catch (Throwable error) {
             AppSettings.prefs(context).edit().putString(AppPrefs.NOTIFICATION_LAST_ERROR,
                     "Inline reply failed: " + error.getClass().getSimpleName()).apply();
