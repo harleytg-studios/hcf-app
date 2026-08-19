@@ -15,7 +15,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 
 public final class UpdateFileProvider extends ContentProvider {
-    static final String AUTHORITY = "com.harleytg.forum.devbuild.updatefiles";
+    static final String AUTHORITY = "com.harleytg.forum.dev.updatefiles";
 
     static Uri uriForFile(Context context, File file) throws IOException {
         if (context == null || file == null) throw new IOException("Missing update file");

@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Foreground notification service backed by the v10000033 adaptive engine.
+ * Foreground notification service backed by the v10000055 adaptive engine.
  * Foreground-capable devices can sync around 1 second; background/off-screen
  * polling progressively backs off, with immediate sync on explicit wake events.
  */
@@ -90,7 +90,7 @@ public final class InstantNotificationService extends Service {
         running = true;
         failures = 0;
         registerNetworkCallback();
-        AppLogger.info(this, "instant_notification_service", "started • adaptive v10000033");
+        AppLogger.info(this, "instant_notification_service", "started • adaptive v10000055");
         scheduleNext(0L);
     }
 

@@ -8,23 +8,23 @@ platform_version="${ANDROID_PLATFORM_VERSION:-35}"
 build_tools="$sdk_root/build-tools/$build_tools_version"
 android_jar="$sdk_root/platforms/android-$platform_version/android.jar"
 keystore_path="${HCF_KEYSTORE:?Set HCF_KEYSTORE}"
-keystore_alias="${HCF_KEY_ALIAS:-hcf-devbuild-v2}"
+keystore_alias="${HCF_KEY_ALIAS:-hcf-beta-v2}"
 keystore_password_file="${HCF_KEY_PASSWORD_FILE:?Set HCF_KEY_PASSWORD_FILE}"
 export HCF_APKSIGNER_PASSWORD="$(sed -n '1p' "$keystore_password_file")"
 output_dir="${HCF_OUTPUT_DIR:-$project_dir/out}"
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/hcf-build.XXXXXX")"
 trap 'rm -rf "$work_dir"' EXIT
 
-# Permanent DevBuild v2 signing line for the v10000033 v2-key build.
-# HCF-DevBuild-v2.jks uses alias hcf-devbuild-v2 and preserves the
-# existing development signing certificate for Android update compatibility.
+# Recovered Beta/DEV v2 signing line for HCF-Beta-v10000035-FIXED.apk.
+# Android versionCode/versionName are 10000035; the recovered compiled Java
+# payload intentionally retains BuildInfo.VERSION_CODE 10000055 to match that APK.
 expected_signer_sha256="93D49BF9A877C7CFB1B37F9064BD955CD67BD7DD8DB73A9E3F766B59C4BCCE63"
 
 normalize_fingerprint() {
   printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | tr -d ':[:space:]'
 }
 
-# Fail before compiling if somebody points this build at the wrong DevBuild v2 key.
+# Fail before compiling if somebody points this build at the wrong Beta/DEV v2 key.
 key_fingerprint="$(keytool -list -v \
   -keystore "$keystore_path" \
   -storepass "$HCF_APKSIGNER_PASSWORD" \
@@ -32,16 +32,15 @@ key_fingerprint="$(keytool -list -v \
   | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -n 1)"
 key_fingerprint="$(normalize_fingerprint "$key_fingerprint")"
 if [[ -z "$key_fingerprint" || "$key_fingerprint" != "$expected_signer_sha256" ]]; then
-  echo "ERROR: Refusing to build DevBuild APK with the wrong v2 signing certificate." >&2
-  echo "Expected DevBuild v2 signer SHA-256: $expected_signer_sha256" >&2
-  echo "Actual DevBuild v2 signer SHA-256:   ${key_fingerprint:-UNAVAILABLE}" >&2
+  echo "ERROR: Refusing to build Beta/DEV APK with the wrong v2 signing certificate." >&2
+  echo "Expected Beta/DEV v2 signer SHA-256: $expected_signer_sha256" >&2
+  echo "Actual Beta/DEV v2 signer SHA-256:   ${key_fingerprint:-UNAVAILABLE}" >&2
   exit 22
 fi
 
 mkdir -p "$work_dir/gen" "$work_dir/classes" "$work_dir/dex" "$output_dir"
 
 "$build_tools/aapt" package -f -m \
-  --custom-package com.harleytg.forum.dev \
   -J "$work_dir/gen" \
   -M "$project_dir/AndroidManifest.xml" \
   -S "$project_dir/res" \
@@ -68,7 +67,7 @@ cp "$work_dir/resources.apk" "$work_dir/unsigned.apk"
 )
 "$build_tools/zipalign" -f -p 4 "$work_dir/unsigned.apk" "$work_dir/aligned.apk"
 
-output_apk="$output_dir/Harley's Clan Forum [DevBuild].apk"
+output_apk="$output_dir/Harley's Clan Forum [Beta].apk"
 "$build_tools/apksigner" sign \
   --v1-signing-enabled false \
   --v2-signing-enabled true \
@@ -92,7 +91,7 @@ if [[ "$apk_fingerprint" != "$expected_signer_sha256" ]]; then
   exit 23
 fi
 
-echo "DevBuild v2 signing-line verification: PASS"
-echo "DevBuild key alias: hcf-devbuild-v2"
-echo "DevBuild package: com.harleytg.forum.devbuild"
-echo "DevBuild versionCode: 10000033"
+echo "Beta/DEV v2 signing-line verification: PASS"
+echo "Beta/DEV key alias: hcf-beta-v2"
+echo "Beta/DEV package: com.harleytg.forum.dev"
+echo "Beta/DEV versionCode: 10000035"

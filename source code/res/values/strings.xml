@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Harley\'s Clan Forum [DevBuild]</string>
+    <string name="app_name">Harley\'s Clan Forum [Beta]</string>
     <string name="status_switching">Primary forum unavailable. Switching to backup…</string>
     <string name="retry">Retry</string>
     <string name="try_primary">Try primary</string>

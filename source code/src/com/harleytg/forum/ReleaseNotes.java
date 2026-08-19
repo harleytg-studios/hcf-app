@@ -17,11 +17,11 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 final class ReleaseNotes {
-    static final String SUMMARY = "Beta/Dev v10000033 • Adaptive real-time optimization update";
+    static final String SUMMARY = "Beta/Dev v10000055 • Adaptive real-time optimization update";
 
     static final String NOTES =
-            "Harley\'s Clan Forum (app) v1.0 • Beta/Dev v10000033\n" +
-            "• Development/Beta versionCode 10000033.\n" +
+            "Harley\'s Clan Forum (app) v1.0 • Beta/Dev v10000055\n" +
+            "• Development/Beta versionCode 10000055.\n" +
             "• Auto can now promote capable devices to Auto • Real-Time for faster foreground notification and forum freshness checks.\n" +
             "• Notification polling is adaptive: fast while actively using HCF, progressively slower after backgrounding, screen-off, Battery Saver, or constrained-device conditions.\n" +
             "• Live forum checks use smaller change signatures and HTTP validators instead of repeatedly hashing large API responses.\n" +
