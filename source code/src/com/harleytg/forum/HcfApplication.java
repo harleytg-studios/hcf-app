@@ -8,9 +8,12 @@ public final class HcfApplication extends Application {
     public void onCreate() {
         super.onCreate();
 
+        // Generated MAIN configuration is required for secure routing and Firebase
+        // client setup. A release APK without it is considered invalid rather than
+        // silently falling back to a hardcoded hostname or stale config.
+        AppConfig.initialize(this);
         RuntimeState.install(this);
 
-        // Install the crash boundary before any optional startup subsystem runs.
         final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
             try { TelemetryService.captureCrash(HcfApplication.this, thread, throwable); }
@@ -20,8 +23,6 @@ public final class HcfApplication extends Application {
             if (previous != null) previous.uncaughtException(thread, throwable);
         });
 
-        // Every startup task is isolated so a damaged preference value, telemetry issue,
-        // updater edge case, or OEM quirk cannot take down the whole application process.
         try { UiPreferences.migrate(this); }
         catch (Throwable ignored) {}
 
@@ -30,7 +31,6 @@ public final class HcfApplication extends Application {
                     BuildInfo.VERSION + " | SDK " + Build.VERSION.SDK_INT + " | " + Build.MANUFACTURER + " " + Build.MODEL);
         } catch (Throwable ignored) {}
 
-        // v10000033 keeps noncritical disk/network work off the cold-start path.
         AppExecutors.main().postDelayed(() -> {
             AppExecutors.disk().execute(() -> {
                 try { AppUpdateDownloader.cleanupIfCurrentVersionWasDownloaded(HcfApplication.this); }

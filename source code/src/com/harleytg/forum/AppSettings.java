@@ -1,5 +1,110 @@
 package com.harleytg.forum.dev;
 
+import android.content.Context;
+import android.content.SharedPreferences;
+
+import java.util.Calendar;
+
+/** Central preference owner for the native app. */
+final class AppSettings {
+    static final String DND_OFF = "off";
+    static final String DND_ON = "on";
+    static final String DND_SCHEDULED = "scheduled";
+    static final int DEFAULT_DND_START_MINUTE = 22 * 60;
+    static final int DEFAULT_DND_END_MINUTE = 7 * 60;
+    static final int HISTORY_LIMIT = 200;
+
+    static SharedPreferences prefs(Context context) {
+        return context.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
+    }
+
+    static String dndMode(Context context) {
+        String value = prefs(context).getString(AppPrefs.NOTIFICATION_DND_MODE, DND_OFF);
+        if (DND_ON.equals(value) || DND_SCHEDULED.equals(value)) return value;
+        return DND_OFF;
+    }
+
+    static void setDndMode(Context context, String mode) {
+        String safe = DND_ON.equals(mode) || DND_SCHEDULED.equals(mode) ? mode : DND_OFF;
+        prefs(context).edit().putString(AppPrefs.NOTIFICATION_DND_MODE, safe).apply();
+    }
+
+    static int dndStartMinute(Context context) {
+        return clampMinute(prefs(context).getInt(AppPrefs.NOTIFICATION_DND_START_MINUTE, DEFAULT_DND_START_MINUTE));
+    }
+
+    static int dndEndMinute(Context context) {
+        return clampMinute(prefs(context).getInt(AppPrefs.NOTIFICATION_DND_END_MINUTE, DEFAULT_DND_END_MINUTE));
+    }
+
+    static void setDndSchedule(Context context, int startMinute, int endMinute) {
+        prefs(context).edit()
+                .putInt(AppPrefs.NOTIFICATION_DND_START_MINUTE, clampMinute(startMinute))
+                .putInt(AppPrefs.NOTIFICATION_DND_END_MINUTE, clampMinute(endMinute))
+                .apply();
+    }
+
+    static boolean isDndActive(Context context) {
+        String mode = dndMode(context);
+        if (DND_ON.equals(mode)) return true;
+        if (!DND_SCHEDULED.equals(mode)) return false;
+        Calendar calendar = Calendar.getInstance();
+        int now = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE);
+        int start = dndStartMinute(context);
+        int end = dndEndMinute(context);
+        if (start == end) return true;
+        if (start < end) return now >= start && now < end;
+        return now >= start || now < end;
+    }
+
+    static String dndLabel(Context context) {
+        String mode = dndMode(context);
+        if (DND_ON.equals(mode)) return "On";
+        if (DND_SCHEDULED.equals(mode)) {
+            return "Scheduled • " + timeLabel(dndStartMinute(context)) + "–" + timeLabel(dndEndMinute(context))
+                    + (isDndActive(context) ? " • active" : "");
+        }
+        return "Off";
+    }
+
+    static void saveReplyDraft(Context context, String conversationId, String text, String url) {
+        if (conversationId == null || !conversationId.matches("[0-9]+")) return;
+        prefs(context).edit()
+                .putString(AppPrefs.NOTIFICATION_REPLY_DRAFT_PREFIX + conversationId, text == null ? "" : text)
+                .putString(AppPrefs.NOTIFICATION_REPLY_URL_PREFIX + conversationId, url == null ? "" : url)
+                .putLong(AppPrefs.NOTIFICATION_REPLY_TIME_PREFIX + conversationId, System.currentTimeMillis())
+                .apply();
+    }
+
+    static String replyDraft(Context context, String conversationId) {
+        return prefs(context).getString(AppPrefs.NOTIFICATION_REPLY_DRAFT_PREFIX + conversationId, "");
+    }
+
+    static void clearReplyDraft(Context context, String conversationId) {
+        prefs(context).edit()
+                .remove(AppPrefs.NOTIFICATION_REPLY_DRAFT_PREFIX + conversationId)
+                .remove(AppPrefs.NOTIFICATION_REPLY_URL_PREFIX + conversationId)
+                .remove(AppPrefs.NOTIFICATION_REPLY_TIME_PREFIX + conversationId)
+                .apply();
+    }
+
+    static String timeLabel(int minute) {
+        int safe = clampMinute(minute);
+        int hour = safe / 60;
+        int min = safe % 60;
+        return String.format(java.util.Locale.US, "%02d:%02d", hour, min);
+    }
+
+    private static int clampMinute(int value) {
+        if (value < 0) return 0;
+        if (value > 1439) return 1439;
+        return value;
+    }
+
+    private AppSettings() {}
+}
+
+/** Compatibility key facade. Preference keys are owned here, not scattered across features. */
 final class AppPrefs {
     static final String FILE = "hcf_app";
     static final String FALLBACK_UNTIL = "fallback_until";
@@ -63,6 +168,16 @@ final class AppPrefs {
     static final String NOTIFICATION_LAST_SYNC_STATUS = "notification_last_sync_status";
     static final String NOTIFICATION_LAST_SYNC_LATENCY_MS = "notification_last_sync_latency_ms";
     static final String NOTIFICATION_LAST_COUNT_CHANGE_AT = "notification_last_count_change_at";
+    static final String NOTIFICATION_LAST_RECEIVED_AT = "notification_last_received_at";
+    static final String NOTIFICATION_LAST_ERROR = "notification_last_error";
+    static final String NOTIFICATION_HISTORY_JSON = "notification_history_json";
+    static final String NOTIFICATION_RECENT_IDS = "notification_recent_ids";
+    static final String NOTIFICATION_DND_MODE = "notification_dnd_mode";
+    static final String NOTIFICATION_DND_START_MINUTE = "notification_dnd_start_minute";
+    static final String NOTIFICATION_DND_END_MINUTE = "notification_dnd_end_minute";
+    static final String NOTIFICATION_REPLY_DRAFT_PREFIX = "notification_reply_draft_";
+    static final String NOTIFICATION_REPLY_URL_PREFIX = "notification_reply_url_";
+    static final String NOTIFICATION_REPLY_TIME_PREFIX = "notification_reply_time_";
     static final String RENDERER_RECOVERY_COUNT = "renderer_recovery_count";
     static final String FIREBASE_CONFIG_URL = "firebase_config_url";
     static final String FIREBASE_CONFIG_CACHE = "firebase_config_cache";

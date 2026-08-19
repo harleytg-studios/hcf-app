@@ -14,7 +14,6 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!-- Limited package visibility for the app's custom HCF chooser. -->
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />
@@ -59,28 +58,18 @@
         <meta-data android:name="com.harleytg.SESSION_CLIENT" android:value="Harley's Clan Forum App" />
         <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="true" />
 
-
         <provider
             android:name=".UpdateFileProvider"
             android:authorities="com.harleytg.forum.dev.updatefiles"
             android:exported="false"
             android:grantUriPermissions="true" />
 
-        <activity
-            android:name=".SettingsActivity"
-            android:exported="false" />
-        <activity
-            android:name=".LogsActivity"
-            android:exported="false" />
-        <activity
-            android:name=".CookieManagerActivity"
-            android:exported="false" />
-        <activity
-            android:name=".IdentityActivity"
-            android:exported="false" />
-        <activity
-            android:name=".SupportContactActivity"
-            android:exported="false" />
+        <activity android:name=".SettingsActivity" android:exported="false" />
+        <activity android:name=".LogsActivity" android:exported="false" />
+        <activity android:name=".CookieManagerActivity" android:exported="false" />
+        <activity android:name=".IdentityActivity" android:exported="false" />
+        <activity android:name=".SupportContactActivity" android:exported="false" />
+        <activity android:name=".NotificationHistoryActivity" android:exported="false" />
         <activity
             android:name=".MediaViewerActivity"
             android:exported="false"
@@ -94,7 +83,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Continuously checks the authenticated Harley's Clan Forum account for time-sensitive user-visible forum notifications while the app is foregrounded or backgrounded." />
+                android:value="Checks the authenticated Harley's Clan Forum account for user-visible notifications while permitted by Android." />
         </service>
 
         <service
@@ -106,6 +95,11 @@
             android:name=".UpdateCheckJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <receiver
+            android:name=".NotificationReplyReceiver"
+            android:enabled="true"
+            android:exported="false" />
 
         <receiver
             android:name=".UpdateDownloadReceiver"
@@ -135,27 +129,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Primary forum App Link. Verification requires the matching
-                 Digital Asset Links file on forum.harleytg.com. -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="http" />
-                <data android:scheme="https" />
-                <data android:host="forum.harleytg.com" />
-            </intent-filter>
-
-            <!-- Backup forum deep/App Link. Android can route every path on
-                 the backup host into the same native shell. -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="http" />
-                <data android:scheme="https" />
-                <data android:host="harleysclan.freeflarum.com" />
-            </intent-filter>
+@@HCF_APP_LINK_FILTERS@@
         </activity>
     </application>
 </manifest>
