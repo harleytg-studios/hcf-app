@@ -28,6 +28,8 @@ jobs:
           git add .temp-toolchain-run/INFO.txt
           git commit -m 'TEMP: Android toolchain export run locator'
           git push origin HEAD:main
+      - name: Set up Android command-line tools
+        uses: android-actions/setup-android@v3
       - name: Ensure Android 35 tools
         shell: bash
         run: |
