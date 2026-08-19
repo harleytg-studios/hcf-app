@@ -1,0 +1,44 @@
+name: Temporary Android 35 Toolchain Export
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/temp-export-android-toolchain.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure Android 35 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Package local-build toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/hcf-android-toolchain"
+          mkdir -p "$ROOT/build-tools/35.0.0/lib" "$ROOT/platforms/android-35"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          cp "$BT/d8" "$ROOT/build-tools/35.0.0/"
+          cp "$BT/lib/d8.jar" "$ROOT/build-tools/35.0.0/lib/"
+          cp "$BT/apksigner" "$ROOT/build-tools/35.0.0/"
+          cp "$BT/lib/apksigner.jar" "$ROOT/build-tools/35.0.0/lib/"
+          cp "$BT/zipalign" "$ROOT/build-tools/35.0.0/"
+          cp "$BT/aapt" "$ROOT/build-tools/35.0.0/"
+          cp "$BT/aapt2" "$ROOT/build-tools/35.0.0/"
+          cp "$ANDROID_HOME/platforms/android-35/android.jar" "$ROOT/platforms/android-35/"
+          chmod +x "$ROOT/build-tools/35.0.0/d8" "$ROOT/build-tools/35.0.0/apksigner" "$ROOT/build-tools/35.0.0/zipalign" "$ROOT/build-tools/35.0.0/aapt" "$ROOT/build-tools/35.0.0/aapt2"
+          sha256sum "$ROOT"/build-tools/35.0.0/lib/*.jar "$ROOT/platforms/android-35/android.jar" > "$ROOT/SHA256SUMS.txt"
+      - name: Upload toolchain
+        uses: actions/upload-artifact@v4
+        with:
+          name: hcf-android-35-local-build-toolchain
+          path: ${{ runner.temp }}/hcf-android-toolchain/
+          retention-days: 1
