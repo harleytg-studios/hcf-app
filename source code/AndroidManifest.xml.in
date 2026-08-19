@@ -64,7 +64,13 @@
             android:exported="false"
             android:grantUriPermissions="true" />
 
-        <activity android:name=".SettingsActivity" android:exported="false" />
+        <!-- Settings V2 is the real Activity. The legacy SettingsActivity component
+             name remains as an alias so existing explicit Intents keep working. -->
+        <activity android:name=".SettingsActivityV2" android:exported="false" />
+        <activity-alias
+            android:name=".SettingsActivity"
+            android:targetActivity=".SettingsActivityV2"
+            android:exported="false" />
         <activity android:name=".LogsActivity" android:exported="false" />
         <activity android:name=".CookieManagerActivity" android:exported="false" />
         <activity android:name=".IdentityActivity" android:exported="false" />
