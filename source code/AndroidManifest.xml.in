@@ -70,6 +70,7 @@
         <activity android:name=".IdentityActivity" android:exported="false" />
         <activity android:name=".SupportContactActivity" android:exported="false" />
         <activity android:name=".NotificationHistoryActivity" android:exported="false" />
+        <activity android:name=".NotificationReplyComposerActivity" android:exported="false" />
         <activity
             android:name=".MediaViewerActivity"
             android:exported="false"
