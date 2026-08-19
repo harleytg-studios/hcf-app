@@ -1,0 +1,101 @@
+name: Temporary theme selection update
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/temp-theme-selection.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Add direct theme selection buttons
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('source code/src/com/harleytg/forum/SettingsActivity.java')
+          text = path.read_text(encoding='utf-8')
+
+          old = '''        Button themeButton = actionButton("Theme: " + ThemeManager.label(this), v -> {
+              String next = ThemeManager.next(ThemeManager.mode(this));
+              prefs.edit().putString(AppPrefs.APP_THEME, next).apply();
+              AppLogger.info(this, "setting_theme", next + " | keep_section=" + currentSettingsSection);
+              recreate();
+          });
+          themeButton.setContentDescription("Change app day, night and AMOLED theme");
+          card.addView(themeButton);
+          '''
+
+          new = '''        TextView themeTitle = text("App Theme", 10, getColor(R.color.hcf_cyan));
+          themeTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+          themeTitle.setPadding(0, dp(4), 0, dp(4));
+          card.addView(themeTitle);
+
+          card.addView(themeChoiceButton("Auto • Follow phone", ThemeManager.SYSTEM));
+          card.addView(themeChoiceButton("Light • Day", ThemeManager.LIGHT));
+          card.addView(themeChoiceButton("Dark • Night", ThemeManager.DARK));
+          card.addView(themeChoiceButton("AMOLED • Black", ThemeManager.AMOLED));
+          card.addView(text("Choose a theme directly. The selected theme is marked and App Settings stays on this page after the theme is applied.", 10, getColor(R.color.hcf_muted)));
+          '''
+
+          if old not in text:
+              raise SystemExit('Expected theme button block not found; refusing to patch')
+          text = text.replace(old, new, 1)
+
+          marker = '''    private View connectionCard() {
+          '''
+          helper = '''    private Button themeChoiceButton(String label, String mode) {
+          boolean selected = mode != null && mode.equals(ThemeManager.mode(this));
+          Button button = actionButton((selected ? "✓  " : "") + label, v -> selectTheme(mode));
+          button.setContentDescription(label + (selected ? ", selected" : ", select theme"));
+          button.setTextColor(getColor(selected ? R.color.hcf_cyan_bright : R.color.hcf_text));
+          if (selected) button.setTypeface(null, android.graphics.Typeface.BOLD);
+          return button;
+      }
+
+      private void selectTheme(String mode) {
+          if (mode == null) return;
+          String current = ThemeManager.mode(this);
+          if (mode.equals(current)) return;
+          prefs.edit().putString(AppPrefs.APP_THEME, mode).apply();
+          AppLogger.info(this, "setting_theme", mode + " | direct_selection | keep_section=" + currentSettingsSection);
+          recreate();
+      }
+
+      '''
+          if marker not in text:
+              raise SystemExit('connectionCard marker not found; refusing to patch')
+          text = text.replace(marker, helper + marker, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          grep -q 'themeChoiceButton("Auto • Follow phone", ThemeManager.SYSTEM)' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -q 'themeChoiceButton("Light • Day", ThemeManager.LIGHT)' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -q 'themeChoiceButton("Dark • Night", ThemeManager.DARK)' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -q 'themeChoiceButton("AMOLED • Black", ThemeManager.AMOLED)' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -q 'private void selectTheme(String mode)' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+
+      - name: Commit source update and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/temp-theme-selection.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'source code/src/com/harleytg/forum/SettingsActivity.java' .github/workflows/temp-theme-selection.yml
+          git commit -m 'Add direct Auto Light Dark AMOLED theme buttons'
+          git push origin HEAD:dev
