@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.harleytg.forum.dev"
-    android:versionCode="10000035"
-    android:versionName="1.0 (10000035)">
+    android:versionCode="10000036"
+    android:versionName="1.0 (10000036)">
 
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -52,8 +52,8 @@
 
         <meta-data android:name="com.harleytg.BRAND" android:value="Harley's Studio's" />
         <meta-data android:name="com.harleytg.BUILD_CHANNEL" android:value="dev" />
-        <meta-data android:name="com.harleytg.APP_VERSION" android:value="1.0 (10000035)" />
-        <meta-data android:name="com.harleytg.APP_VERSION_CODE" android:value="10000035" />
+        <meta-data android:name="com.harleytg.APP_VERSION" android:value="1.0 (10000036)" />
+        <meta-data android:name="com.harleytg.APP_VERSION_CODE" android:value="10000036" />
         <meta-data android:name="com.harleytg.APP_TYPE" android:value="Native Android Application" />
         <meta-data android:name="com.harleytg.SESSION_CLIENT" android:value="Harley's Clan Forum App" />
         <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="true" />
