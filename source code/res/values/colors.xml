@@ -2,6 +2,7 @@
     <!-- Day / light palette -->
     <color name="hcf_bg">#F4F8FA</color>
     <color name="hcf_panel">#FFFFFF</color>
+    <color name="hcf_surface2">#EAF1F4</color>
     <color name="hcf_app_bar">#FFFFFF</color>
     <color name="hcf_url_bar">#EAF2F5</color>
     <color name="hcf_welcome_bg">#DDF6FC</color>
@@ -28,10 +29,23 @@
     <color name="hcf_status_chip">#E8F4F7</color>
     <color name="hcf_quick_bg">#F7FBFC</color>
     <color name="hcf_quick_pressed">#DDF5FB</color>
+    <color name="hcf_startup_start">#F8FBFC</color>
+    <color name="hcf_startup_end">#EEF5F7</color>
     <color name="transparent">#00000000</color>
+    <color name="hcf_logs_viewer">#F8FBFC</color>
+    <color name="hcf_chip_selected_bg">#D9F4FB</color>
+    <color name="hcf_chip_selected_text">#075E78</color>
     <color name="hcf_info">#007D9F</color>
     <color name="hcf_warning">#8B6500</color>
     <color name="hcf_error">#B42318</color>
     <color name="hcf_log_timestamp">#607780</color>
     <color name="hcf_log_detail">#405A64</color>
+    <color name="hcf_host_badge_bg">#F3F9FB</color>
+    <color name="hcf_settings_button_bg">#F2FAFC</color>
+    <color name="hcf_settings_button_pressed">#330089B4</color>
+    <color name="hcf_settings_hero_start">#F7FCFD</color>
+    <color name="hcf_settings_hero_center">#E8F6FA</color>
+    <color name="hcf_settings_hero_end">#FFF8DF</color>
+    <color name="hcf_url_overlay">#F7FFFFFF</color>
+    <color name="hcf_url_overlay_border">#B9CBD3</color>
 </resources>
