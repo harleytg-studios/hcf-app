@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
@@ -170,3 +170,24 @@ jobs:
           name: hcf-dev-v10000035-architecture-validation
           path: out/
           retention-days: 1
+
+      - name: Publish temporary validation report for inspection
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEST="$GITHUB_WORKSPACE/main-repo/.temp-dev-build"
+          rm -rf "$DEST"
+          mkdir -p "$DEST"
+          cp "$GITHUB_WORKSPACE/out/APK-BADGING.txt" "$DEST/"
+          cp "$GITHUB_WORKSPACE/out/DOMAINS-RUNTIME.txt" "$DEST/"
+          cp "$GITHUB_WORKSPACE/out/DEV-COMMIT.txt" "$DEST/"
+          cp "$GITHUB_WORKSPACE/out/JAVA-FILE-COUNT.txt" "$DEST/"
+          cp "$GITHUB_WORKSPACE/out/UNSIGNED-APK-SHA256.txt" "$DEST/"
+          printf 'PASS\n' > "$DEST/STATUS.txt"
+          cd "$GITHUB_WORKSPACE/main-repo"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .temp-dev-build
+          git commit -m 'TEMP: DEV architecture validation result'
+          git push origin HEAD:main
