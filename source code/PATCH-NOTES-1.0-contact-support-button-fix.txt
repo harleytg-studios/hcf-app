@@ -1,0 +1,10 @@
+Harley's Clan Forum v1.0 — Contact Support Button Fix
+======================================================
+
+Internal version code: 10000013
+
+Fixed
+-----
+- Continue to Email now uses centered text with standard HCF rectangular button geometry.
+- Removed the detached left-side envelope compound drawable on Android skins that position it separately from the centered label.
+- Auto remains the default performance profile when no explicit profile has been selected.

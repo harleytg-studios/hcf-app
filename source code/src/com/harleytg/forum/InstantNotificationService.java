@@ -177,6 +177,7 @@ public final class InstantNotificationService extends Service {
         });
     }
 
+
     private void registerNetworkCallback() {
         if (networkCallbackRegistered) return;
         try {

@@ -1,0 +1,30 @@
+Harley's Clan Forum v0.4.17e
+================================
+
+Logs & Diagnostics — System UI Match
+
+Updated
+-------
+- Logs & Diagnostics now uses the same native app bar as App Settings and Account & Identity.
+- Added the normal HTG logo beside the page title.
+- Standard HCF background, card, quick-action, chrome-button and status-chip styling is reused.
+- Removed the logs-only dashboard/segment/action visual language.
+- Search, mode controls, action buttons, filters and recovery UI now match the rest of the native system.
+- Standard card styling is used for device status and the log/diagnostics viewer.
+
+Preserved
+---------
+- v0.4.17d clipping fixes.
+- Two-row filter layout.
+- Safe URL wrapping.
+- Newest-first logs.
+- Group repeated entries.
+- Severity colors.
+- Copy, Export and Clear.
+- Sanitized diagnostics.
+
+Version
+-------
+Version name: 0.4.17e
+Version code: 4170004
+Package: com.harleytg.forum

@@ -1,0 +1,13 @@
+Harley's Clan Forum v1.0 — Share Chooser Cleanup
+================================================
+
+Internal version code: 10000014
+
+Fixed
+-----
+- Share forum page no longer blindly lists every ACTION_SEND handler.
+- Browser, Bluetooth and download/document handlers are excluded from the forum-link share chooser.
+- Multiple activities from the same app are collapsed to one app row.
+- Messaging/email apps are shown first, followed by social apps and other compatible share apps.
+- Open in Browser continues to use the full external-app chooser and is not affected.
+- Auto remains the default performance profile.

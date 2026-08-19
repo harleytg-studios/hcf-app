@@ -1,9 +1,12 @@
 <resources>
     <string name="app_name">Harley\'s Clan Forum [Beta]</string>
+    <string name="status_checking">Connecting to Harley\'s Clan Forum…</string>
     <string name="status_switching">Primary forum unavailable. Switching to backup…</string>
+    <string name="status_unavailable">Forum unavailable</string>
     <string name="retry">Retry</string>
     <string name="try_primary">Try primary</string>
     <string name="use_backup">Use backup</string>
+    <string name="settings">App Settings</string>
     <string name="drawer">App drawer</string>
     <string name="reload">Reload</string>
     <string name="copy_url">Copy URL</string>
