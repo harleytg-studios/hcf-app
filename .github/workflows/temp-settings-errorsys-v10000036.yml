@@ -1,0 +1,110 @@
+name: TEMP apply v10000036 settings and ErrorSys UI fixes
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/temp-settings-errorsys-v10000036.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Apply focused source fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('source code')
+
+          # Settings: restore the same section/scroll position after theme recreate,
+          # and expose Notification Center / DND controls in App Settings.
+          p = root/'src/com/harleytg/forum/SettingsActivity.java'
+          s = p.read_text()
+          s = s.replace(
+          '''public final class SettingsActivity extends ThemedActivity {\n    private static final int REQUEST_NOTIFICATIONS = 901;\n    private static final int UPDATE_INSTALL_PERMISSION_REQUEST = 2410;\n''',
+          '''public final class SettingsActivity extends ThemedActivity {\n    private static final int REQUEST_NOTIFICATIONS = 901;\n    private static final int UPDATE_INSTALL_PERMISSION_REQUEST = 2410;\n    private static final String STATE_SETTINGS_SECTION = "settings_section";\n    private static final String STATE_SETTINGS_SCROLL_Y = "settings_scroll_y";\n''')
+          s = s.replace(
+          '''    private TextView notificationStatus;\n    private TextView serverStatus;\n''',
+          '''    private TextView notificationStatus;\n    private TextView dndStatus;\n    private TextView serverStatus;\n''')
+          s = s.replace(
+          '''            setContentView(buildUi());\n            handleInstallIntent(getIntent());\n            AppLogger.info(this, "settings_open", BuildInfo.VERSION);\n''',
+          '''            setContentView(buildUi());\n            restoreSettingsLocation(savedInstanceState);\n            handleInstallIntent(getIntent());\n            AppLogger.info(this, "settings_open", BuildInfo.VERSION + " | section=" + currentSettingsSection);\n''')
+
+          marker = '''    @Override\n    protected void onResume() {\n'''
+          state_code = '''    @Override\n    protected void onSaveInstanceState(Bundle outState) {\n        outState.putString(STATE_SETTINGS_SECTION, currentSettingsSection == null ? "" : currentSettingsSection);\n        if (settingsScroll != null) outState.putInt(STATE_SETTINGS_SCROLL_Y, settingsScroll.getScrollY());\n        super.onSaveInstanceState(outState);\n    }\n\n    private void restoreSettingsLocation(Bundle savedInstanceState) {\n        if (savedInstanceState == null) return;\n        String section = savedInstanceState.getString(STATE_SETTINGS_SECTION, "");\n        int scrollY = savedInstanceState.getInt(STATE_SETTINGS_SCROLL_Y, 0);\n        if (section != null && !section.trim().isEmpty()) showSettingsSection(section.trim());\n        if (settingsScroll != null && scrollY > 0) {\n            settingsScroll.post(() -> settingsScroll.scrollTo(0, scrollY));\n        }\n    }\n\n'''
+          if state_code.strip() not in s:
+              if marker not in s: raise SystemExit('Settings onResume marker missing')
+              s = s.replace(marker, state_code + marker, 1)
+
+          old = '''        notificationStatus = text("Checking notification status…", 12, getColor(R.color.hcf_muted));\n        card.addView(notificationStatus);\n\n        Switch notifications = toggle("Allow forum notifications", prefs.getBoolean(AppPrefs.NOTIFICATIONS_ENABLED, true));\n'''
+          new = '''        notificationStatus = text("Checking notification status…", 12, getColor(R.color.hcf_muted));\n        card.addView(notificationStatus);\n\n        TextView centerTitle = text("Notification Center", 10, getColor(R.color.hcf_cyan));\n        centerTitle.setTypeface(null, android.graphics.Typeface.BOLD);\n        centerTitle.setPadding(0, dp(8), 0, 0);\n        card.addView(centerTitle);\n        card.addView(actionButton("Open Notification Center & History", v ->\n                startActivity(new Intent(this, NotificationHistoryActivity.class))));\n        dndStatus = text("Do Not Disturb: " + AppSettings.dndLabel(this), 11, getColor(R.color.hcf_meta));\n        dndStatus.setTypeface(null, android.graphics.Typeface.BOLD);\n        card.addView(dndStatus);\n        card.addView(actionButton("Do Not Disturb & Schedule", v ->\n                startActivity(new Intent(this, NotificationHistoryActivity.class))));\n        card.addView(text("Notification History keeps recent app alerts locally. Do Not Disturb can be Off, always On, or Scheduled inside the Notification Center.", 10, getColor(R.color.hcf_muted)));\n\n        Switch notifications = toggle("Allow forum notifications", prefs.getBoolean(AppPrefs.NOTIFICATIONS_ENABLED, true));\n'''
+          if old not in s: raise SystemExit('Notifications insertion target missing')
+          s = s.replace(old, new, 1)
+
+          old = '''        Button themeButton = actionButton("Theme: " + ThemeManager.label(this), v -> {\n            String next = ThemeManager.next(ThemeManager.mode(this));\n            prefs.edit().putString(AppPrefs.APP_THEME, next).apply();\n            AppLogger.info(this, "setting_theme", next);\n            recreate();\n        });\n'''
+          new = '''        Button themeButton = actionButton("Theme: " + ThemeManager.label(this), v -> {\n            String next = ThemeManager.next(ThemeManager.mode(this));\n            prefs.edit().putString(AppPrefs.APP_THEME, next).apply();\n            AppLogger.info(this, "setting_theme", next + " | keep_section=" + currentSettingsSection);\n            recreate();\n        });\n'''
+          if old not in s: raise SystemExit('Theme target missing')
+          s = s.replace(old, new, 1)
+
+          old = '''        if (notificationStatus != null) {\n            NotificationHelper.createChannel(this);\n            boolean allowed = NotificationHelper.canPost(this);\n            boolean headsUp = NotificationHelper.headsUpChannelReady(this);\n            String state = NotificationHelper.status(this);\n            if (Build.VERSION.SDK_INT >= 26) {\n                state += " • channel importance=" + NotificationHelper.channelImportance(this);\n            }\n            notificationStatus.setText("Status: " + state);\n            notificationStatus.setTextColor(allowed && headsUp ? getColor(R.color.hcf_accent_text) : getColor(R.color.hcf_yellow));\n        }\n'''
+          new = '''        if (notificationStatus != null) {\n            NotificationHelper.createChannel(this);\n            boolean allowed = NotificationHelper.canPost(this);\n            boolean headsUp = NotificationHelper.headsUpChannelReady(this);\n            String state = NotificationHelper.status(this);\n            if (Build.VERSION.SDK_INT >= 26) {\n                state += " • channel importance=" + NotificationHelper.channelImportance(this);\n            }\n            notificationStatus.setText("Status: " + state);\n            notificationStatus.setTextColor(allowed && headsUp ? getColor(R.color.hcf_accent_text) : getColor(R.color.hcf_yellow));\n        }\n        if (dndStatus != null) {\n            dndStatus.setText("Do Not Disturb: " + AppSettings.dndLabel(this));\n            dndStatus.setTextColor(AppSettings.isDndActive(this)\n                    ? getColor(R.color.hcf_yellow) : getColor(R.color.hcf_meta));\n        }\n'''
+          if old not in s: raise SystemExit('Notification refresh target missing')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          # ErrorSys overlay stays inside contentFrame over the WebView and blocks
+          # touches from falling through to the page while recovery UI is visible.
+          p = root/'res/layout/activity_main.xml'
+          s = p.read_text()
+          old = '''            <FrameLayout\n                android:id="@+id/statusOverlay"\n                android:layout_width="match_parent"\n                android:layout_height="match_parent"\n                android:background="@color/hcf_bg"\n                android:padding="24dp">\n'''
+          new = '''            <!-- ErrorSys/startup overlay lives only inside contentFrame, so native app chrome\n                 remains usable while the WebView area is replaced by recovery UI. -->\n            <FrameLayout\n                android:id="@+id/statusOverlay"\n                android:layout_width="match_parent"\n                android:layout_height="match_parent"\n                android:background="@color/hcf_bg"\n                android:clickable="true"\n                android:focusable="true"\n                android:elevation="2dp"\n                android:padding="24dp">\n'''
+          if old not in s: raise SystemExit('ErrorSys overlay target missing')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          # Correct stale v10000033 release notes for the current v10000036 UI patch.
+          p = root/'src/com/harleytg/forum/ReleaseNotes.java'
+          s = p.read_text()
+          start = s.index('    static final String SUMMARY =')
+          end = s.index('\n\n    static void seedForFreshInstall', start)
+          replacement = '''    static final String SUMMARY = "Beta/Dev v10000036 • Settings, notifications & ErrorSys UI update";\n\n    static final String NOTES =\n            "Harley\\'s Clan Forum (app) v1.0 • Beta/Dev v10000036\\n" +\n            "• Development/Beta versionCode 10000036.\\n" +\n            "• App Settings now exposes the native Notification Center, Notification History, and Do Not Disturb schedule controls.\\n" +\n            "• Changing Day, Night, AMOLED, or Follow phone theme now returns to the Settings section you were editing instead of jumping back to Settings home.\\n" +\n            "• ErrorSys is explicitly layered over the forum WebView content area while the native header and app chrome remain available.\\n" +\n            "• Runtime domain/Firebase routing and the notification reply composer remain included in this Dev build.\\n\\n" +\n            "Stable remains separate; this feature set is scoped to com.harleytg.forum.dev.";'''
+          s = s[:start] + replacement + s[end:]
+          old_sections = '''        addSection(activity, body, "Harley's Clan Forum (app) v1.0",\n                "This is the release for Harley's Clan Forum (app) v1.0. The public version remains 1.0 while the internal build number advances so it installs over the earlier v1.0 package.");\n\n        addSection(activity, body, "Updated • Account & Identity",\n                "Account & Identity action controls now use the standard rectangular cyan-outline HCF button treatment, removing the pill/oval appearance while preserving icons, labels, subtitles, chevrons and full-row touch targets.");\n\n        addSection(activity, body, "Preserved • v1.0 Foundation",\n                "Contact Support branding, Logs & Diagnostics, notification badges, App Links, updater behavior, identity sync, recovery and forum routing remain intact.");\n\n        addSection(activity, body, "New • Performance Profiles",\n                "Choose Auto, Performance, Balanced or Quality in App Settings. Auto reduces motion automatically on low-RAM devices or while Android battery saver is active.");\n'''
+          new_sections = '''        addSection(activity, body, "New • Notification Center in Settings",\n                "Open Notification Center & History directly from App Settings → Notifications. The same area now shows current Do Not Disturb state and links to DND scheduling.");\n\n        addSection(activity, body, "Fixed • Theme Settings Stay Put",\n                "Changing Follow phone, Day, Night, or AMOLED now recreates the themed Settings screen and restores the section and scroll position you were using.");\n\n        addSection(activity, body, "Updated • ErrorSys WebView Overlay",\n                "Connection, HTTP, SSL, timeout and renderer recovery states are shown over the forum WebView content area. Native app chrome remains outside the overlay so the app does not look like a full-screen crash.");\n\n        addSection(activity, body, "Preserved • Dev Foundation",\n                "Notification reply composer, adaptive sync, domain failover, Firebase runtime config, App Links, updater verification, identity sync and diagnostics remain intact.");\n'''
+          if old_sections not in s: raise SystemExit('Release notes section target missing')
+          s = s.replace(old_sections, new_sections, 1)
+          p.write_text(s)
+          PY
+
+      - name: Sanity check changed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'STATE_SETTINGS_SECTION' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -q 'Open Notification Center & History' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -q 'Do Not Disturb & Schedule' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -q 'android:clickable="true"' 'source code/res/layout/activity_main.xml'
+          grep -q 'Beta/Dev v10000036 • Settings, notifications & ErrorSys UI update' 'source code/src/com/harleytg/forum/ReleaseNotes.java'
+
+      - name: Commit patch and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm '.github/workflows/temp-settings-errorsys-v10000036.yml'
+          git add 'source code/src/com/harleytg/forum/SettingsActivity.java' \
+                  'source code/res/layout/activity_main.xml' \
+                  'source code/src/com/harleytg/forum/ReleaseNotes.java'
+          git commit -m 'Fix Dev settings persistence and ErrorSys WebView overlay'
+          git push origin HEAD:dev
