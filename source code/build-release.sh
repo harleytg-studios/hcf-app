@@ -27,7 +27,7 @@ normalize_fingerprint() { printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | tr -d 
 for tool in aapt d8 zipalign apksigner; do
   [[ -x "$build_tools/$tool" ]] || fail "Missing Android build tool: $build_tools/$tool"
 done
-command -v patch >/dev/null 2>&1 || fail "Missing patch utility"
+command -v python3 >/dev/null 2>&1 || fail "Missing python3"
 [[ -f "$android_jar" ]] || fail "Missing Android platform jar: $android_jar"
 [[ -f "$project_dir/AndroidManifest.xml" ]] || fail "Missing AndroidManifest.xml"
 [[ -f "$keystore_path" ]] || fail "Missing Stable V2 private signing key"
@@ -43,14 +43,28 @@ mkdir -p "$work_dir/gen" "$work_dir/classes" "$work_dir/dex" "$work_dir/src" "$o
 cp -R "$project_dir/src/." "$work_dir/src/"
 
 # Stable v10000072 ships the foreground notification bridge without the old
-# 2.5-second cooldown. Keep that promotion as a small, reviewable patch while
-# preserving the larger maintained MainActivity source file.
-main_patch="$project_dir/patches/v10000072-mainactivity.patch"
-if [[ -f "$main_patch" ]]; then
-  patch --batch --forward -p1 -d "$work_dir/src" < "$main_patch"
-else
-  fail "Missing v10000072 MainActivity source patch"
-fi
+# 2.5-second cooldown. Apply that promotion deterministically to the isolated
+# build copy so the maintained MainActivity can remain readable and future
+# source-line movement cannot break a context-sensitive patch file.
+python3 - "$work_dir/src/com/harleytg/forum/MainActivity.java" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+source = path.read_text(encoding="utf-8")
+field = "    private long lastBridgeNotificationAt;\n"
+gate = (
+    "                long now = System.currentTimeMillis();\n"
+    "                if (now - lastBridgeNotificationAt < 2500L) return;\n"
+    "                lastBridgeNotificationAt = now;\n"
+)
+if field not in source:
+    raise SystemExit("Expected v10000072 bridge field not found")
+if gate not in source:
+    raise SystemExit("Expected v10000072 bridge cooldown block not found")
+source = source.replace(field, "", 1).replace(gate, "", 1)
+path.write_text(source, encoding="utf-8")
+PY
 
 "$build_tools/aapt" package -f -m \
   -J "$work_dir/gen" \
