@@ -1,449 +1,638 @@
 package com.harleytg.forum;
 
+import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.DialogInterface;
 import android.content.Intent;
-import android.graphics.Typeface;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.text.InputType;
-import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
-import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
-import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
+import android.widget.SpinnerAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
+import com.harleytg.forum.ForumIdentity;
 
-/**
- * Contact Support v2.
- *
- * Stable v10000072 intentionally starts every support section collapsed on each
- * new Activity opening. Expanded/collapsed UI state is never persisted.
- */
+/* loaded from: classes.dex */
+/** Stable Contact Support v2 aligned with Dev UI; Stable branding/channel remain authoritative. */
 public final class SupportContactActivity extends ThemedActivity {
     private static final String SUPPORT_EMAIL = "harleytg.hq@gmail.com";
-
-    private ForumIdentity.Snapshot identity;
-    private EditText nameField;
-    private EditText replyEmailField;
     private Spinner categoryField;
-    private EditText subjectField;
-    private EditText messageField;
-    private CheckBox includeIdentity;
+    private EditText expectedField;
+    private EditText guestNameField;
+    private EditText guestReplyEmailField;
+    private ForumIdentity.Snapshot identity;
     private CheckBox includeDiagnostics;
+    private CheckBox includeIdentity;
+    private CheckBox includeRoute;
+    private EditText messageField;
+    private SharedPreferences prefs;
+    private EditText stepsField;
+    private EditText subjectField;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    @Override // com.harleytg.forum.ThemedActivity, android.content.SharedPreferences.OnSharedPreferenceChangeListener
+    public /* bridge */ /* synthetic */ void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String str) {
+        super.onSharedPreferenceChanged(sharedPreferences, str);
+    }
+
+    @Override // com.harleytg.forum.ThemedActivity, android.app.Activity
+    protected void onCreate(Bundle bundle) {
+        super.onCreate(bundle);
         ThemeManager.apply(this);
-        identity = ForumIdentity.load(this);
+        this.identity = ForumIdentity.load(this);
+        this.prefs = getSharedPreferences("hcf_app", 0);
         setTitle("Contact Support");
         buildUi();
     }
 
     private void buildUi() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(getColor(R.color.hcf_bg));
-        root.addView(buildHeader(), new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(12), dp(12), dp(12), dp(24));
-
-        content.addView(collapsibleCard(
-                "Your account",
-                identity.loggedIn ? "Current forum identity" : "Guest support is available",
-                buildAccountSection()));
-        content.addView(collapsibleCard(
-                "Support request",
-                "Describe what you need help with",
-                buildRequestSection()));
-        content.addView(collapsibleCard(
-                "Report context",
-                "Choose optional account/device details",
-                buildContextSection()));
-        content.addView(collapsibleCard(
-                "Privacy & send",
-                "Review what leaves the app",
-                buildPrivacySection()));
-
-        scroll.addView(content, new ScrollView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        root.addView(scroll, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-        setContentView(root);
-    }
-
-    private View buildHeader() {
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(12), dp(10), dp(12), dp(10));
-        header.setBackgroundColor(getColor(R.color.hcf_app_bar));
-
-        ImageButton back = UiButtons.iconButton(
-                this, R.drawable.fa_arrow_left, R.drawable.chrome_button_background, 11, "Back");
-        back.setOnClickListener(v -> finish());
-        header.addView(back, new LinearLayout.LayoutParams(dp(44), dp(44)));
-
-        ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.htg_app_logo);
-        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        logo.setContentDescription("Harley's Clan Forum");
-        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(dp(40), dp(40));
-        logoParams.leftMargin = dp(4);
-        header.addView(logo, logoParams);
-
-        LinearLayout titles = new LinearLayout(this);
-        titles.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        titleParams.leftMargin = dp(10);
-        TextView title = label("Contact Support", 19, R.color.hcf_text, true);
-        TextView meta = label("Harley's Clan Forum • " + BuildInfo.VERSION_TAG,
-                10, R.color.hcf_cyan_bright, true);
-        titles.addView(title);
-        titles.addView(meta);
-        header.addView(titles, titleParams);
-        return header;
-    }
-
-    private View collapsibleCard(String titleText, String subtitleText, View sectionBody) {
-        LinearLayout card = card();
-
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setClickable(true);
-        header.setFocusable(true);
-        header.setBackgroundResource(R.drawable.quick_action_background);
-        header.setPadding(dp(12), dp(10), dp(10), dp(10));
-
-        LinearLayout labels = new LinearLayout(this);
-        labels.setOrientation(LinearLayout.VERTICAL);
-        TextView title = label(titleText, 14, R.color.hcf_text, true);
-        TextView subtitle = label(subtitleText, 10, R.color.hcf_muted, false);
-        labels.addView(title);
-        labels.addView(subtitle);
-        header.addView(labels, new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-        TextView state = label("+", 22, R.color.hcf_cyan_bright, true);
-        state.setGravity(Gravity.CENTER);
-        state.setContentDescription(titleText + " collapsed");
-        header.addView(state, new LinearLayout.LayoutParams(dp(36), dp(36)));
-
-        // Required v10000072 default: CLOSED every time Contact Support opens.
-        sectionBody.setVisibility(View.GONE);
-        header.setContentDescription(titleText + ", collapsed. Tap to expand.");
-        header.setOnClickListener(v -> {
-            boolean opening = sectionBody.getVisibility() != View.VISIBLE;
-            sectionBody.setVisibility(opening ? View.VISIBLE : View.GONE);
-            state.setText(opening ? "−" : "+");
-            state.setContentDescription(titleText + (opening ? " expanded" : " collapsed"));
-            header.setContentDescription(titleText + (opening
-                    ? ", expanded. Tap to collapse."
-                    : ", collapsed. Tap to expand."));
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(1);
+        linearLayout.setBackgroundColor(getColor(R.color.hcf_bg));
+        LinearLayout linearLayout2 = new LinearLayout(this);
+        linearLayout2.setOrientation(0);
+        linearLayout2.setGravity(16);
+        linearLayout2.setPadding(dp(12), dp(10), dp(12), dp(10));
+        linearLayout2.setBackgroundColor(getColor(R.color.hcf_app_bar));
+        ImageButton iconButton = UiButtons.iconButton(this, R.drawable.fa_arrow_left, R.drawable.chrome_button_background, 11, "Back");
+        iconButton.setOnClickListener(new View.OnClickListener() { // from class: com.harleytg.forum.SupportContactActivity$$ExternalSyntheticLambda3
+            @Override // android.view.View.OnClickListener
+            public final void onClick(View view) {
+                SupportContactActivity.this.m204lambda$buildUi$0$comharleytgforumSupportContactActivity(view);
+            }
         });
-
-        card.addView(header, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        LinearLayout.LayoutParams bodyParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        bodyParams.topMargin = dp(10);
-        card.addView(sectionBody, bodyParams);
-        return card;
+        linearLayout2.addView(iconButton, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        ImageView imageView = new ImageView(this);
+        imageView.setImageResource(R.drawable.htg_app_logo);
+        imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        imageView.setContentDescription("Harley's Clan Forum");
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(dp(40), dp(40));
+        layoutParams.leftMargin = dp(4);
+        linearLayout2.addView(imageView, layoutParams);
+        LinearLayout linearLayout3 = new LinearLayout(this);
+        linearLayout3.setOrientation(1);
+        LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(0, -2, 1.0f);
+        layoutParams2.leftMargin = dp(10);
+        linearLayout3.addView(label("Contact Support", 19, R.color.hcf_text, true));
+        linearLayout3.addView(label("Forum help, app support & report tools", 10, R.color.hcf_cyan_bright, true));
+        linearLayout2.addView(linearLayout3, layoutParams2);
+        linearLayout.addView(linearLayout2, new LinearLayout.LayoutParams(-1, -2));
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(true);
+        LinearLayout linearLayout4 = new LinearLayout(this);
+        linearLayout4.setOrientation(1);
+        linearLayout4.setPadding(dp(12), dp(12), dp(12), dp(24));
+        linearLayout4.addView(supportPanel("Your account", "Locked forum identity and reply information", R.drawable.fa_user, accountBody(), false));
+        linearLayout4.addView(supportPanel("Support request", "Tell us what happened and what you expected", R.drawable.fa_envelope, requestBody(), false));
+        linearLayout4.addView(supportPanel("Report context", "Read-only app and device information", R.drawable.fa_circle_info, contextBody(), false));
+        linearLayout4.addView(supportPanel("Privacy & send", "Choose what to include, preview, then send", R.drawable.fa_shield, privacyBody(), false));
+        TextView label = label("Harley's Clan Forum • Contact Support v2 • " + BuildInfo.VERSION_TAG + " • " + BuildInfo.CHANNEL, 9, R.color.hcf_hint, false);
+        label.setGravity(17);
+        label.setPadding(0, dp(6), 0, dp(4));
+        linearLayout4.addView(label);
+        scrollView.addView(linearLayout4, new FrameLayout.LayoutParams(-1, -2));
+        linearLayout.addView(scrollView, new LinearLayout.LayoutParams(-1, 0, 1.0f));
+        setContentView(linearLayout);
     }
 
-    private View buildAccountSection() {
-        LinearLayout body = sectionBody();
-        if (identity.loggedIn) {
-            addRow(body, "Display name", nonEmpty(identity.displayName, "Not exposed"));
-            addRow(body, "Username", identity.username.isEmpty() ? "Not exposed" : "@" + identity.username);
-            addRow(body, "Forum email", identity.email.isEmpty()
-                    ? "Not exposed"
-                    : identity.email + (identity.emailConfirmed ? " • verified" : ""));
-            addRow(body, "Role", identity.identityMetaLabel());
-            addRow(body, "Forum host", nonEmpty(identity.host, ForumConfig.PRIMARY_HOST));
+    /* renamed from: lambda$buildUi$0$com-harleytg-forum-SupportContactActivity, reason: not valid java name */
+    /* synthetic */ void m204lambda$buildUi$0$comharleytgforumSupportContactActivity(View view) {
+        finish();
+    }
+
+    private View accountBody() {
+        String str;
+        LinearLayout bodyContainer = bodyContainer();
+        if (this.identity.loggedIn) {
+            String str2 = "Not exposed";
+            addLockedRow(bodyContainer, "Display name", nonEmpty(this.identity.displayName, "Not exposed"));
+            if (this.identity.username.isEmpty()) {
+                str = "Not exposed";
+            } else {
+                str = "@" + this.identity.username;
+            }
+            addLockedRow(bodyContainer, "Username", str);
+            if (!this.identity.email.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                sb.append(this.identity.email);
+                sb.append(this.identity.emailConfirmed ? " • verified" : " • unverified");
+                str2 = sb.toString();
+            }
+            addLockedRow(bodyContainer, "Forum email", str2);
+            addLockedRow(bodyContainer, "Role", this.identity.identityMetaLabel());
+            addLockedRow(bodyContainer, "Forum host", nonEmpty(this.identity.host, "forum.harleytg.com"));
+            TextView label = label("These identity fields are synced from the signed-in forum session and cannot be edited here.", 10, R.color.hcf_muted, false);
+            label.setPadding(0, dp(4), 0, 0);
+            bodyContainer.addView(label);
         } else {
-            TextView guest = label(
-                    "You can contact support as a guest. Sign in first if you want the form to include your current forum identity.",
-                    11, R.color.hcf_muted, false);
-            guest.setLineSpacing(0f, 1.08f);
-            body.addView(guest);
+            TextView label2 = label("No signed-in forum identity was detected. Enter a name and reply email for this support request.", 11, R.color.hcf_muted, false);
+            label2.setPadding(0, 0, 0, dp(10));
+            bodyContainer.addView(label2);
+            EditText input = input("Name or display name", 1, false);
+            this.guestNameField = input;
+            addField(bodyContainer, "Name", input);
+            EditText input2 = input("Email support can reply to", 33, false);
+            this.guestReplyEmailField = input2;
+            addField(bodyContainer, "Reply email", input2);
         }
-        return body;
+        return bodyContainer;
     }
 
-    private View buildRequestSection() {
-        LinearLayout body = sectionBody();
-        TextView destination = label("To: " + SUPPORT_EMAIL, 11, R.color.hcf_cyan_bright, true);
-        destination.setPadding(0, 0, 0, dp(10));
-        body.addView(destination);
-
-        nameField = input("Name or display name", InputType.TYPE_CLASS_TEXT, false);
-        String pulledName = !identity.displayName.isEmpty() ? identity.displayName : identity.username;
-        if (identity.loggedIn && !pulledName.isEmpty()) nameField.setText(pulledName);
-        addField(body, "Name", nameField);
-
-        replyEmailField = input("Email support can reply to",
-                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, false);
-        if (identity.loggedIn && !identity.email.isEmpty()) replyEmailField.setText(identity.email);
-        addField(body, "Reply email", replyEmailField);
-
-        body.addView(fieldLabel("Category"));
-        categoryField = new Spinner(this);
-        String[] categories = new String[]{
-                "General Support",
-                "Account / Sign In",
-                "Notifications",
-                "Update / Install",
-                "Forum / WebView",
-                "Privacy / Security",
-                "Other"
-        };
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                this, android.R.layout.simple_spinner_dropdown_item, categories);
-        categoryField.setAdapter(adapter);
-        categoryField.setBackgroundResource(R.drawable.identity_card_background);
-        categoryField.setPadding(dp(8), dp(3), dp(8), dp(3));
-        LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
-        spinnerParams.bottomMargin = dp(11);
-        body.addView(categoryField, spinnerParams);
-
-        subjectField = input("Short description of the issue",
-                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES, false);
-        addField(body, "Subject", subjectField);
-
-        messageField = input(
-                "Tell us what happened, what you expected, and any error message you saw.",
-                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-                        | InputType.TYPE_TEXT_FLAG_MULTI_LINE,
-                true);
-        messageField.setMinLines(6);
-        messageField.setGravity(Gravity.TOP | Gravity.START);
-        addField(body, "Message", messageField);
-        return body;
+    private View requestBody() {
+        LinearLayout bodyContainer = bodyContainer();
+        addLockedRow(bodyContainer, "Support destination", SUPPORT_EMAIL);
+        bodyContainer.addView(fieldLabel("Support type"));
+        this.categoryField = new Spinner(this);
+        this.categoryField.setAdapter((SpinnerAdapter) new ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"App issue", "Account issue", "Notifications", "Login / identity", "Bug report", "Feature request", "Update / install", "Forum / WebView", "Privacy / security", "Other"}));
+        this.categoryField.setBackgroundResource(R.drawable.identity_card_background);
+        this.categoryField.setPadding(dp(10), dp(4), dp(10), dp(4));
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-1, dp(50));
+        layoutParams.bottomMargin = dp(11);
+        bodyContainer.addView(this.categoryField, layoutParams);
+        EditText input = input("Short description of the issue", 16385, false);
+        this.subjectField = input;
+        addField(bodyContainer, "Subject", input);
+        EditText input2 = input("What happened? Include any error message you saw.", 147457, true);
+        this.messageField = input2;
+        input2.setMinLines(5);
+        this.messageField.setGravity(8388659);
+        addField(bodyContainer, "What happened", this.messageField);
+        EditText input3 = input("Optional: steps that reproduce the problem", 147457, true);
+        this.stepsField = input3;
+        input3.setMinLines(3);
+        this.stepsField.setGravity(8388659);
+        addField(bodyContainer, "Steps to reproduce", this.stepsField);
+        EditText input4 = input("Optional: what should have happened instead", 147457, true);
+        this.expectedField = input4;
+        input4.setMinLines(3);
+        this.expectedField.setGravity(8388659);
+        addField(bodyContainer, "Expected behavior", this.expectedField);
+        return bodyContainer;
     }
 
-    private View buildContextSection() {
-        LinearLayout body = sectionBody();
-        includeIdentity = new CheckBox(this);
-        includeIdentity.setText("Include Forum Identity in support message");
-        includeIdentity.setTextColor(getColor(R.color.hcf_text));
-        includeIdentity.setTextSize(12f);
-        includeIdentity.setChecked(identity.loggedIn);
-        includeIdentity.setEnabled(identity.loggedIn);
-        body.addView(includeIdentity);
-
-        includeDiagnostics = new CheckBox(this);
-        includeDiagnostics.setText("Include basic app/device diagnostics");
-        includeDiagnostics.setTextColor(getColor(R.color.hcf_text));
-        includeDiagnostics.setTextSize(12f);
-        includeDiagnostics.setChecked(false);
-        body.addView(includeDiagnostics);
-
-        TextView hint = label(
-                "Diagnostics are optional and off by default. They include only app version, Android version, device model and forum host — not logs, cookies, passwords or tokens.",
-                10, R.color.hcf_muted, false);
-        hint.setPadding(dp(4), dp(4), dp(4), 0);
-        hint.setLineSpacing(0f, 1.08f);
-        body.addView(hint);
-        return body;
+    private View contextBody() {
+        LinearLayout bodyContainer = bodyContainer();
+        String activeHost = activeHost();
+        String currentRoute = currentRoute();
+        addLockedRow(bodyContainer, "App", "Harley's Clan Forum " + BuildInfo.VERSION_TAG + " • " + BuildInfo.CHANNEL + " • build " + BuildInfo.VERSION_CODE);
+        addLockedRow(bodyContainer, "Package", getPackageName());
+        addLockedRow(bodyContainer, "Android", Build.VERSION.RELEASE + " • API " + Build.VERSION.SDK_INT);
+        addLockedRow(bodyContainer, "Device", Build.MANUFACTURER + " " + Build.MODEL);
+        addLockedRow(bodyContainer, "Forum host", activeHost);
+        addLockedRow(bodyContainer, "Current route", currentRoute);
+        addLockedRow(bodyContainer, "Theme", this.prefs.getString("app_theme", "system"));
+        TextView label = label("Context is shown here for transparency. Only the items selected under Privacy & send are added to the email.", 10, R.color.hcf_muted, false);
+        label.setPadding(0, dp(4), 0, 0);
+        bodyContainer.addView(label);
+        return bodyContainer;
     }
 
-    private View buildPrivacySection() {
-        LinearLayout body = sectionBody();
-        TextView copy = label(
-                "The app does not submit this form directly. Continue to Email opens your installed mail app with the request prefilled so you can review, edit or cancel it before sending to "
-                        + SUPPORT_EMAIL + ".",
-                11, R.color.hcf_muted, false);
-        copy.setLineSpacing(0f, 1.08f);
-        body.addView(copy);
-
-        Button continueButton = new Button(this);
-        UiButtons.normalizeText(continueButton);
-        continueButton.setText("Continue to Email");
-        continueButton.setCompoundDrawablesRelative(null, null, null, null);
-        continueButton.setCompoundDrawablePadding(0);
-        continueButton.setAllCaps(false);
-        continueButton.setGravity(Gravity.CENTER);
-        continueButton.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
-        continueButton.setPadding(dp(18), 0, dp(18), 0);
-        continueButton.setTextColor(getColor(R.color.hcf_cyan_bright));
-        continueButton.setTextSize(14f);
-        continueButton.setTypeface(null, Typeface.BOLD);
-        continueButton.setBackgroundResource(R.drawable.button_background);
-        continueButton.setOnClickListener(v -> composeEmail());
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
-        p.topMargin = dp(14);
-        body.addView(continueButton, p);
-        return body;
+    private View privacyBody() {
+        LinearLayout bodyContainer = bodyContainer();
+        CheckBox check = check("Include forum identity", this.identity.loggedIn, this.identity.loggedIn);
+        this.includeIdentity = check;
+        bodyContainer.addView(check);
+        CheckBox check2 = check("Include sanitized app/device diagnostics", false, true);
+        this.includeDiagnostics = check2;
+        bodyContainer.addView(check2);
+        CheckBox check3 = check("Include current forum route", false, true);
+        this.includeRoute = check3;
+        bodyContainer.addView(check3);
+        TextView label = label("Passwords, cookies, authentication tokens and private message contents are never included. The app opens your email client so you can review or cancel before sending.", 10, R.color.hcf_muted, false);
+        label.setPadding(dp(2), dp(2), dp(2), dp(10));
+        bodyContainer.addView(label);
+        bodyContainer.addView(actionButton("Preview Report", R.drawable.fa_list, new View.OnClickListener() { // from class: com.harleytg.forum.SupportContactActivity$$ExternalSyntheticLambda0
+            @Override // android.view.View.OnClickListener
+            public final void onClick(View view) {
+                SupportContactActivity.this.m206x8f236721(view);
+            }
+        }));
+        View actionButton = actionButton("Continue to Email", R.drawable.fa_envelope, new View.OnClickListener() { // from class: com.harleytg.forum.SupportContactActivity$$ExternalSyntheticLambda1
+            @Override // android.view.View.OnClickListener
+            public final void onClick(View view) {
+                SupportContactActivity.this.m207x49d8d62(view);
+            }
+        });
+        LinearLayout.LayoutParams layoutParams = (LinearLayout.LayoutParams) actionButton.getLayoutParams();
+        layoutParams.bottomMargin = 0;
+        actionButton.setLayoutParams(layoutParams);
+        bodyContainer.addView(actionButton);
+        TextView label2 = label("Support email: harleytg.hq@gmail.com  •  tap to copy", 10, R.color.hcf_cyan_bright, true);
+        label2.setGravity(17);
+        label2.setPadding(0, dp(10), 0, 0);
+        label2.setClickable(true);
+        label2.setOnClickListener(new View.OnClickListener() { // from class: com.harleytg.forum.SupportContactActivity$$ExternalSyntheticLambda2
+            @Override // android.view.View.OnClickListener
+            public final void onClick(View view) {
+                SupportContactActivity.this.m208x7a17b3a3(view);
+            }
+        });
+        bodyContainer.addView(label2);
+        return bodyContainer;
     }
 
-    private void composeEmail() {
-        String name = clean(nameField == null ? "" : nameField.getText().toString());
-        String reply = clean(replyEmailField == null ? "" : replyEmailField.getText().toString());
-        String category = categoryField == null || categoryField.getSelectedItem() == null
-                ? "General Support" : categoryField.getSelectedItem().toString();
-        String subject = clean(subjectField == null ? "" : subjectField.getText().toString());
-        String message = clean(messageField == null ? "" : messageField.getText().toString());
+    /* renamed from: lambda$privacyBody$1$com-harleytg-forum-SupportContactActivity, reason: not valid java name */
+    /* synthetic */ void m206x8f236721(View view) {
+        previewReport();
+    }
 
-        if (message.isEmpty()) {
-            Toast.makeText(this, "Please enter a message for support.", Toast.LENGTH_SHORT).show();
-            if (messageField != null) messageField.requestFocus();
+    /* renamed from: lambda$privacyBody$2$com-harleytg-forum-SupportContactActivity, reason: not valid java name */
+    /* synthetic */ void m207x49d8d62(View view) {
+        composeEmail();
+    }
+
+    /* renamed from: lambda$privacyBody$3$com-harleytg-forum-SupportContactActivity, reason: not valid java name */
+    /* synthetic */ void m208x7a17b3a3(View view) {
+        copySupportEmail();
+    }
+
+    private View supportPanel(String str, String str2, int i, View view, boolean z) {
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(1);
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-1, -2);
+        layoutParams.bottomMargin = dp(12);
+        linearLayout.setLayoutParams(layoutParams);
+        final LinearLayout linearLayout2 = new LinearLayout(this);
+        linearLayout2.setOrientation(0);
+        linearLayout2.setGravity(16);
+        linearLayout2.setClickable(true);
+        linearLayout2.setFocusable(true);
+        linearLayout2.setPadding(dp(15), dp(13), dp(12), dp(13));
+        linearLayout2.setBackgroundResource(z ? R.drawable.settings_section_header_expanded : R.drawable.settings_section_header_collapsed);
+        ImageView imageView = new ImageView(this);
+        imageView.setImageResource(i);
+        imageView.setColorFilter(getColor(R.color.hcf_cyan_bright));
+        imageView.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(dp(24), dp(24));
+        layoutParams2.rightMargin = dp(11);
+        linearLayout2.addView(imageView, layoutParams2);
+        LinearLayout linearLayout3 = new LinearLayout(this);
+        linearLayout3.setOrientation(1);
+        linearLayout3.addView(label(str, 14, R.color.hcf_accent_text, true));
+        linearLayout3.addView(label(str2, 10, R.color.hcf_muted, false));
+        linearLayout2.addView(linearLayout3, new LinearLayout.LayoutParams(0, -2, 1.0f));
+        final TextView label = label("›", 22, R.color.hcf_cyan_bright, false);
+        label.setGravity(17);
+        label.setRotation(z ? 90.0f : 0.0f);
+        linearLayout2.addView(label, new LinearLayout.LayoutParams(dp(28), -1));
+        linearLayout.addView(linearLayout2);
+        final LinearLayout linearLayout4 = new LinearLayout(this);
+        linearLayout4.setOrientation(1);
+        linearLayout4.setBackgroundResource(R.drawable.settings_section_body);
+        linearLayout4.setPadding(dp(14), dp(14), dp(14), dp(14));
+        if (view != null) {
+            linearLayout4.addView(view, new LinearLayout.LayoutParams(-1, -2));
+        }
+        linearLayout4.setVisibility(z ? 0 : 8);
+        linearLayout4.setAlpha(z ? 1.0f : 0.0f);
+        linearLayout4.setTranslationY(z ? 0.0f : -dp(6));
+        linearLayout.addView(linearLayout4);
+        final boolean[] zArr = {z};
+        linearLayout2.setOnClickListener(new View.OnClickListener() { // from class: com.harleytg.forum.SupportContactActivity$$ExternalSyntheticLambda4
+            @Override // android.view.View.OnClickListener
+            public final void onClick(View view2) {
+                SupportContactActivity.this.m209xae9de76a(zArr, label, linearLayout4, linearLayout2, view2);
+            }
+        });
+        return linearLayout;
+    }
+
+    /* renamed from: lambda$supportPanel$5$com-harleytg-forum-SupportContactActivity, reason: not valid java name */
+    /* synthetic */ void m209xae9de76a(boolean[] zArr, TextView textView, final LinearLayout linearLayout, final LinearLayout linearLayout2, View view) {
+        if (zArr[0]) {
+            zArr[0] = false;
+            textView.animate().rotation(0.0f).setDuration(150L).start();
+            linearLayout.animate().alpha(0.0f).translationY(-dp(6)).setDuration(150L).withEndAction(new Runnable() { // from class: com.harleytg.forum.SupportContactActivity$$ExternalSyntheticLambda5
+                @Override // java.lang.Runnable
+                public final void run() {
+                    SupportContactActivity.lambda$supportPanel$4(linearLayout, linearLayout2);
+                }
+            }).start();
             return;
         }
-        if (subject.isEmpty()) subject = category;
-
-        String mailSubject = "HCF Support • " + category + " • " + BuildInfo.VERSION_TAG + " • " + subject;
-        StringBuilder body = new StringBuilder();
-        body.append("Hello Harley's Clan Forum Support,\n\n");
-        body.append(message).append("\n\n");
-        body.append("--- Contact Request ---\n");
-        body.append("Category: ").append(category).append('\n');
-        body.append("Name: ").append(name.isEmpty() ? "Not provided" : name).append('\n');
-        body.append("Reply email: ").append(reply.isEmpty() ? "Not provided" : reply).append('\n');
-
-        if (includeIdentity != null && includeIdentity.isChecked() && identity.loggedIn) {
-            body.append("\n--- Forum Identity ---\n");
-            body.append("Status: Signed in\n");
-            body.append("Display name: ").append(nonEmpty(identity.displayName, "Not exposed")).append('\n');
-            body.append("Username: ").append(identity.username.isEmpty()
-                    ? "Not exposed" : "@" + identity.username).append('\n');
-            if (!identity.email.isEmpty()) {
-                body.append("Forum email: ").append(identity.email)
-                        .append(identity.emailConfirmed ? " (verified)" : "").append('\n');
-            }
-            body.append("Role: ").append(identity.identityMetaLabel()).append('\n');
-            body.append("Forum host: ").append(nonEmpty(identity.host, ForumConfig.PRIMARY_HOST)).append('\n');
-        }
-
-        if (includeDiagnostics != null && includeDiagnostics.isChecked()) {
-            body.append("\n--- Basic Diagnostics ---\n");
-            body.append("App: Harley's Clan Forum ").append(BuildInfo.VERSION_TAG).append('\n');
-            body.append("Version code: ").append(BuildInfo.VERSION_CODE).append('\n');
-            body.append("Android: ").append(Build.VERSION.RELEASE)
-                    .append(" (API ").append(Build.VERSION.SDK_INT).append(")\n");
-            body.append("Device: ").append(Build.MANUFACTURER).append(' ')
-                    .append(Build.MODEL).append('\n');
-            body.append("Forum host: ").append(nonEmpty(identity.host, ForumConfig.PRIMARY_HOST)).append('\n');
-        }
-
-        body.append("\nSent from the Harley's Clan Forum in-app Contact Support form.");
-
-        try {
-            String mailto = "mailto:" + SUPPORT_EMAIL
-                    + "?subject=" + Uri.encode(mailSubject)
-                    + "&body=" + Uri.encode(body.toString());
-            Intent intent = new Intent(Intent.ACTION_SENDTO);
-            intent.setData(Uri.parse(mailto));
-            intent.putExtra(Intent.EXTRA_EMAIL, new String[]{SUPPORT_EMAIL});
-            intent.putExtra(Intent.EXTRA_SUBJECT, mailSubject);
-            intent.putExtra(Intent.EXTRA_TEXT, body.toString());
-            startActivity(Intent.createChooser(intent, "Send support email"));
-            AppLogger.info(this, "support_contact",
-                    "mailto recipient=" + SUPPORT_EMAIL
-                            + " identity=" + (includeIdentity != null && includeIdentity.isChecked() && identity.loggedIn)
-                            + " diagnostics=" + (includeDiagnostics != null && includeDiagnostics.isChecked()));
-        } catch (Throwable t) {
-            Toast.makeText(this, "No email app is available. Email " + SUPPORT_EMAIL,
-                    Toast.LENGTH_LONG).show();
-            AppLogger.error(this, "support_contact", t.getClass().getSimpleName());
-        }
+        zArr[0] = true;
+        linearLayout2.setBackgroundResource(R.drawable.settings_section_header_expanded);
+        linearLayout.setVisibility(0);
+        linearLayout.setAlpha(0.0f);
+        linearLayout.setTranslationY(-dp(6));
+        textView.animate().rotation(90.0f).setDuration(170L).start();
+        linearLayout.animate().alpha(1.0f).translationY(0.0f).setDuration(180L).start();
     }
 
-    private LinearLayout sectionBody() {
-        LinearLayout body = new LinearLayout(this);
-        body.setOrientation(LinearLayout.VERTICAL);
-        body.setPadding(dp(2), dp(2), dp(2), dp(2));
-        return body;
+    static /* synthetic */ void lambda$supportPanel$4(LinearLayout linearLayout, LinearLayout linearLayout2) {
+        linearLayout.setVisibility(8);
+        linearLayout2.setBackgroundResource(R.drawable.settings_section_header_collapsed);
     }
 
-    private LinearLayout card() {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackgroundResource(R.drawable.card_background);
-        card.setPadding(dp(12), dp(12), dp(12), dp(12));
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        p.bottomMargin = dp(12);
-        card.setLayoutParams(p);
-        return card;
+    private LinearLayout bodyContainer() {
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(1);
+        linearLayout.setBackgroundColor(0);
+        return linearLayout;
     }
 
-    private void addRow(LinearLayout parent, String labelText, String valueText) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
-        row.setPadding(0, dp(4), 0, dp(7));
-        TextView label = label(labelText, 9, R.color.hcf_meta, true);
-        TextView value = label(valueText, 12, R.color.hcf_text, false);
-        value.setPadding(0, dp(1), 0, 0);
-        row.addView(label);
-        row.addView(value);
-        parent.addView(row);
+    private void addLockedRow(LinearLayout linearLayout, String str, String str2) {
+        LinearLayout linearLayout2 = new LinearLayout(this);
+        linearLayout2.setOrientation(1);
+        linearLayout2.setBackgroundResource(R.drawable.identity_card_background);
+        linearLayout2.setPadding(dp(12), dp(9), dp(12), dp(9));
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-1, -2);
+        layoutParams.bottomMargin = dp(8);
+        linearLayout2.setLayoutParams(layoutParams);
+        TextView label = label(str, 9, R.color.hcf_meta, true);
+        TextView label2 = label(str2, 12, R.color.hcf_text, false);
+        label2.setPadding(0, dp(2), 0, 0);
+        linearLayout2.addView(label);
+        linearLayout2.addView(label2);
+        linearLayout.addView(linearLayout2);
     }
 
-    private void addField(LinearLayout parent, String labelText, EditText field) {
-        parent.addView(fieldLabel(labelText));
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        p.bottomMargin = dp(11);
-        parent.addView(field, p);
+    private void addField(LinearLayout linearLayout, String str, EditText editText) {
+        linearLayout.addView(fieldLabel(str));
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-1, -2);
+        layoutParams.bottomMargin = dp(11);
+        linearLayout.addView(editText, layoutParams);
     }
 
-    private TextView fieldLabel(String value) {
-        TextView label = label(value, 10, R.color.hcf_meta, true);
+    private TextView fieldLabel(String str) {
+        TextView label = label(str, 10, R.color.hcf_meta, true);
         label.setPadding(dp(2), 0, 0, dp(4));
         return label;
     }
 
-    private EditText input(String hint, int inputType, boolean multiline) {
-        EditText input = new EditText(this);
-        input.setHint(hint);
-        input.setHintTextColor(getColor(R.color.hcf_hint));
-        input.setTextColor(getColor(R.color.hcf_text));
-        input.setTextSize(13f);
-        input.setInputType(inputType);
-        input.setSingleLine(!multiline);
-        if (!multiline) input.setImeOptions(EditorInfo.IME_ACTION_NEXT);
-        input.setBackgroundResource(R.drawable.identity_card_background);
-        input.setPadding(dp(12), dp(10), dp(12), dp(10));
-        return input;
+    private EditText input(String str, int i, boolean z) {
+        EditText editText = new EditText(this);
+        editText.setHint(str);
+        editText.setHintTextColor(getColor(R.color.hcf_hint));
+        editText.setTextColor(getColor(R.color.hcf_text));
+        editText.setTextSize(13.0f);
+        editText.setInputType(i);
+        editText.setSingleLine(!z);
+        if (!z) {
+            editText.setImeOptions(5);
+        }
+        editText.setBackgroundResource(R.drawable.identity_card_background);
+        editText.setPadding(dp(12), dp(10), dp(12), dp(10));
+        return editText;
     }
 
-    private TextView label(String value, int sizeSp, int colorRes, boolean bold) {
-        TextView view = new TextView(this);
-        view.setText(value);
-        view.setTextColor(getColor(colorRes));
-        view.setTextSize(sizeSp);
-        if (bold) view.setTypeface(null, Typeface.BOLD);
-        return view;
+    private CheckBox check(String str, boolean z, boolean z2) {
+        CheckBox checkBox = new CheckBox(this);
+        checkBox.setText(str);
+        checkBox.setTextColor(getColor(R.color.hcf_text));
+        checkBox.setTextSize(12.0f);
+        checkBox.setChecked(z);
+        checkBox.setEnabled(z2);
+        checkBox.setPadding(0, dp(1), 0, dp(1));
+        return checkBox;
     }
 
-    private static String clean(String value) {
-        return value == null ? "" : value.trim();
+    private View actionButton(String str, int i, View.OnClickListener onClickListener) {
+        LinearLayout linearLayout = new LinearLayout(this);
+        linearLayout.setOrientation(0);
+        linearLayout.setGravity(17);
+        linearLayout.setBackgroundResource(R.drawable.button_background);
+        linearLayout.setClickable(true);
+        linearLayout.setFocusable(true);
+        linearLayout.setPadding(dp(16), 0, dp(16), 0);
+        linearLayout.setContentDescription(str);
+        ImageView imageView = new ImageView(this);
+        imageView.setImageResource(i);
+        imageView.setColorFilter(getColor(R.color.hcf_cyan_bright));
+        imageView.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(dp(20), dp(20));
+        layoutParams.rightMargin = dp(10);
+        linearLayout.addView(imageView, layoutParams);
+        TextView label = label(str, 13, R.color.hcf_cyan_bright, true);
+        label.setGravity(17);
+        label.setIncludeFontPadding(false);
+        linearLayout.addView(label, new LinearLayout.LayoutParams(-2, -2));
+        linearLayout.setOnClickListener(onClickListener);
+        LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(-1, dp(52));
+        layoutParams2.bottomMargin = dp(9);
+        linearLayout.setLayoutParams(layoutParams2);
+        return linearLayout;
     }
 
-    private static String nonEmpty(String value, String fallback) {
-        return value == null || value.trim().isEmpty() ? fallback : value.trim();
+    private void previewReport() {
+        final String buildReportBody = buildReportBody();
+        if (buildReportBody == null) {
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("Support report preview").setMessage(buildReportBody).setNegativeButton("Close", (DialogInterface.OnClickListener) null).setPositiveButton("Continue to Email", new DialogInterface.OnClickListener() { // from class: com.harleytg.forum.SupportContactActivity$$ExternalSyntheticLambda6
+            @Override // android.content.DialogInterface.OnClickListener
+            public final void onClick(DialogInterface dialogInterface, int i) {
+                SupportContactActivity.this.m205xc9453f78(buildReportBody, dialogInterface, i);
+            }
+        }).show();
     }
 
-    private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
+    /* renamed from: lambda$previewReport$6$com-harleytg-forum-SupportContactActivity, reason: not valid java name */
+    /* synthetic */ void m205xc9453f78(String str, DialogInterface dialogInterface, int i) {
+        openEmail(str);
+    }
+
+    private void composeEmail() {
+        String buildReportBody = buildReportBody();
+        if (buildReportBody != null) {
+            openEmail(buildReportBody);
+        }
+    }
+
+    private String buildReportBody() {
+        String clean;
+        String clean2;
+        String obj = this.categoryField.getSelectedItem() == null ? "App issue" : this.categoryField.getSelectedItem().toString();
+        String clean3 = clean(this.subjectField.getText().toString());
+        String clean4 = clean(this.messageField.getText().toString());
+        String clean5 = clean(this.stepsField.getText().toString());
+        String clean6 = clean(this.expectedField.getText().toString());
+        if (clean4.isEmpty()) {
+            Toast.makeText(this, "Please describe what happened.", 0).show();
+            this.messageField.requestFocus();
+            return null;
+        }
+        if (this.identity.loggedIn) {
+            clean = nonEmpty(this.identity.displayName, this.identity.username);
+        } else {
+            EditText editText = this.guestNameField;
+            clean = clean(editText == null ? "" : editText.getText().toString());
+        }
+        if (this.identity.loggedIn) {
+            clean2 = this.identity.email;
+        } else {
+            EditText editText2 = this.guestReplyEmailField;
+            clean2 = clean(editText2 == null ? "" : editText2.getText().toString());
+        }
+        StringBuilder sb = new StringBuilder("Hello Harley's Clan Forum Support,\n\nSupport type: ");
+        sb.append(obj);
+        sb.append("\nSubject: ");
+        if (!clean3.isEmpty()) {
+            obj = clean3;
+        }
+        sb.append(obj);
+        sb.append("\n\n--- What happened ---\n");
+        sb.append(clean4);
+        sb.append("\n\n");
+        if (!clean5.isEmpty()) {
+            sb.append("--- Steps to reproduce ---\n");
+            sb.append(clean5);
+            sb.append("\n\n");
+        }
+        if (!clean6.isEmpty()) {
+            sb.append("--- Expected behavior ---\n");
+            sb.append(clean6);
+            sb.append("\n\n");
+        }
+        sb.append("--- Contact ---\nName: ");
+        if (clean.isEmpty()) {
+            clean = "Not provided";
+        }
+        sb.append(clean);
+        sb.append("\nReply email: ");
+        if (clean2.isEmpty()) {
+            clean2 = "Not provided";
+        }
+        sb.append(clean2);
+        sb.append('\n');
+        CheckBox checkBox = this.includeIdentity;
+        if (checkBox != null && checkBox.isChecked() && this.identity.loggedIn) {
+            sb.append("\n--- Forum Identity ---\nDisplay name: ");
+            String str = "Not exposed";
+            sb.append(nonEmpty(this.identity.displayName, "Not exposed"));
+            sb.append("\nUsername: ");
+            if (!this.identity.username.isEmpty()) {
+                str = "@" + this.identity.username;
+            }
+            sb.append(str);
+            sb.append('\n');
+            if (!this.identity.email.isEmpty()) {
+                sb.append("Forum email: ");
+                sb.append(this.identity.email);
+                sb.append(this.identity.emailConfirmed ? " (verified)" : "");
+                sb.append('\n');
+            }
+            sb.append("Role: ");
+            sb.append(this.identity.identityMetaLabel());
+            sb.append('\n');
+        }
+        CheckBox checkBox2 = this.includeDiagnostics;
+        if (checkBox2 != null && checkBox2.isChecked()) {
+            sb.append("\n--- Sanitized Diagnostics ---\nApp: Harley's Clan Forum ");
+            sb.append(BuildInfo.VERSION_TAG);
+            sb.append(" • ");
+            sb.append(BuildInfo.CHANNEL);
+            sb.append("\nVersion code: ");
+            sb.append(BuildInfo.VERSION_CODE);
+            sb.append("\nPackage: ");
+            sb.append(getPackageName());
+            sb.append("\nAndroid: ");
+            sb.append(Build.VERSION.RELEASE);
+            sb.append(" (API ");
+            sb.append(Build.VERSION.SDK_INT);
+            sb.append(")\nDevice: ");
+            sb.append(Build.MANUFACTURER);
+            sb.append(' ');
+            sb.append(Build.MODEL);
+            sb.append("\nForum host: ");
+            sb.append(activeHost());
+            sb.append("\nTheme: ");
+            sb.append(this.prefs.getString("app_theme", "system"));
+            sb.append("\nNotifications: ");
+            sb.append(NotificationHelper.status(this));
+            sb.append('\n');
+        }
+        CheckBox checkBox3 = this.includeRoute;
+        if (checkBox3 != null && checkBox3.isChecked()) {
+            sb.append("\n--- Current Route ---\n");
+            sb.append(currentRoute());
+            sb.append('\n');
+        }
+        sb.append("\nPrivacy: passwords, cookies, tokens and private-message content are not included.\nSent from Harley's Clan Forum Contact Support v2.");
+        return sb.toString();
+    }
+
+    private void openEmail(String str) {
+        String obj = this.categoryField.getSelectedItem() == null ? "App issue" : this.categoryField.getSelectedItem().toString();
+        String clean = clean(this.subjectField.getText().toString());
+        if (clean.isEmpty()) {
+            clean = obj;
+        }
+        String str2 = "HCF Support • " + obj + " • " + BuildInfo.VERSION_TAG + " • " + BuildInfo.CHANNEL + " • " + clean;
+        try {
+            String str3 = "mailto:harleytg.hq@gmail.com?subject=" + Uri.encode(str2) + "&body=" + Uri.encode(str);
+            Intent intent = new Intent("android.intent.action.SENDTO");
+            intent.setData(Uri.parse(str3));
+            intent.putExtra("android.intent.extra.EMAIL", new String[]{SUPPORT_EMAIL});
+            intent.putExtra("android.intent.extra.SUBJECT", str2);
+            intent.putExtra("android.intent.extra.TEXT", str);
+            startActivity(Intent.createChooser(intent, "Send support email"));
+            AppLogger.info(this, "support_contact_v2", "mailto recipient=harleytg.hq@gmail.com");
+        } catch (Throwable th) {
+            Toast.makeText(this, "No email app is available. Email harleytg.hq@gmail.com", 1).show();
+            AppLogger.error(this, "support_contact_v2", th.getClass().getSimpleName());
+        }
+    }
+
+    private void copySupportEmail() {
+        try {
+            ClipboardManager clipboardManager = (ClipboardManager) getSystemService("clipboard");
+            if (clipboardManager != null) {
+                clipboardManager.setPrimaryClip(ClipData.newPlainText("HCF support email", SUPPORT_EMAIL));
+            }
+            Toast.makeText(this, "Support email copied.", 0).show();
+        } catch (Throwable unused) {
+            Toast.makeText(this, SUPPORT_EMAIL, 1).show();
+        }
+    }
+
+    private String activeHost() {
+        String string = this.prefs.getString("active_host", "forum.harleytg.com");
+        return ForumUrlRouter.isForumHost(string) ? string : "forum.harleytg.com";
+    }
+
+    private String currentRoute() {
+        String string = this.prefs.getString("last_recoverable_url", "");
+        if (string == null || string.trim().isEmpty()) {
+            return "https://" + activeHost() + "/";
+        }
+        return AppLogger.safeUrl(string);
+    }
+
+    private TextView label(String str, int i, int i2, boolean z) {
+        TextView textView = new TextView(this);
+        if (str == null) {
+            str = "";
+        }
+        textView.setText(str);
+        textView.setTextSize(i);
+        textView.setTextColor(getColor(i2));
+        if (z) {
+            textView.setTypeface(null, 1);
+        }
+        return textView;
+    }
+
+    private static String clean(String str) {
+        return str == null ? "" : str.trim();
+    }
+
+    private static String nonEmpty(String str, String str2) {
+        return (str == null || str.trim().isEmpty()) ? str2 : str.trim();
+    }
+
+    private int dp(int i) {
+        return Math.round(i * getResources().getDisplayMetrics().density);
     }
 }
