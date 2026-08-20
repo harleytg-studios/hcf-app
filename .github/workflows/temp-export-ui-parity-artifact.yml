@@ -1,0 +1,35 @@
+name: TEMP Export Stable UI Parity Artifact
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/temp-export-ui-parity-artifact.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export-parity-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout temporary parity output
+        uses: actions/checkout@v4
+        with:
+          ref: stable-ui-parity-test
+
+      - name: Verify parity output exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f build-output/ui-parity-v10000076/HCF-Stable-v10000076-UI-Parity-aligned-unsigned.apk
+          test -f build-output/ui-parity-v10000076/apksigner.jar
+          cat build-output/ui-parity-v10000076/APK-BADGING.txt
+
+      - name: Upload parity build files
+        uses: actions/upload-artifact@v4
+        with:
+          name: hcf-stable-v10000076-parity-files
+          path: build-output/ui-parity-v10000076/
+          if-no-files-found: error
+          retention-days: 1
