@@ -153,15 +153,16 @@ final class LiveForumUpdater {
 
     /* renamed from: lambda$poll$1$com-harleytg-forum-dev-LiveForumUpdater, reason: not valid java name */
     /* synthetic */ void m20lambda$poll$1$comharleytgforumdevLiveForumUpdater(String str, final String str2) {
-        final String str3;
+        String fingerprint;
         try {
-            str3 = fetchFingerprint(str);
+            fingerprint = fetchFingerprint(str);
         } catch (Throwable th) {
             if (this.failures == 0 || this.failures == 2) {
                 AppLogger.warn(this.app, "live_update_poll", th.getClass().getSimpleName());
             }
-            str3 = null;
+            fingerprint = null;
         }
+        final String str3 = fingerprint;
         this.main.post(new Runnable() { // from class: com.harleytg.forum.LiveForumUpdater$$ExternalSyntheticLambda2
             @Override // java.lang.Runnable
             public final void run() {

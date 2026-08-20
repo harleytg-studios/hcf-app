@@ -77,17 +77,21 @@ final class NotificationHelper {
                 notificationChannel2.setShowBadge(false);
                 notificationChannel2.setLockscreenVisibility(0);
                 notificationManager.createNotificationChannel(notificationChannel2);
-                NotificationChannel notificationChannel3 = new NotificationChannel(TEST_CHANNEL_ID, TEST_CHANNEL_NAME, 3);
-                notificationChannel3.setDescription("Stable notification tests only");
-                notificationChannel3.setGroup(CHANNEL_GROUP_ID);
-                notificationChannel3.enableVibration(true);
-                notificationChannel3.setShowBadge(false);
-                notificationChannel3.setLockscreenVisibility(0);
-                notificationManager.createNotificationChannel(notificationChannel3);
+                if (BuildInfo.ENABLE_DEV_TEST_MENU) {
+                    NotificationChannel notificationChannel3 = new NotificationChannel(TEST_CHANNEL_ID, TEST_CHANNEL_NAME, 3);
+                    notificationChannel3.setDescription("Development and Beta notification tests only");
+                    notificationChannel3.setGroup(CHANNEL_GROUP_ID);
+                    notificationChannel3.enableVibration(true);
+                    notificationChannel3.setShowBadge(false);
+                    notificationChannel3.setLockscreenVisibility(0);
+                    notificationManager.createNotificationChannel(notificationChannel3);
+                } else {
+                    deleteChannelIfPresent(notificationManager, TEST_CHANNEL_ID);
+                }
                 for (String str : LEGACY_CHANNEL_IDS) {
                     deleteChannelIfPresent(notificationManager, str);
                 }
-                AppLogger.info(context, "notification_channel", "channels=HCF Alerts|HCF Silent Alerts|HCF Test Alerts");
+                AppLogger.info(context, "notification_channel", BuildInfo.ENABLE_DEV_TEST_MENU ? "channels=HCF Alerts|HCF Silent Alerts|HCF Test Alerts" : "channels=HCF Alerts|HCF Silent Alerts");
             } catch (Throwable th) {
                 AppLogger.error(context, "notification_channel_create", th.getClass().getSimpleName() + ": " + String.valueOf(th.getMessage()));
             }
@@ -111,6 +115,7 @@ final class NotificationHelper {
     }
 
     static boolean postNotificationServiceTest(Context context) {
+        if (!BuildInfo.ENABLE_DEV_TEST_MENU) return false;
         if (context == null) {
             return false;
         }
@@ -248,6 +253,7 @@ final class NotificationHelper {
     }
 
     static void postTest(Context context, String str, String str2, String str3) {
+        if (!BuildInfo.ENABLE_DEV_TEST_MENU) return;
         postInternal(context, trim(str, 120, "HCF test alert"), trim(str2, 500, "HCF notification test"), validatedForumUri(str3), (int) (System.currentTimeMillis() & 2147483647L), false, false, TEST_CHANNEL_ID);
     }
 
@@ -289,7 +295,6 @@ final class NotificationHelper {
     }
 
     static Notification buildInstantServiceNotification(Context context) {
-        createChannel(context);
         Intent intent = new Intent(context, (Class<?>) MainActivity.class);
         intent.addFlags(603979776);
         return new Notification.Builder(context, SILENT_CHANNEL_ID).setSmallIcon(R.drawable.ic_notification_paw).setContentTitle("Harley's Clan Forum").setContentText("Live alerts active • checking in real time").setContentIntent(PendingIntent.getActivity(context, 41070, intent, 201326592)).setOngoing(true).setOnlyAlertOnce(true).setShowWhen(false).setCategory("service").setVisibility(0).setPriority(-2).build();

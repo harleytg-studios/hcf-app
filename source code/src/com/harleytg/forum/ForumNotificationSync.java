@@ -20,7 +20,7 @@ final class ForumNotificationSync {
     }
 
     static Outcome perform(Context context, String str, String str2, String str3) throws Exception {
-        int i;
+        int i = 0;
         long currentTimeMillis = System.currentTimeMillis();
         try {
             int fetchNewCount = ForumNotificationClient.fetchNewCount(context, str, str2);

@@ -10,7 +10,7 @@
     <color name="hcf_cyan_bright">#00b8f0</color>
     <color name="hcf_accent_text">#00b8f0</color>
     <color name="hcf_meta">#00b8f0</color>
-    <color name="hcf_accent">#00b8f0</color>
+    <color name="hcf_yellow">#806600</color>
     <color name="hcf_text">#10232b</color>
     <color name="hcf_muted">#53666f</color>
     <color name="hcf_hint">#6f818a</color>
@@ -36,7 +36,7 @@
     <color name="hcf_chip_selected_bg">#d9f4fb</color>
     <color name="hcf_chip_selected_text">#075e78</color>
     <color name="hcf_info">#00b8f0</color>
-    <color name="hcf_warning">#00b8f0</color>
+    <color name="hcf_warning">#8b6500</color>
     <color name="hcf_error">#b42318</color>
     <color name="hcf_log_timestamp">#607780</color>
     <color name="hcf_log_detail">#405a64</color>
@@ -45,7 +45,7 @@
     <color name="hcf_settings_button_pressed">#3300b8f0</color>
     <color name="hcf_settings_hero_start">#f7fcfd</color>
     <color name="hcf_settings_hero_center">#e8f6fa</color>
-    <color name="hcf_settings_hero_end">#e8f6fa</color>
+    <color name="hcf_settings_hero_end">#fff8df</color>
     <color name="hcf_url_overlay">#f7ffffff</color>
     <color name="hcf_url_overlay_border">#b9cbd3</color>
     <color name="hcf_on_accent">#ffffff</color>

@@ -161,14 +161,10 @@ public final class MediaViewerActivity extends ThemedActivity {
     }
 
     private static String safeHttps(String str) {
-        String trim;
-        if (str == null) {
-            trim = "";
-        } else {
-            try {
-                trim = str.trim();
-            } catch (Throwable unused) {
-            }
+        String trim = "";
+        if (str != null) {
+            try { trim = str.trim(); }
+            catch (Throwable unused) { trim = ""; }
         }
         Uri parse = Uri.parse(trim);
         if ("https".equalsIgnoreCase(parse.getScheme()) && parse.getHost() != null && !parse.getHost().trim().isEmpty()) {

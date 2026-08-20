@@ -1,4 +1,4 @@
-# Harley's Clan Forum 1.0 — Stable v10000072
+# Harley's Clan Forum 1.0 — Stable v10000077
 
 Stable release metadata for the Harley's Clan Forum Android app.
 
@@ -6,8 +6,8 @@ Stable release metadata for the Harley's Clan Forum Android app.
 
 - App name: **Harley's Clan Forum**
 - Package: `com.harleytg.forum`
-- Version: `1.0 (10000072)`
-- Android versionCode: `10000072`
+- Version: `1.0 (10000077)`
+- Android versionCode: `10000077`
 - GitHub tag: `v1.0`
 - Channel: **Stable**
 - Target SDK: `34`
@@ -15,7 +15,7 @@ Stable release metadata for the Harley's Clan Forum Android app.
 
 ## Stable-eligible feature promotion
 
-v10000072 carries forward the non-Beta/Dev user-facing work while retaining the Stable package, branding, update channel, and production defaults.
+v10000077 carries forward the non-Beta/Dev user-facing work while retaining the Stable package, branding, update channel, and production defaults.
 
 Included Stable items include:
 
@@ -40,17 +40,17 @@ Features explicitly designated Beta/Dev-only are **not promoted as Stable featur
 
 ## Release artifacts
 
-- `HCF-Stable-v10000072.apk`
+- `HCF-Stable-v10000077.apk`
   - SHA-256: `6db249c8b0e53df8ac7ff3f378287ad1fe5b3f329731246e16a5d9c6ac726de5`
-- `HCF-Stable-v10000072-source.zip`
+- `HCF-Stable-v10000077-source.zip`
   - SHA-256: `524595ace6704433e684f39549c3b653391c5499168011e141611baf79dc9836`
-- `HCF-Stable-v10000072-VERIFICATION.txt`
+- `HCF-Stable-v10000077-VERIFICATION.txt`
 
-The source ZIP is the exact local reconstruction/build bundle corresponding to the supplied Beta v10000072 payload after Stable package/branding promotion. The maintained Java source/reference tree remains under `source code/`.
+The source ZIP is the exact local reconstruction/build bundle corresponding to the supplied Beta v10000077 payload after Stable package/branding promotion. The maintained Java source/reference tree remains under `source code/`.
 
 ## Stable V2 signing line
 
-The v10000072 Stable APK is signed by the established Stable V2 certificate:
+The v10000077 Stable APK is signed by the established Stable V2 certificate:
 
 `77:E0:E9:6C:11:77:84:2A:AA:31:1A:8F:C0:EB:EA:29:B9:2D:3C:D2:90:BB:81:5B:DB:86:AD:0E:0A:85:84:4F`
 

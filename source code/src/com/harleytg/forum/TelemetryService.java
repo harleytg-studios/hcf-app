@@ -293,7 +293,7 @@ final class TelemetryService {
         alertDialog.getButton(-3).setOnClickListener(new View.OnClickListener() { // from class: com.harleytg.forum.TelemetryService$$ExternalSyntheticLambda2
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                TelemetryService.showTextDialog(r0, "Crash report preview", TelemetryService.previewPendingReport(activity, editText.getText().toString(), r10.isChecked()));
+                TelemetryService.showTextDialog(activity, "Crash report preview", TelemetryService.previewPendingReport(activity, editText.getText().toString(), r10.isChecked()));
             }
         });
         alertDialog.getButton(-2).setOnClickListener(new View.OnClickListener() { // from class: com.harleytg.forum.TelemetryService$$ExternalSyntheticLambda3
@@ -529,74 +529,49 @@ final class TelemetryService {
         jSONObject.remove("forumIdentity");
     }
 
-    private static boolean postReport(Context context, JSONObject jSONObject) {
-        String decryptWebhook;
-        int responseCode;
-        String optString = jSONObject != null ? jSONObject.optString("reportId", "HCF-REPORT") : "HCF-REPORT";
-        String optString2 = jSONObject != null ? jSONObject.optString("type", "event") : "event";
-        HttpsURLConnection httpsURLConnection = null;
+    private static boolean postReport(Context context, JSONObject report) {
+        HttpsURLConnection connection = null;
+        String reportId = report == null ? "HCF-REPORT" : report.optString("reportId", "HCF-REPORT");
+        String type = report == null ? "event" : report.optString("type", "event");
         try {
-            decryptWebhook = decryptWebhook(context);
-        } catch (Throwable th) {
-            th = th;
-        }
-        if (decryptWebhook != null && decryptWebhook.startsWith("https://discord.com/api/webhooks/")) {
-            byte[] bytes = discordPayload(jSONObject).toString().getBytes(StandardCharsets.UTF_8);
-            HttpsURLConnection httpsURLConnection2 = (HttpsURLConnection) new URL(decryptWebhook).openConnection();
-            try {
-                httpsURLConnection2.setConnectTimeout(8000);
-                httpsURLConnection2.setReadTimeout(8000);
-                httpsURLConnection2.setRequestMethod("POST");
-                httpsURLConnection2.setDoOutput(true);
-                httpsURLConnection2.setInstanceFollowRedirects(false);
-                httpsURLConnection2.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-                httpsURLConnection2.setRequestProperty("User-Agent", "HarleysClanForumTelemetry/1.0");
-                httpsURLConnection2.setFixedLengthStreamingMode(bytes.length);
-                OutputStream outputStream = httpsURLConnection2.getOutputStream();
-                try {
-                    outputStream.write(bytes);
-                    outputStream.flush();
-                    if (outputStream != null) {
-                        outputStream.close();
-                    }
-                    responseCode = httpsURLConnection2.getResponseCode();
-                } finally {
-                }
-            } catch (Throwable th2) {
-                th = th2;
-                httpsURLConnection = httpsURLConnection2;
-                try {
-                    saveResult(context, "Last send failed");
-                    addHistory(context, optString, optString2, "failed");
-                    AppLogger.warn(context, "telemetry_failed", optString + " | " + th.getClass().getSimpleName());
-                    return false;
-                } finally {
-                    if (httpsURLConnection != null) {
-                        httpsURLConnection.disconnect();
-                    }
-                }
+            String endpoint = decryptWebhook(context);
+            if (endpoint == null || !endpoint.startsWith("https://discord.com/api/webhooks/")) {
+                saveResult(context, "Blocked: endpoint verification failed");
+                addHistory(context, reportId, type, "blocked");
+                return false;
             }
-            if (responseCode >= 200 && responseCode < 300) {
-                saveResult(context, "Last send succeeded • " + optString);
-                addHistory(context, optString, optString2, "sent");
-                AppLogger.info(context, "telemetry_sent", optString + " | " + optString2);
-                if (httpsURLConnection2 != null) {
-                    httpsURLConnection2.disconnect();
-                }
+            JSONObject root = discordPayload(report);
+            byte[] body = root.toString().getBytes(StandardCharsets.UTF_8);
+            connection = (HttpsURLConnection) new URL(endpoint).openConnection();
+            connection.setConnectTimeout(8000);
+            connection.setReadTimeout(8000);
+            connection.setRequestMethod("POST");
+            connection.setDoOutput(true);
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            connection.setRequestProperty("User-Agent", "HarleysClanForumTelemetry/" + BuildInfo.VERSION);
+            connection.setFixedLengthStreamingMode(body.length);
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(body);
+                output.flush();
+            }
+            int code = connection.getResponseCode();
+            if (code >= 200 && code < 300) {
+                saveResult(context, "Last send succeeded • " + reportId);
+                addHistory(context, reportId, type, "sent");
+                AppLogger.info(context, "telemetry_sent", reportId + " | " + type);
                 return true;
             }
-            saveResult(context, "Last send failed (HTTP " + responseCode + ")");
-            StringBuilder sb = new StringBuilder("HTTP ");
-            sb.append(responseCode);
-            addHistory(context, optString, optString2, sb.toString());
-            AppLogger.warn(context, "telemetry_http", optString + " | " + responseCode);
-            if (httpsURLConnection2 != null) {
-                httpsURLConnection2.disconnect();
-            }
-            return false;
+            saveResult(context, "Last send failed (HTTP " + code + ")");
+            addHistory(context, reportId, type, "HTTP " + code);
+            AppLogger.warn(context, "telemetry_http", reportId + " | " + code);
+        } catch (Throwable t) {
+            saveResult(context, "Last send failed");
+            addHistory(context, reportId, type, "failed");
+            AppLogger.warn(context, "telemetry_failed", reportId + " | " + t.getClass().getSimpleName());
+        } finally {
+            if (connection != null) connection.disconnect();
         }
-        saveResult(context, "Blocked: endpoint verification failed");
-        addHistory(context, optString, optString2, "blocked");
         return false;
     }
 

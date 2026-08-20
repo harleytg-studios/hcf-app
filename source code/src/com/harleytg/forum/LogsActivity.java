@@ -554,7 +554,6 @@ public final class LogsActivity extends ThemedActivity {
         Code decompiled incorrectly, please refer to instructions dump.
         To view partially-correct add '--show-bad-code' argument
     */
-
     public void renderLogs() {
         if (contentText == null || !MODE_LOGS.equals(currentMode)) return;
         List<LogEntry> entries = parseLogs(rawLogs);
@@ -1024,37 +1023,25 @@ public final class LogsActivity extends ThemedActivity {
         }
     }
 
-    @Override // android.app.Activity
-    protected void onActivityResult(int i, int i2, Intent intent) {
-        OutputStream openOutputStream;
-        super.onActivityResult(i, i2, intent);
-        if (i != EXPORT_TEXT || i2 != -1 || intent == null || intent.getData() == null) {
-            return;
-        }
-        this.pendingExportUri = intent.getData();
-        String str = this.visiblePlainText;
-        if (str == null) {
-            str = "";
-        }
-        try {
-            openOutputStream = getContentResolver().openOutputStream(this.pendingExportUri, "w");
+     // android.app.Activity
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != EXPORT_TEXT || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        pendingExportUri = data.getData();
+        String text = visiblePlainText == null ? "" : visiblePlainText;
+        try (OutputStream out = getContentResolver().openOutputStream(pendingExportUri, "w")) {
+            if (out == null) throw new IllegalStateException("No output stream");
+            out.write(text.getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            AppLogger.info(this, MODE_DIAGNOSTICS.equals(currentMode) ? "diagnostics_exported" : "logs_exported", "document-provider");
+            Toast.makeText(this, "Export complete.", Toast.LENGTH_SHORT).show();
+        } catch (Throwable t) {
+            AppLogger.error(this, "logs_export_failed", t.getClass().getSimpleName());
+            Toast.makeText(this, "Could not export this content.", Toast.LENGTH_LONG).show();
         } finally {
-            try {
-            } finally {
-            }
-        }
-        try {
-            if (openOutputStream == null) {
-                throw new IllegalStateException("No output stream");
-            }
-            openOutputStream.write(str.getBytes(StandardCharsets.UTF_8));
-            openOutputStream.flush();
-            AppLogger.info(this, MODE_DIAGNOSTICS.equals(this.currentMode) ? "diagnostics_exported" : "logs_exported", "document-provider");
-            Toast.makeText(this, "Export complete.", 0).show();
-            if (openOutputStream != null) {
-                openOutputStream.close();
-            }
-        } finally {
+            pendingExportUri = null;
         }
     }
 

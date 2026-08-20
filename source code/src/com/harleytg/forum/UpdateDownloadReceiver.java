@@ -4,70 +4,57 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import com.harleytg.forum.AppSecurity;
 
-/** Handles completed downloads from the locked Stable update channel. */
+/* loaded from: classes.dex */
 public final class UpdateDownloadReceiver extends BroadcastReceiver {
-    @Override
+    @Override // android.content.BroadcastReceiver
     public void onReceive(Context context, Intent intent) {
-        if (context == null || intent == null
-                || !"android.intent.action.DOWNLOAD_COMPLETE".equals(intent.getAction())) {
+        if (context == null || intent == null || !"android.intent.action.DOWNLOAD_COMPLETE".equals(intent.getAction())) {
             return;
         }
-
-        SharedPreferences prefs = context.getSharedPreferences(AppPrefs.FILE, 0);
-        if (!BuildInfo.DEFAULT_UPDATE_CHANNEL.equalsIgnoreCase(
-                prefs.getString(AppPrefs.UPDATE_CHANNEL, BuildInfo.DEFAULT_UPDATE_CHANNEL))) {
-            prefs.edit().putString(AppPrefs.UPDATE_CHANNEL, BuildInfo.DEFAULT_UPDATE_CHANNEL).apply();
+        long longExtra = intent.getLongExtra("extra_download_id", -1L);
+        boolean z = false;
+        SharedPreferences sharedPreferences = context.getSharedPreferences("hcf_app", 0);
+        long j = sharedPreferences.getLong("update_download_id", -1L);
+        if (longExtra <= 0 || longExtra != j) {
+            return;
         }
-
-        long completedId = intent.getLongExtra("extra_download_id", -1L);
-        long expectedId = prefs.getLong(AppPrefs.UPDATE_DOWNLOAD_ID, -1L);
-        if (completedId <= 0L || completedId != expectedId) return;
-
-        int status = AppUpdateDownloader.status(context, completedId);
-        String assetKey = prefs.getString(AppPrefs.UPDATE_DOWNLOAD_TAG, "Stable update");
+        int status = AppUpdateDownloader.status(context, longExtra);
+        String string = sharedPreferences.getString("update_download_tag", "update");
         if (status == 8) {
-            AppSecurity.ApkVerification verification = AppSecurity.verifyDownloadedUpdate(context, completedId);
-            if (!verification.ok) {
-                AppLogger.warn(context, "update_download_blocked",
-                        "Stable | " + assetKey + " | " + verification.message);
-                TelemetryService.sendDiagnosticEvent(context, "update_verification_blocked",
-                        "Stable | " + verification.message);
-                AppUpdateDownloader.cleanupAfterSuccessfulUpdate(context);
+            AppSecurity.ApkVerification verifyDownloadedUpdate = AppSecurity.verifyDownloadedUpdate(context, longExtra);
+            if (verifyDownloadedUpdate.ok) {
+                if (sharedPreferences.getBoolean("update_auto_install", true)) {
+                    try {
+                        if (AppSecurity.canInstallUpdates(context)) {
+                            z = AppUpdateDownloader.openInstaller(context, longExtra);
+                        } else {
+                            Intent intent2 = new Intent(context, (Class<?>) SettingsActivity.class);
+                            intent2.setAction("com.harleytg.forum.INSTALL_UPDATE");
+                            intent2.putExtra("download_id", longExtra);
+                            intent2.addFlags(335544320);
+                            context.startActivity(intent2);
+                            z = true;
+                        }
+                    } catch (Throwable th) {
+                        AppLogger.warn(context, "update_auto_install", th.getClass().getSimpleName() + ": " + String.valueOf(th.getMessage()));
+                    }
+                }
+                if (!z) {
+                    NotificationHelper.postUpdateReady(context, string, longExtra);
+                }
+                AppLogger.info(context, "update_download_complete", string + " | verified | id=" + longExtra + " | autoInstaller=" + z);
                 return;
             }
-
-            boolean installerOpened = false;
-            if (prefs.getBoolean(AppPrefs.UPDATE_AUTO_INSTALL, true)) {
-                try {
-                    if (AppSecurity.canInstallUpdates(context)) {
-                        installerOpened = AppUpdateDownloader.openInstaller(context, completedId);
-                    } else {
-                        Intent settings = new Intent(context, SettingsActivity.class);
-                        settings.setAction("com.harleytg.forum.INSTALL_UPDATE");
-                        settings.putExtra("download_id", completedId);
-                        settings.addFlags(335544320);
-                        context.startActivity(settings);
-                        installerOpened = true;
-                    }
-                } catch (Throwable error) {
-                    AppLogger.warn(context, "update_auto_install",
-                            "Stable | " + error.getClass().getSimpleName() + ": " + String.valueOf(error.getMessage()));
-                }
-            }
-
-            if (!installerOpened) {
-                NotificationHelper.postUpdateReady(context, assetKey, completedId);
-            }
-            AppLogger.info(context, "update_download_complete",
-                    "Stable | " + assetKey + " | verified | id=" + completedId
-                            + " | autoInstaller=" + installerOpened);
+            AppLogger.warn(context, "update_download_blocked", string + " | " + verifyDownloadedUpdate.message);
+            TelemetryService.sendDiagnosticEvent(context, "update_verification_blocked", verifyDownloadedUpdate.message);
+            AppUpdateDownloader.cleanupAfterSuccessfulUpdate(context);
             return;
         }
-
-        AppLogger.warn(context, "update_download_complete",
-                "Stable | " + assetKey + " | status=" + status);
-        TelemetryService.sendDiagnosticEvent(context, "update_download_failed",
-                "Stable DownloadManager status " + status);
+        AppLogger.warn(context, "update_download_complete", string + " | status=" + status);
+        StringBuilder sb = new StringBuilder("DownloadManager status ");
+        sb.append(status);
+        TelemetryService.sendDiagnosticEvent(context, "update_download_failed", sb.toString());
     }
 }

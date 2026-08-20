@@ -2899,13 +2899,12 @@ public class MainActivity extends ThemedActivity {
         this.webView.loadUrl(equivalentOnHost);
     }
 
-    private void showChecking(final String str) {
+    private void showChecking(final String requestedHost) {
         boolean z = true;
         final int i = this.connectionUiGeneration + 1;
         this.connectionUiGeneration = i;
-        if (str == null || str.trim().isEmpty()) {
-            str = "forum.harleytg.com";
-        }
+        final String str = (requestedHost == null || requestedHost.trim().isEmpty())
+                ? "forum.harleytg.com" : requestedHost;
         this.mainFrameLoadFailed = false;
         this.lastAppError = null;
         this.lastErrorUri = null;
@@ -2971,7 +2970,7 @@ public class MainActivity extends ThemedActivity {
     /* synthetic */ void m89lambda$showChecking$64$comharleytgforumdevMainActivity(int i, String str) {
         ErrorSystem.AppError connectionTimeout;
         SharedPreferences sharedPreferences;
-        String url;
+        String url = null;
         if (i == this.connectionUiGeneration && this.startupProgress.getVisibility() == 0) {
             Uri uri = null;
             try {
@@ -3745,7 +3744,7 @@ public class MainActivity extends ThemedActivity {
 
     /* renamed from: lambda$loadIdentityAvatar$71$com-harleytg-forum-dev-MainActivity, reason: not valid java name */
     /* synthetic */ void m77lambda$loadIdentityAvatar$71$comharleytgforumdevMainActivity(final String str) {
-        HttpsURLConnection httpsURLConnection;
+        HttpsURLConnection httpsURLConnection = null;
         HttpsURLConnection httpsURLConnection2 = null;
         try {
             httpsURLConnection = (HttpsURLConnection) new URL(str).openConnection();
@@ -4076,7 +4075,7 @@ public class MainActivity extends ThemedActivity {
                     this.drawerSwipeStartY = motionEvent.getY();
                     this.drawerSwipeStartAt = System.currentTimeMillis();
                     int max = Math.max(dp(64), Math.round(getResources().getDisplayMetrics().widthPixels * 0.16f));
-                    if (this.drawerPanel.getVisibility() == 0 || this.drawerSwipeStartX < r0 - max) {
+                    if (this.drawerPanel.getVisibility() == 0 || this.drawerSwipeStartX < getResources().getDisplayMetrics().widthPixels - max) {
                         z = false;
                     }
                     this.drawerSwipeCandidate = z;
