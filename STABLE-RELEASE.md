@@ -15,24 +15,23 @@ Stable release metadata for the Harley's Clan Forum Android app.
 
 ## Stable-eligible feature promotion
 
-v10000072 carries forward the non-Beta/Dev feature work from the newer builds while retaining the Stable package, branding, update channel, and production defaults.
+v10000072 carries forward the non-Beta/Dev user-facing work while retaining the Stable package, branding, update channel, and production defaults.
 
-Included Stable items:
+Included Stable items include:
 
-- Contact Support v2 UI and the latest default-collapsed section behavior.
-- Account & Forum Identity UI fixes, including avatar/frame sizing and identity presentation improvements.
-- Settings redesign improvements that are not Dev-only.
-- Light/Dark theme and native UI refinements.
-- Notification runtime improvements, notification history, routing, DND-facing behavior, and lower-latency/adaptive polling work intended for normal users.
-- Safer forum URL/app-link routing for the registered HCF domains.
-- Primary forum domain `forum.harleytg.com` plus backup `harleysclan.freeflarum.com`; retired `.online` domains are not part of the Stable registry.
-- Logs/diagnostics and error-system UI improvements.
+- Contact Support v2 with all four support sections collapsed each time it opens.
+- Account and Forum Identity presentation/fit fixes.
+- Settings and light/dark native UI refinements that are not Dev-only.
+- Notification history and normal notification controls.
+- Lower-latency notification runtime behavior: no foreground bridge cooldown, 1000 ms live fallback interval, 1000 ms effective failure-retry cap, immediate reconnect sync, and live service continuity when Silent Alerts are silenced.
+- Registered HCF domain routing for `forum.harleytg.com` and `harleysclan.freeflarum.com`.
+- Logs/diagnostics/error UI cleanup and reliability improvements.
 - Performance/backoff improvements for background, screen-off, Battery Saver, and constrained-device conditions.
-- Stable-only release channel behavior; Dev/Beta test UI and Dev package identity are disabled/removed from the Stable build identity.
+- Stable-only release-channel behavior; Dev/Beta test UI remains disabled for Stable identity.
 
 ## Beta / Dev-only items
 
-Features explicitly designated Beta/Dev-only are **not promoted as Stable features**. In particular, the experimental update/install flow remains excluded from the Stable promotion list until it is separately approved for Stable:
+Features explicitly designated Beta/Dev-only are **not promoted as Stable features**. In particular, the experimental update/install feature set remains outside the Stable promotion list until separately approved:
 
 - automatic installer handoff experiments
 - Allow-from-this-source resume experiments
@@ -47,14 +46,14 @@ Features explicitly designated Beta/Dev-only are **not promoted as Stable featur
   - SHA-256: `524595ace6704433e684f39549c3b653391c5499168011e141611baf79dc9836`
 - `HCF-Stable-v10000072-VERIFICATION.txt`
 
-## Stable signing line from v10000072
+The source ZIP is the exact local reconstruction/build bundle corresponding to the supplied Beta v10000072 payload after Stable package/branding promotion. The maintained Java source/reference tree remains under `source code/`.
 
-The v10000072 Stable APK is signed with the locally generated Stable key whose certificate SHA-256 is:
+## Stable V2 signing line
 
-`9D:46:75:EC:2A:CB:83:22:AB:14:FD:97:0D:A5:B0:61:F5:9E:42:FA:5E:8E:45:3B:67:15:57:B2:13:13:78:05`
+The v10000072 Stable APK is signed by the established Stable V2 certificate:
 
-The previous Stable signing line used:
+`77:E0:E9:6C:11:77:84:2A:AA:31:1A:8F:C0:EB:EA:29:B9:2D:3C:D2:90:BB:81:5B:DB:86:AD:0E:0A:85:84:4F`
 
-`D6:51:2E:54:63:52:C3:06:1D:E6:C1:D4:26:D3:C9:AD:A0:83:A5:0A:E8:14:77:1B:AF:D1:6F:B0:73:78:4E:1B`
+This is the same Stable V2 signing identity used by Stable v10000034, so Stable V2 installs can update in place. Builds on older, different Stable signing identities still require a one-time signer migration.
 
-Android requires the same signing certificate for an in-place package update. Devices on the previous signer therefore need a one-time uninstall/reinstall to move to the v10000072 local Stable signing line. Future Stable APKs intended to update v10000072 in place must use the local v10000072 private key. The private key and password must never be committed to this public repository.
+The Stable V2 private key and password must never be committed to this public repository.
