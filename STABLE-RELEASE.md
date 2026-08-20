@@ -1,47 +1,60 @@
-# Harley's Clan Forum 1.0
+# Harley's Clan Forum 1.0 — Stable v10000072
 
-Stable 1.0 release metadata for the Harley's Clan Forum Android app.
+Stable release metadata for the Harley's Clan Forum Android app.
 
 ## Release identity
 
 - App name: **Harley's Clan Forum**
 - Package: `com.harleytg.forum`
-- Version: `1.0`
-- Android versionCode: `10000020`
+- Version: `1.0 (10000072)`
+- Android versionCode: `10000072`
 - GitHub tag: `v1.0`
-- Channel: **Stable / GitHub Latest**
+- Channel: **Stable**
 - Target SDK: `34`
+- Stable branding: original Stable logo/icon set
 
-## Included 1.0 update set
+## Stable-eligible feature promotion
 
-- System-wide Day Theme/native UI improvements.
-- Performance profiles with **Auto** as the default.
-- Notification controls and notification-count badge work.
-- Simplified Android share chooser behavior.
-- Account and Forum Identity button/alignment fixes.
-- Profile-avatar fit correction.
-- Diagnostics/log UI cleanup and crash handling improvements.
-- Update/install handling improvements, including the versionCode 10000020 installer fix.
-- Reduced animation load for lower-end devices while retaining richer effects on capable devices.
+v10000072 carries forward the non-Beta/Dev feature work from the newer builds while retaining the Stable package, branding, update channel, and production defaults.
+
+Included Stable items:
+
+- Contact Support v2 UI and the latest default-collapsed section behavior.
+- Account & Forum Identity UI fixes, including avatar/frame sizing and identity presentation improvements.
+- Settings redesign improvements that are not Dev-only.
+- Light/Dark theme and native UI refinements.
+- Notification runtime improvements, notification history, routing, DND-facing behavior, and lower-latency/adaptive polling work intended for normal users.
+- Safer forum URL/app-link routing for the registered HCF domains.
+- Primary forum domain `forum.harleytg.com` plus backup `harleysclan.freeflarum.com`; retired `.online` domains are not part of the Stable registry.
+- Logs/diagnostics and error-system UI improvements.
+- Performance/backoff improvements for background, screen-off, Battery Saver, and constrained-device conditions.
+- Stable-only release channel behavior; Dev/Beta test UI and Dev package identity are disabled/removed from the Stable build identity.
+
+## Beta / Dev-only items
+
+Features explicitly designated Beta/Dev-only are **not promoted as Stable features**. In particular, the experimental update/install flow remains excluded from the Stable promotion list until it is separately approved for Stable:
+
+- automatic installer handoff experiments
+- Allow-from-this-source resume experiments
+- experimental downloaded-APK verification flow
+- experimental install-ready fallback flow
 
 ## Release artifacts
 
-- `HarleysClanForum-1.0-VERSIONCODE20-INSTALL-FIX.apk`
-  - SHA-256: `722c0702dcbabae60aa21eb2d7ff0d142c1f7e2601f8f66ca059f15e91b14ff3`
-- `HarleysClanForum-1.0-VERSIONCODE20-INSTALL-FIX-source.zip`
-  - SHA-256: `d1b813d86b051821c90bc4b6b9bb8fcf522097457c17d199b3d7dfed619b16c2`
-- `HarleysClanForum-1.0-VERSIONCODE20-INSTALL-FIX-VERIFICATION.txt`
+- `HCF-Stable-v10000072.apk`
+  - SHA-256: `f6c2f0022c891676c025fc833b2cbeb05ed8e854b74cbab9ec0f8d08b8ec507d`
+- `HCF-Stable-v10000072-source.zip`
+  - SHA-256: `f7bc833918bb55c4e90a6c6ad965bddb4922d5368c7ff0b1675e063610ca8923`
+- `HCF-Stable-v10000072-VERIFICATION.txt`
 
-## Signing and upgrade compatibility
+## Stable signing line from v10000072
 
-The 1.0 stable APK is signed with:
+The v10000072 Stable APK is signed with the locally generated Stable key whose certificate SHA-256 is:
+
+`9D:46:75:EC:2A:CB:83:22:AB:14:FD:97:0D:A5:B0:61:F5:9E:42:FA:5E:8E:45:3B:67:15:57:B2:13:13:78:05`
+
+The previous Stable signing line used:
 
 `D6:51:2E:54:63:52:C3:06:1D:E6:C1:D4:26:D3:C9:AD:A0:83:A5:0A:E8:14:77:1B:AF:D1:6F:B0:73:78:4E:1B`
 
-The currently published v0.3.0 APK used an older Android Debug certificate with SHA-256:
-
-`6A:5E:1C:51:A0:5D:D9:7B:CF:E4:6D:DA:6D:D2:83:C3:68:CF:C4:3B:36:E4:CA:E9:86:D2:23:71:A1:18:E2:2A`
-
-Because Android requires the same signing certificate for an in-place package update, installations from that old signer cannot update directly to the new permanent stable signing line. A one-time uninstall/reinstall migration is required unless the exact legacy private key is recovered.
-
-Future `com.harleytg.forum` releases should stay on the current permanent stable signing certificate above.
+Android requires the same signing certificate for an in-place package update. Devices on the previous signer therefore need a one-time uninstall/reinstall to move to the v10000072 local Stable signing line. Future Stable APKs intended to update v10000072 in place must use the local v10000072 private key. The private key and password must never be committed to this public repository.
