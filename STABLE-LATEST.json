@@ -12,10 +12,12 @@
   "verificationFile": "HCF-Stable-v10000072-VERIFICATION.txt",
   "apkSha256": "6db249c8b0e53df8ac7ff3f378287ad1fe5b3f329731246e16a5d9c6ac726de5",
   "sourceSha256": "524595ace6704433e684f39549c3b653391c5499168011e141611baf79dc9836",
-  "signerSha256": "9d4675ec2acb8322ab14fd970da5b061f59e42fa5e8e453b671557b213137805",
+  "signerSha256": "77e0e96c1177842aaa311a8fc0ebea29b92d3cd290bb815bdb86ad0e0a85844f",
+  "signerLine": "Stable v2",
   "targetSdk": 34,
-  "previousStableSignerSha256": "d6512e546352c3061de6c1d426d3c9ada083a50ae814771bafd16fb073784e1b",
-  "signerMigrationRequired": true,
+  "updatesFromStableV2": true,
+  "legacyStableSignerSha256": "d6512e546352c3061de6c1d426d3c9ada083a50ae814771bafd16fb073784e1b",
+  "legacySignerMigrationRequired": true,
   "stableBranding": true,
   "betaDevOnlyFeaturesExcludedFromStablePromotion": true
 }
