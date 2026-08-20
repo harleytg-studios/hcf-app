@@ -6,29 +6,38 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ServiceInfo;
+import android.net.ConnectivityManager;
+import android.net.Network;
 import android.os.Build;
 import android.os.IBinder;
 
 /**
- * User-visible foreground service for low-latency forum alerts. Healthy signed-in
- * sessions are checked about every 1.25 seconds. Failures back off automatically,
- * and Android's 15-minute JobScheduler remains a resilience fallback.
+ * User-visible foreground service for low-latency forum alerts.
+ *
+ * Stable v10000072 targets a 1000 ms healthy-session polling interval and a
+ * 1000 ms effective retry cap. Android's 15-minute JobScheduler remains a
+ * resilience fallback. Network reconnects wake this worker immediately.
  */
 public final class InstantNotificationService extends Service {
     static final String ACTION_SYNC_NOW = "com.harleytg.forum.SYNC_NOTIFICATIONS_NOW";
     static final int SERVICE_NOTIFICATION_ID = 41070;
-    static final long POLL_MS = 1250L;
+    static final long POLL_MS = 1000L;
     private static final long NO_SESSION_POLL_MS = 5000L;
-    private static final long FAILURE_MIN_MS = 2500L;
-    private static final long FAILURE_MAX_MS = 30000L;
+    private static final long FAILURE_MIN_MS = 1000L;
+    private static final long FAILURE_MAX_MS = 1000L;
 
     private final Object wakeSignal = new Object();
     private volatile boolean running;
     private Thread worker;
+    private ConnectivityManager connectivityManager;
+    private ConnectivityManager.NetworkCallback networkCallback;
 
     static void apply(Context context) {
         if (context == null) return;
         SharedPreferences prefs = context.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
+        // The service is controlled by the app-level notification and background-sync
+        // switches only. Muting the separate HCF Silent Alerts channel must not stop
+        // live account synchronization.
         boolean enabled = prefs.getBoolean(AppPrefs.NOTIFICATIONS_ENABLED, true)
                 && prefs.getBoolean(AppPrefs.BACKGROUND_NOTIFICATION_SYNC, true);
         if (enabled) start(context); else stop(context);
@@ -86,6 +95,7 @@ public final class InstantNotificationService extends Service {
             return;
         }
         startWorker();
+        registerReconnectWakeup();
     }
 
     @Override
@@ -110,6 +120,40 @@ public final class InstantNotificationService extends Service {
 
     private void wakeWorker() {
         synchronized (wakeSignal) { wakeSignal.notifyAll(); }
+    }
+
+    private void registerReconnectWakeup() {
+        try {
+            connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (connectivityManager == null || networkCallback != null) return;
+            networkCallback = new ConnectivityManager.NetworkCallback() {
+                @Override public void onAvailable(Network network) {
+                    // Zero-delay reconnect path: interrupt the current wait so the
+                    // next account sync begins immediately.
+                    wakeWorker();
+                    AppLogger.info(InstantNotificationService.this,
+                            "instant_notification_network", "available | sync-now");
+                }
+            };
+            connectivityManager.registerDefaultNetworkCallback(networkCallback);
+        } catch (Throwable t) {
+            networkCallback = null;
+            connectivityManager = null;
+            AppLogger.warn(this, "instant_notification_network",
+                    "register | " + t.getClass().getSimpleName());
+        }
+    }
+
+    private void unregisterReconnectWakeup() {
+        try {
+            if (connectivityManager != null && networkCallback != null) {
+                connectivityManager.unregisterNetworkCallback(networkCallback);
+            }
+        } catch (Throwable ignored) {
+        } finally {
+            networkCallback = null;
+            connectivityManager = null;
+        }
     }
 
     private void runLoop() {
@@ -138,7 +182,8 @@ public final class InstantNotificationService extends Service {
                 }
             } catch (Throwable t) {
                 failures = Math.min(failures + 1, 6);
-                delay = Math.min(FAILURE_MAX_MS, FAILURE_MIN_MS << Math.min(failures - 1, 3));
+                delay = Math.min(FAILURE_MAX_MS,
+                        FAILURE_MIN_MS << Math.min(failures - 1, 3));
                 AppLogger.warn(this, "instant_notification_poll",
                         t.getClass().getSimpleName() + " | retry=" + delay + "ms");
             }
@@ -160,6 +205,7 @@ public final class InstantNotificationService extends Service {
     public void onDestroy() {
         running = false;
         wakeWorker();
+        unregisterReconnectWakeup();
         if (worker != null) worker.interrupt();
         worker = null;
         super.onDestroy();
