@@ -2,6 +2,7 @@ package com.harleytg.forum;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.PowerManager;
 import java.util.Locale;
 
 /** Shared HCF v10000072 runtime diagnostics state. */
@@ -56,10 +57,20 @@ final class RuntimeDiagnostics {
         out.append("\nLive page interval: ").append(interval(currentLivePollMs));
         out.append("\nFCM: ").append(fcmState());
         out.append("\nNetwork: ").append(RuntimeState.networkType(context));
-        out.append("\nBattery Saver: ").append(PerformanceProfile.isBatterySaver(context) ? "On" : "Off");
+        out.append("\nBattery Saver: ").append(isBatterySaver(context) ? "On" : "Off");
         out.append("\nRenderer recoveries: ").append(rendererRecoveries(prefs));
         out.append("\nConsecutive API failures: ").append(consecutiveApiFailures);
         return out.toString();
+    }
+
+    private static boolean isBatterySaver(Context context) {
+        if (context == null) return false;
+        try {
+            PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            return pm != null && pm.isPowerSaveMode();
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private static String interval(long value) {
