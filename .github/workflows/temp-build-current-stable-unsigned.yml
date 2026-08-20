@@ -39,6 +39,9 @@ jobs:
           ref: stable
           path: stable-repo
 
+      - name: Set up Android command-line tools
+        uses: android-actions/setup-android@v3
+
       - name: Install Android SDK 35 build tools
         shell: bash
         run: |
