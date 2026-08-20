@@ -7,8 +7,8 @@ build_tools_version="${BUILD_TOOLS_VERSION:-35.0.0}"
 platform_version="${ANDROID_PLATFORM_VERSION:-35}"
 build_tools="$sdk_root/build-tools/$build_tools_version"
 android_jar="$sdk_root/platforms/android-$platform_version/android.jar"
-keystore_path="${HCF_KEYSTORE:?Set HCF_KEYSTORE to the private v10000072 Stable signing key}"
-keystore_alias="${HCF_KEY_ALIAS:-hcf-stable-v10000072}"
+keystore_path="${HCF_KEYSTORE:?Set HCF_KEYSTORE to the private Stable V2 JKS}"
+keystore_alias="${HCF_KEY_ALIAS:-hcf-stable-v2}"
 keystore_password_file="${HCF_KEY_PASSWORD_FILE:?Set HCF_KEY_PASSWORD_FILE}"
 export HCF_APKSIGNER_PASSWORD="$(sed -n '1p' "$keystore_password_file")"
 output_dir="${HCF_OUTPUT_DIR:-$project_dir/out}"
@@ -18,7 +18,7 @@ trap 'rm -rf "$work_dir"' EXIT
 expected_package="com.harleytg.forum"
 expected_version_code="10000072"
 expected_version_name="1.0 (10000072)"
-expected_signer_sha256="9D4675EC2ACB8322AB14FD970DA5B061F59E42FA5E8E453B671557B213137805"
+expected_signer_sha256="77E0E96C1177842AAA311A8FC0EBEA29B92D3CD290BB815BDB86AD0E0A85844F"
 output_apk="$output_dir/HCF-Stable-v10000072.apk"
 
 fail() { echo "ERROR: $*" >&2; exit 20; }
@@ -29,14 +29,14 @@ for tool in aapt d8 zipalign apksigner; do
 done
 [[ -f "$android_jar" ]] || fail "Missing Android platform jar: $android_jar"
 [[ -f "$project_dir/AndroidManifest.xml" ]] || fail "Missing AndroidManifest.xml"
-[[ -f "$keystore_path" ]] || fail "Missing Stable v10000072 private signing key"
+[[ -f "$keystore_path" ]] || fail "Missing Stable V2 private signing key"
 [[ -f "$keystore_password_file" ]] || fail "Missing signing-key password file"
 
 key_fingerprint="$(keytool -list -v -keystore "$keystore_path" -storepass "$HCF_APKSIGNER_PASSWORD" -alias "$keystore_alias" 2>/dev/null \
   | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -n 1)"
 key_fingerprint="$(normalize_fingerprint "$key_fingerprint")"
 [[ "$key_fingerprint" == "$expected_signer_sha256" ]] \
-  || fail "Refusing to build Stable with a signing certificate other than the v10000072 local Stable key"
+  || fail "Refusing to build Stable with a signing certificate other than Stable V2"
 
 mkdir -p "$work_dir/gen" "$work_dir/classes" "$work_dir/dex" "$output_dir"
 
@@ -94,6 +94,6 @@ badging="$("$build_tools/aapt" dump badging "$output_apk" | head -n 1)"
 [[ "$badging" == *"versionName='$expected_version_name'"* ]] || fail "APK versionName changed"
 
 apk_sha256="$(sha256sum "$output_apk" | awk '{print tolower($1)}')"
-printf 'Stable signing-line verification: PASS\n'
+printf 'Stable V2 signing verification: PASS\n'
 printf 'Package: %s\nVersionCode: %s\nVersionName: %s\n' "$expected_package" "$expected_version_code" "$expected_version_name"
 printf 'Signer SHA-256: %s\nAPK SHA-256: %s\nAPK: %s\n' "$apk_fingerprint" "$apk_sha256" "$output_apk"
