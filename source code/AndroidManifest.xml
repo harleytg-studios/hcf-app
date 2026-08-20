@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.harleytg.forum"
-    android:versionCode="10000034"
-    android:versionName="1.0 (10000034)">
+    android:versionCode="10000072"
+    android:versionName="1.0 (10000072)">
 
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34" />
     <uses-permission android:name="android.permission.INTERNET" />
