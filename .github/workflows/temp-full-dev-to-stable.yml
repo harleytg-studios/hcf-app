@@ -1,4 +1,4 @@
-name: TEMP Full Dev v10000072 to Stable
+name: TEMP Build Exact Beta UI as Stable v10000076
 
 on:
   push:
@@ -10,83 +10,163 @@ permissions:
   contents: write
 
 jobs:
-  overwrite-stable:
+  build-parity-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Record promotion run ID
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const path = 'build-output/TEMP-FULL-PROMOTION-RUN.txt';
-            let sha;
-            try {
-              const existing = await github.rest.repos.getContent({owner, repo, path, ref: 'main'});
-              if (!Array.isArray(existing.data)) sha = existing.data.sha;
-            } catch (e) { if (e.status !== 404) throw e; }
-            await github.rest.repos.createOrUpdateFileContents({
-              owner, repo, path, branch: 'main', sha,
-              message: '[skip ci] Record direct Dev-to-Stable overwrite run',
-              content: Buffer.from(String(context.runId) + '\n').toString('base64')
-            });
-
-      - name: Checkout promotion controls
+      - name: Checkout controls
         uses: actions/checkout@v4
         with:
           ref: main
           path: control
 
-      - name: Checkout exact Dev v10000072
+      - name: Checkout exact Beta Dev source
         uses: actions/checkout@v4
         with:
           ref: dev
           path: dev-repo
 
-      - name: Checkout Stable target
+      - name: Checkout Stable repair/branding source
         uses: actions/checkout@v4
         with:
           ref: stable
           path: stable-repo
-          fetch-depth: 1
 
-      - name: Overwrite Stable from full Dev and restore Stable items
+      - name: Checkout temporary output branch
+        uses: actions/checkout@v4
+        with:
+          ref: stable-ui-parity-test
+          path: output-repo
+          token: ${{ github.token }}
+
+      - name: Promote exact Beta UI source to Stable test identity
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf "$RUNNER_TEMP/promoted"
           cp -a 'stable-repo/source code' "$RUNNER_TEMP/stable-source-backup"
           python3 control/.github/scripts/temp-promote-full-dev-to-stable.py \
             'dev-repo/source code' \
-            'stable-repo/source code' \
+            "$RUNNER_TEMP/promoted" \
             "$RUNNER_TEMP/stable-source-backup"
 
-          # Decoded APK resource-table metadata is not authored source.
-          rm -f 'stable-repo/source code/res/values/public.xml'
+          rm -f "$RUNNER_TEMP/promoted/res/values/public.xml"
 
-          # Promotion guards: full Dev surface, Stable identity.
-          test "$(find 'stable-repo/source code/src/com/harleytg/forum' -maxdepth 1 -name '*.java' | wc -l)" -eq 46
-          ! grep -R -q 'com.harleytg.forum.dev' 'stable-repo/source code/src'
-          grep -q 'package="com.harleytg.forum"' 'stable-repo/source code/AndroidManifest.xml'
-          grep -q 'android:versionCode="10000072"' 'stable-repo/source code/AndroidManifest.xml'
-          grep -q 'android:value="stable"' 'stable-repo/source code/AndroidManifest.xml'
-          grep -q 'DEFAULT_UPDATE_CHANNEL = "stable"' 'stable-repo/source code/src/com/harleytg/forum/BuildInfo.java'
-          grep -q 'ENABLE_DEV_TEST_MENU = false' 'stable-repo/source code/src/com/harleytg/forum/BuildInfo.java'
-          test -d 'stable-repo/source code/branding'
-          test -d 'stable-repo/source code/signing'
-          test -f 'stable-repo/source code/build-release.sh'
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, os
+          root = Path(os.environ['RUNNER_TEMP'])/'promoted'
 
-      - name: Commit overwrite to Stable
+          # Next installable Stable test version; current device test is v10000075.
+          for p in root.rglob('*'):
+              if not p.is_file() or p.suffix.lower() not in {'.java','.xml','.txt','.md','.json','.sh'}:
+                  continue
+              try: s=p.read_text(encoding='utf-8')
+              except Exception: continue
+              s=s.replace('10000072','10000076')
+              # Remove remaining Beta/preview wording from public Stable UI while
+              # preserving the exact Beta UI structure and feature surface.
+              s=s.replace('Required alerts, silent background alerts and Beta test alerts',
+                          'Required alerts, silent background alerts and notification tools')
+              s=s.replace('Beta test alerts','notification tools')
+              s=s.replace('Beta Test Alerts','Notification Tools')
+              s=s.replace('Preview Releases','Official Releases')
+              s=s.replace('Preview releases','Official releases')
+              s=s.replace('preview release','Stable release')
+              s=s.replace('Preview release','Stable release')
+              s=s.replace('development build is ready','Stable build is ready')
+              s=s.replace('Development build is ready','Stable build is ready')
+              p.write_text(s,encoding='utf-8')
+
+          # Runtime channel must be Stable everywhere.
+          for name in ['UpdateAutomation.java','MainActivity.java','SettingsActivity.java','HcfApplication.java','BootReceiver.java','UpdateDownloadReceiver.java','TelemetryService.java']:
+              p=root/'src/com/harleytg/forum'/name
+              if not p.exists(): continue
+              s=p.read_text(encoding='utf-8')
+              s=s.replace('UpdateChecker.check(this, "dev"','UpdateChecker.check(this, "stable"')
+              s=s.replace('UpdateChecker.check(applicationContext, "dev"','UpdateChecker.check(applicationContext, "stable"')
+              s=s.replace('getString("update_channel", "dev")','getString("update_channel", "stable")')
+              s=s.replace('putString("update_channel", "dev")','putString("update_channel", "stable")')
+              s=s.replace('final String str = "dev";','final String str = "stable";')
+              s=s.replace('jSONObject.put("channel", "Dev")','jSONObject.put("channel", "Stable")')
+              s=s.replace('optString("channel", "Dev")','optString("channel", "Stable")')
+              p.write_text(s,encoding='utf-8')
+
+          # BuildInfo is the canonical Stable identity.
+          p=root/'src/com/harleytg/forum/BuildInfo.java'
+          s=p.read_text(encoding='utf-8')
+          s=re.sub(r'static final String APK_FILE_NAME = ".*?";', 'static final String APK_FILE_NAME = "HCF-Stable-v10000076.apk";', s)
+          s=re.sub(r'static final String DEVELOPMENT_BUILD_LABEL = ".*?";', 'static final String DEVELOPMENT_BUILD_LABEL = "Harley\'s Clan Forum v1.0 [Stable]";', s)
+          s=re.sub(r'static final String VERSION_BUILD_LINE = ".*?";', 'static final String VERSION_BUILD_LINE = "1.0 • Stable • Build 10000076";', s)
+          s=re.sub(r'static final int VERSION_CODE = [0-9]+;', 'static final int VERSION_CODE = 10000076;', s)
+          s=s.replace('static final String CHANNEL = "Dev";', 'static final String CHANNEL = "Stable";')
+          s=s.replace('static final String DEFAULT_UPDATE_CHANNEL = "dev";', 'static final String DEFAULT_UPDATE_CHANNEL = "stable";')
+          s=s.replace('static final boolean ENABLE_DEV_TEST_MENU = true;', 'static final boolean ENABLE_DEV_TEST_MENU = false;')
+          p.write_text(s,encoding='utf-8')
+
+          # Manifest Stable identity/version.
+          p=root/'AndroidManifest.xml'; s=p.read_text(encoding='utf-8')
+          s=re.sub(r'android:versionCode="[0-9]+"','android:versionCode="10000076"',s,count=1)
+          s=re.sub(r'android:versionName="[^"]+"','android:versionName="1.0 (10000076)"',s,count=1)
+          s=s.replace('android:value="dev"','android:value="stable"')
+          p.write_text(s,encoding='utf-8')
+          PY
+
+          # Guards for what the user should see in Stable.
+          grep -q 'package="com.harleytg.forum"' "$RUNNER_TEMP/promoted/AndroidManifest.xml"
+          grep -q 'android:versionCode="10000076"' "$RUNNER_TEMP/promoted/AndroidManifest.xml"
+          grep -q 'DEFAULT_UPDATE_CHANNEL = "stable"' "$RUNNER_TEMP/promoted/src/com/harleytg/forum/BuildInfo.java"
+          grep -q 'ENABLE_DEV_TEST_MENU = false' "$RUNNER_TEMP/promoted/src/com/harleytg/forum/BuildInfo.java"
+          ! grep -RInE 'Harley.s Clan Forum \[Beta\]|Development Build / Beta|Beta test alerts|Preview Releases|development build is ready' \
+            "$RUNNER_TEMP/promoted/res" "$RUNNER_TEMP/promoted/src" || exit 31
+
+      - name: Install Android SDK build tools
         shell: bash
         run: |
           set -euo pipefail
-          cd stable-repo
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Compile and align unsigned Stable parity APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/promoted"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/build"
+          rm -rf "$WORK"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex"
+
+          "$BT/aapt" package -f -m -J "$WORK/gen" -M "$ROOT/AndroidManifest.xml" \
+            -S "$ROOT/res" -A "$ROOT/assets" -I "$ANDROID_JAR" -F "$WORK/resources.apk"
+          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
+          mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$WORK/aligned-unsigned.apk"
+          "$BT/zipalign" -c -p 4 "$WORK/aligned-unsigned.apk"
+
+          "$BT/aapt" dump badging "$WORK/aligned-unsigned.apk" | head -1 | tee "$WORK/badging.txt"
+          grep -q "name='com.harleytg.forum'" "$WORK/badging.txt"
+          grep -q "versionCode='10000076'" "$WORK/badging.txt"
+
+          OUT='output-repo/build-output/ui-parity-v10000076'
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          cp "$WORK/aligned-unsigned.apk" "$OUT/HCF-Stable-v10000076-UI-Parity-aligned-unsigned.apk"
+          cp "$BT/lib/apksigner.jar" "$OUT/apksigner.jar"
+          cp "$WORK/badging.txt" "$OUT/APK-BADGING.txt"
+          printf 'run_id=%s\nsource=dev exact Beta UI generation\npackage=com.harleytg.forum\nversionCode=10000076\nchannel=stable\n' "$GITHUB_RUN_ID" > "$OUT/BUILD.txt"
+
+      - name: Publish temporary unsigned build tools/output
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd output-repo
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- 'source code'
-          if git diff --cached --quiet; then
-            echo 'No Stable source changes to commit.'
-          else
-            git commit -m 'Overwrite Stable with full Dev v10000072 and restore Stable items'
-            git push origin HEAD:stable
-          fi
-          git rev-parse HEAD
+          git add build-output/ui-parity-v10000076/
+          git commit -m '[skip ci] Add Stable v10000076 UI parity unsigned build'
+          git push origin HEAD:stable-ui-parity-test
