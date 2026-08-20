@@ -1,21 +1,4 @@
---- a/com/harleytg/forum/MainActivity.java
-+++ b/com/harleytg/forum/MainActivity.java
-@@ -125,5 +125,4 @@
-     private ValueCallback<Uri[]> filePathCallback;
-     private String activeHost;
-     private boolean switchingHosts;
--    private long lastBridgeNotificationAt;
-     private boolean launchFailed;
-@@ -2663,12 +2662,9 @@
-         public void notify(String title, String body, String url) {
-             runOnUiThread(() -> {
-                 if (!isTrustedForumPage()) {
-                     AppLogger.warn(MainActivity.this, "bridge_notification_blocked", "untrusted-main-frame");
-                     return;
-                 }
--                long now = System.currentTimeMillis();
--                if (now - lastBridgeNotificationAt < 2500L) return;
--                lastBridgeNotificationAt = now;
-                 NotificationHelper.post(MainActivity.this, title, body, url);
-             });
-         }
+# Historical note: Stable v10000072 removes the old 2.5-second foreground
+# notification bridge cooldown. The current build-release.sh applies that small
+# promotion deterministically to its isolated build copy, so no line-sensitive
+# patch is required here.
