@@ -1,15 +1,27 @@
 # Stable release signing
 
-Package: `com.harleytg.forum`  
-Signing generation: `HCF Release v1`  
-First release: `0.4.0`  
-VersionCode: `4009999`
+## Current Stable signing line — v10000072+
 
-Every release from v0.4.0 forward must use the same persistent HCF Release v1 private key. Never commit the keystore or its password to a public repository. Losing this key prevents future in-place updates for the package.
+Stable v10000072 is signed with the locally generated Stable signing key.
 
-The v0.3.2 debug-signing private key was not preserved, so Android requires one clean reinstall when moving from v0.3.2 to v0.4.0. This is a signing boundary, not a package-ID change.
+Public certificate SHA-256:
 
-Certificate SHA-256: `D6:51:2E:54:63:52:C3:06:1D:E6:C1:D4:26:D3:C9:AD:A0:83:A5:0A:E8:14:77:1B:AF:D1:6F:B0:73:78:4E:1B`
+`9D:46:75:EC:2A:CB:83:22:AB:14:FD:97:0D:A5:B0:61:F5:9E:42:FA:5E:8E:45:3B:67:15:57:B2:13:13:78:05`
 
-## Version-code transition at v0.4.14
-v0.4.14 uses versionCode `4140000`, which is greater than v0.4.13's `4139999` and begins the cleaner monotonic stable-code convention. The signing identity is unchanged.
+Keep the matching `.p12` and password in private local storage. **Never commit them to GitHub.** Future Stable APKs intended to update v10000072 in place must be signed with this same private key.
+
+## Previous Stable signer
+
+The prior Stable signing certificate was:
+
+`D6:51:2E:54:63:52:C3:06:1D:E6:C1:D4:26:D3:C9:AD:A0:83:A5:0A:E8:14:77:1B:AF:D1:6F:B0:73:78:4E:1B`
+
+Android does not allow an in-place update when the signing identity changes. Users on that signer must perform a one-time uninstall/reinstall before joining the v10000072 signing line.
+
+## Build policy
+
+- Package must remain `com.harleytg.forum`.
+- Stable builds must keep the Stable update channel and must not consume Dev/Beta feeds.
+- Do not generate a new temporary signing key in CI for a release APK.
+- Do not commit signing passwords, private keys, PKCS#12 files, JKS files, or other private key material.
+- Verify the signed APK certificate and package/version metadata before publishing.
