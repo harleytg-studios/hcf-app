@@ -6,38 +6,41 @@ Stable Android release branch for Harley's Clan Forum.
 
 - App name: **Harley's Clan Forum**
 - Android package: `com.harleytg.forum`
-- Current stable version: `1.0`
-- Android versionCode: `10000032`
+- Current stable version: `1.0 (10000072)`
+- Android versionCode: `10000072`
 - GitHub tag: `v1.0`
-- Release type: normal GitHub Release marked **Latest**
 - Update channel: Stable only
+- Branding: original Stable logo/icon set
 
-## Native UI
+## Current Stable feature set
 
-The 1.0 line includes the refreshed native UI, Follow phone/Day/Night themes, performance profiles with Auto as the default, notification-count work, simplified sharing, account/identity fixes, diagnostics/log cleanup, update/install fixes, and profile-avatar fit corrections.
+The v10000072 Stable line promotes the user-facing work from newer builds that is not explicitly Beta/Dev-only. This includes Contact Support v2/default-collapsed behavior, account/identity fixes, Settings/theme improvements, notification history/routing/adaptive polling, registered-domain routing, logs/diagnostics/error UI improvements, and performance/backoff work.
+
+Features explicitly designated Beta/Dev-only are not listed as Stable features and remain outside the Stable promotion policy until separately approved.
+
+## Forum domains
+
+- Primary: `forum.harleytg.com`
+- Backup: `harleysclan.freeflarum.com`
+- Retired `.online` domains are not part of the Stable registry.
 
 ## Update behavior
 
-The stable app checks normal GitHub Latest releases from this repository and ignores Dev prereleases. Android still requires the user to confirm APK installation.
+Stable builds use the Stable update channel only and must never consume Dev/Beta update feeds. The current v10000072 release identity and hashes are recorded in `STABLE-LATEST.json` and `STABLE-RELEASE.md`.
 
 ## Repository layout
 
-- `.github/workflows/` — Stable build automation
-- `source code/` — authoritative buildable Stable Android source
-- `STABLE-RELEASE.md` — Stable release details
+- `source code/` — Stable Android source/reference tree
+- `STABLE-RELEASE.md` — current Stable release details and feature policy
 - `STABLE-LATEST.json` — machine-readable Stable release metadata
-- `build-output/` — workflow-published APK/build pointer when present
+- `build-output/` — published Stable build pointers/artifacts when present
 
-The branch no longer keeps duplicate source ZIP snapshots beside the extracted source tree. Git history and GitHub Releases provide historical snapshots without cluttering the working branch.
+## Signing line
 
-## Signing migration
+Starting with Stable v10000072, the local Stable signer certificate SHA-256 is:
 
-The current permanent Stable signing certificate SHA-256 is:
+`9D:46:75:EC:2A:CB:83:22:AB:14:FD:97:0D:A5:B0:61:F5:9E:42:FA:5E:8E:45:3B:67:15:57:B2:13:13:78:05`
 
-`D6:51:2E:54:63:52:C3:06:1D:E6:C1:D4:26:D3:C9:AD:A0:83:A5:0A:E8:14:77:1B:AF:D1:6F:B0:73:78:4E:1B`
+This differs from the earlier Stable certificate. Android cannot update across signing identities, so devices on the previous Stable signer require a one-time reinstall to join the v10000072 signing line. Future Stable releases intended to update v10000072 in place must use the same local private key.
 
-The previously published v0.3.0 APK used a different Android Debug certificate. Android therefore cannot perform an in-place update from that legacy signer to the current permanent signing line. Users on the legacy signer need a one-time uninstall/reinstall unless the old private key is recovered.
-
-All future `com.harleytg.forum` releases should remain on the current permanent Stable signing certificate. Never commit private signing keys to this public repository.
-
-See `STABLE-RELEASE.md` and `STABLE-LATEST.json` for current release metadata and artifact hashes.
+**Never commit the private signing key, keystore, or password to this public repository.**
