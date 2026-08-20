@@ -38,12 +38,14 @@ def extract(path, pattern):
 def replace_method(path, pattern, replacement):
     t=path.read_text(encoding='utf-8'); a,b=span(t,pattern); path.write_text(t[:a]+replacement+t[b:],encoding='utf-8')
 
+# Promote every Dev source/resource to Stable package identity.
 for p in OUT.rglob('*'):
     if p.is_file() and p.suffix.lower() in {'.java','.xml','.js','.md','.txt','.json','.sh'}:
         try: s=p.read_text(encoding='utf-8')
         except Exception: continue
         p.write_text(s.replace('com.harleytg.forum.dev','com.harleytg.forum'),encoding='utf-8')
 
+# Stable identity constants, keeping the full Dev feature surface.
 (OUT/'src/com/harleytg/forum/BuildInfo.java').write_text(r'''package com.harleytg.forum;
 
 /** Stable identity for the full v10000072 Dev-to-Stable promotion. */
@@ -78,6 +80,7 @@ final class BuildInfo {
 }
 ''',encoding='utf-8')
 
+# Remove Dev/Beta user-facing identity while retaining the underlying features.
 repls=[
 ("Harley's Clan Forum v1.0 [Development Build / Beta]","Harley's Clan Forum v1.0 [Stable]"),
 ("Harley&apos;s Clan Forum v1.0 [Development Build / Beta]","Harley&apos;s Clan Forum v1.0 [Stable]"),
@@ -97,11 +100,13 @@ for p in OUT.rglob('*'):
         for a,b in repls: s=s.replace(a,b)
         p.write_text(s,encoding='utf-8')
 
+# Stable versionCode is 10000072; Dev's recovered internal 10000071 was an APK quirk.
 for name in ['MainActivity.java','UpdateChecker.java','AppUpdateDownloader.java','TelemetryService.java']:
     p=OUT/'src/com/harleytg/forum'/name
     s=p.read_text(encoding='utf-8').replace('10000071L','10000072L').replace('10000071','10000072')
     p.write_text(s,encoding='utf-8')
 
+# Stable never consumes the preview update feed.
 p=OUT/'src/com/harleytg/forum/SettingsActivity.java'; s=p.read_text(encoding='utf-8')
 s=s.replace('private String effectiveUpdateChannel() {\n        return "dev";\n    }','private String effectiveUpdateChannel() {\n        return "stable";\n    }')
 s=s.replace('UpdateChecker.check(this, "dev", new UpdateChecker.Callback()','UpdateChecker.check(this, "stable", new UpdateChecker.Callback()')
@@ -110,6 +115,7 @@ p=OUT/'src/com/harleytg/forum/MainActivity.java'; s=p.read_text(encoding='utf-8'
 s=s.replace('UpdateChecker.check(this, "dev", new UpdateChecker.Callback()','UpdateChecker.check(this, "stable", new UpdateChecker.Callback()')
 p.write_text(s,encoding='utf-8')
 
+# Repair only the individual JADX-failed method bodies using maintained Stable implementations.
 repairs=[
 ('AppUpdateDownloader.java',r'^\s*static com\.harleytg\.forum\.AppUpdateDownloader\.ProgressSnapshot progress\(android\.content\.Context r18, long r19\)','AppUpdateDownloader.java',r'^\s*static ProgressSnapshot progress\(Context context, long id\)'),
 ('AppUpdateDownloader.java',r'^\s*static int status\(android\.content\.Context r4, long r5\)','AppUpdateDownloader.java',r'^\s*static int status\(Context context, long id\)'),
@@ -122,6 +128,7 @@ for tf,tp,sf,sp in repairs:
 logs=extract(STROOT/'src/com/harleytg/forum/LogsActivity.java',r'^\s*private void renderLogs\(\)').replace('private void renderLogs()','public void renderLogs()',1)
 replace_method(OUT/'src/com/harleytg/forum/LogsActivity.java',r'^\s*public void renderLogs\(\)',logs)
 
+# Imports required by the repaired bodies.
 p=OUT/'src/com/harleytg/forum/AppUpdateDownloader.java'; s=p.read_text(encoding='utf-8')
 if 'import android.database.Cursor;' not in s: s=s.replace('import android.content.pm.ResolveInfo;\n','import android.content.pm.ResolveInfo;\nimport android.content.pm.PackageManager;\nimport android.database.Cursor;\n')
 p.write_text(s,encoding='utf-8')
@@ -129,6 +136,7 @@ p=OUT/'src/com/harleytg/forum/LogsActivity.java'; s=p.read_text(encoding='utf-8'
 if 'import java.util.Collections;' not in s: s=s.replace('import java.util.ArrayList;\n','import java.util.ArrayList;\nimport java.util.Collections;\n')
 p.write_text(s,encoding='utf-8')
 
+# Dev UpdateChecker retained, but its failed async body is restored for Stable feed semantics.
 replace_method(OUT/'src/com/harleytg/forum/UpdateChecker.java',r'^\s*static /\* synthetic \*/ void lambda\$check\$2\(android\.content\.Context r7, final com\.harleytg\.forum\.UpdateChecker\.Callback r8\)',r'''
     static /* synthetic */ void lambda$check$2(Context context, final Callback callback) {
         try {
@@ -151,6 +159,7 @@ s=s.replace('return release.versionCode < 10000072 ? -1 : 1;','return release.ve
 s=s.replace('return compareVersions(release.tag, "1.0");','return compareVersions(release.tag, BuildInfo.VERSION);')
 p.write_text(s,encoding='utf-8')
 
+# Reconstruct Dev adaptive notification worker from the exact v10000072 DEX control flow.
 replace_method(OUT/'src/com/harleytg/forum/InstantNotificationService.java',r'^\s*/\* synthetic \*/ void m18x7f46ef73\(\)',r'''
     /* synthetic */ void m18x7f46ef73() {
         long nextDelay = NO_SESSION_POLL_MS;
@@ -183,15 +192,24 @@ replace_method(OUT/'src/com/harleytg/forum/InstantNotificationService.java',r'^\
         }
     }''')
 
+# Stable release notes identity, preserving Dev v10000072 feature notes.
 rp=OUT/'src/com/harleytg/forum/ReleaseNotes.java'; s=rp.read_text(encoding='utf-8')
 s=s.replace('Stable remains separate; this feature set is scoped to com.harleytg.forum.','This Stable release contains the full v10000072 feature set promoted from Dev.')
+s=s.replace('Stable versionCode 10000072.','Stable versionCode 10000072.')
 rp.write_text(s,encoding='utf-8')
+
+# Manifest/strings Stable identity.
 p=OUT/'AndroidManifest.xml'; s=p.read_text(encoding='utf-8').replace('android:value="dev"','android:value="stable"'); p.write_text(s,encoding='utf-8')
 p=OUT/'res/values/strings.xml'; s=p.read_text(encoding='utf-8').replace("Harley\\'s Clan Forum [Beta]","Harley\\'s Clan Forum"); p.write_text(s,encoding='utf-8')
 
+# Overlay Stable logo/icon set without rolling back Dev UI/resources.
 stable_res=STROOT/'res'; logo=stable_res/'drawable-nodpi/htg_app_logo.png'
-(OUT/'res/drawable-nodpi').mkdir(parents=True,exist_ok=True); shutil.copy2(logo,OUT/'res/drawable-nodpi/htg_app_logo.png')
-(OUT/'res/drawable-nodpi-v4').mkdir(parents=True,exist_ok=True); shutil.copy2(logo,OUT/'res/drawable-nodpi-v4/htg_app_logo.png')
+# Dev exact uses drawable-nodpi-v4. Keep the Stable art in that existing
+# resource slot only; aapt treats nodpi and nodpi-v4 as duplicate configs.
+(OUT/'res/drawable-nodpi-v4').mkdir(parents=True,exist_ok=True)
+shutil.copy2(logo,OUT/'res/drawable-nodpi-v4/htg_app_logo.png')
+dup=OUT/'res/drawable-nodpi/htg_app_logo.png'
+if dup.exists(): dup.unlink()
 for pat in ['fa_*.xml','ic_*.xml','htg_icon_foreground.xml']:
     for src in (stable_res/'drawable').glob(pat): shutil.copy2(src,OUT/'res/drawable'/src.name)
 for d in stable_res.glob('mipmap-*'):
@@ -209,6 +227,7 @@ for dname in ['app-links','branding','signing']:
         if dest.exists(): shutil.rmtree(dest)
         shutil.copytree(src,dest)
 
+# Direct build script for the promoted source; Stable V2 signer is required and remains external.
 (OUT/'build-release.sh').write_text(r'''#!/usr/bin/env bash
 set -euo pipefail
 project_dir="$(cd "$(dirname "$0")" && pwd)"; sdk_root="${ANDROID_SDK_ROOT:?Set ANDROID_SDK_ROOT}"
@@ -230,6 +249,7 @@ cp "$work/resources.apk" "$work/unsigned.apk"; (cd "$work/dex" && "$build_tools/
 os.chmod(OUT/'build-release.sh',0o755)
 if (OUT/'patches').exists(): shutil.rmtree(OUT/'patches')
 
+# Hard guards before compile/commit.
 alltext='\n'.join(p.read_text(encoding='utf-8',errors='ignore') for p in OUT.rglob('*') if p.is_file() and p.suffix.lower() in {'.java','.xml'})
 if 'com.harleytg.forum.dev' in alltext: raise RuntimeError('Dev package identity remains')
 if 'Method not decompiled' in alltext: raise RuntimeError('JADX failure remains')
