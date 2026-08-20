@@ -6,8 +6,10 @@ sdk_root="${ANDROID_SDK_ROOT:?Set ANDROID_SDK_ROOT}"
 build_tools="$sdk_root/build-tools/${BUILD_TOOLS_VERSION:-35.0.0}"
 android_jar="$sdk_root/platforms/android-${ANDROID_PLATFORM_VERSION:-35}/android.jar"
 manifest="$project_dir/AndroidManifest.xml"
+build_info="$project_dir/src/com/harleytg/forum/BuildInfo.java"
 
 [[ -f "$manifest" ]] || { echo "Missing AndroidManifest.xml" >&2; exit 2; }
+[[ -f "$build_info" ]] || { echo "Missing stable BuildInfo.java" >&2; exit 2; }
 [[ -x "$build_tools/aapt" ]] || { echo "Missing aapt in $build_tools" >&2; exit 3; }
 [[ -x "$build_tools/d8" ]] || { echo "Missing d8 in $build_tools" >&2; exit 4; }
 [[ -x "$build_tools/zipalign" ]] || { echo "Missing zipalign in $build_tools" >&2; exit 5; }
@@ -18,26 +20,34 @@ package_name="$(sed -n 's/.*package="\([^"]*\)".*/\1/p' "$manifest" | head -1)"
 version_code="$(sed -n 's/.*android:versionCode="\([^"]*\)".*/\1/p' "$manifest" | head -1)"
 version_name="$(sed -n 's/.*android:versionName="\([^"]*\)".*/\1/p' "$manifest" | head -1)"
 
-case "$package_name" in
-  com.harleytg.forum)
-    channel="stable"
-    output_name="HCF-Stable-v${version_code}.apk"
-    default_alias="hcf-stable-v2"
-    expected_signer="77E0E96C1177842AAA311A8FC0EBEA29B92D3CD290BB815BDB86AD0E0A85844F"
-    ;;
-  com.harleytg.forum.dev)
-    channel="dev"
-    output_name="HCF-Beta-v${version_code}.apk"
-    default_alias="hcf-beta-v2"
-    expected_signer="${HCF_EXPECTED_SIGNER:-}"
-    ;;
-  *)
-    echo "Unsupported package: $package_name" >&2
-    exit 8
-    ;;
-esac
+# The stable branch must never produce a Dev/Beta package or use a preview update feed.
+[[ "$package_name" == "com.harleytg.forum" ]] || {
+  echo "Stable build blocked: expected package com.harleytg.forum, got $package_name" >&2
+  exit 8
+}
+grep -Fq 'static final String CHANNEL = "Stable";' "$build_info" || {
+  echo "Stable build blocked: BuildInfo.CHANNEL is not Stable" >&2
+  exit 9
+}
+grep -Fq 'static final String DEFAULT_UPDATE_CHANNEL = "stable";' "$build_info" || {
+  echo "Stable build blocked: default update channel is not stable" >&2
+  exit 10
+}
+grep -Fq 'static final boolean ALLOW_UPDATE_CHANNEL_SWITCH = false;' "$build_info" || {
+  echo "Stable build blocked: update channel switching must be disabled" >&2
+  exit 11
+}
+grep -Fq 'static final boolean ENABLE_DEV_TEST_MENU = false;' "$build_info" || {
+  echo "Stable build blocked: developer test menu must be disabled" >&2
+  exit 12
+}
 
-keystore_path="${HCF_KEYSTORE:?Set HCF_KEYSTORE to the channel signing JKS}"
+channel="stable"
+output_name="HCF-Stable-v${version_code}.apk"
+default_alias="hcf-stable-v2"
+expected_signer="77E0E96C1177842AAA311A8FC0EBEA29B92D3CD290BB815BDB86AD0E0A85844F"
+
+keystore_path="${HCF_KEYSTORE:?Set HCF_KEYSTORE to the Stable signing JKS}"
 keystore_alias="${HCF_KEY_ALIAS:-$default_alias}"
 password_file="${HCF_KEY_PASSWORD_FILE:?Set HCF_KEY_PASSWORD_FILE}"
 export HCF_APKSIGNER_PASSWORD="$(sed -n '1p' "$password_file")"
@@ -45,11 +55,9 @@ output_dir="${HCF_OUTPUT_DIR:-$project_dir/out}"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-if [[ -n "$expected_signer" ]]; then
-  keyfp="$(keytool -list -v -keystore "$keystore_path" -storepass "$HCF_APKSIGNER_PASSWORD" -alias "$keystore_alias" 2>/dev/null | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -1 | tr '[:lower:]' '[:upper:]' | tr -d ':[:space:]')"
-  normalized_expected="$(printf '%s' "$expected_signer" | tr '[:lower:]' '[:upper:]' | tr -d ':[:space:]')"
-  [[ "$keyfp" == "$normalized_expected" ]] || { echo "Wrong $channel signer" >&2; exit 20; }
-fi
+keyfp="$(keytool -list -v -keystore "$keystore_path" -storepass "$HCF_APKSIGNER_PASSWORD" -alias "$keystore_alias" 2>/dev/null | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -1 | tr '[:lower:]' '[:upper:]' | tr -d ':[:space:]')"
+normalized_expected="$(printf '%s' "$expected_signer" | tr '[:lower:]' '[:upper:]' | tr -d ':[:space:]')"
+[[ "$keyfp" == "$normalized_expected" ]] || { echo "Wrong Stable signer" >&2; exit 20; }
 
 mkdir -p "$work/gen" "$work/classes" "$work/dex" "$output_dir"
 
@@ -87,5 +95,5 @@ output_apk="$output_dir/$output_name"
 
 "$build_tools/apksigner" verify --verbose --print-certs "$output_apk"
 
-printf 'Built %s\nPackage: %s\nVersion: %s (%s)\nChannel: %s\n' \
-  "$output_apk" "$package_name" "$version_name" "$version_code" "$channel"
+printf 'Built %s\nPackage: %s\nVersion: %s (%s)\nChannel: Stable\nUpdate feed: stable\n' \
+  "$output_apk" "$package_name" "$version_name" "$version_code"
