@@ -13,14 +13,26 @@ APK SHA-256:
 Source bundle SHA-256:
 524595ace6704433e684f39549c3b653391c5499168011e141611baf79dc9836
 
-Stable v10000072 signer SHA-256:
-9D:46:75:EC:2A:CB:83:22:AB:14:FD:97:0D:A5:B0:61:F5:9E:42:FA:5E:8E:45:3B:67:15:57:B2:13:13:78:05
+Stable V2 signer SHA-256:
+77:E0:E9:6C:11:77:84:2A:AA:31:1A:8F:C0:EB:EA:29:B9:2D:3C:D2:90:BB:81:5B:DB:86:AD:0E:0A:85:84:4F
 
 Local verification completed:
 - APK ZIP readable: PASS
 - DEX SHA-1 header: PASS
 - DEX Adler32 header: PASS
-- APK Signature Scheme v2: PASS
+- APK Signature Scheme v2 cryptographic verification: PASS
+- Stable V2 certificate/public-key verification: PASS
 - Stable logo matches supplied original Stable APK: PASS
+- Package namespace promoted to com.harleytg.forum: PASS
+- VersionCode 10000072: PASS
 
-Private signing material is intentionally not committed to this public repository.
+Stable-eligible v10000072 patch checks:
+- Contact Support v2 initial state: all four panels collapsed: PASS
+- Foreground notification bridge cooldown removed: PASS
+- Live notification fallback interval 1000 ms: PASS
+- Failure retry effective cap 1000 ms: PASS
+- Network reconnect immediate sync scheduling retained: PASS
+- Silencing HCF Silent Alerts does not stop live notification service: PASS
+- Primary and backup HCF App Links retained: PASS
+
+Private Stable V2 signing material is intentionally not committed to this public repository.
