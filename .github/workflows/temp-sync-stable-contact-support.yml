@@ -1,0 +1,111 @@
+name: TEMP Sync Stable Contact Support UI from Dev
+
+on:
+  push:
+    branches: [stable]
+    paths:
+      - '.github/workflows/temp-sync-stable-contact-support.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Stable
+        uses: actions/checkout@v4
+        with:
+          ref: stable
+          fetch-depth: 0
+
+      - name: Fetch Dev source
+        run: git fetch origin dev:refs/remotes/origin/dev
+
+      - name: Port Contact Support v2 UI while preserving Stable identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          java_path = Path('source code/src/com/harleytg/forum/SupportContactActivity.java')
+          dev_path = 'source code/src/com/harleytg/forum/SupportContactActivity.java'
+          s = subprocess.check_output(['git', 'show', f'origin/dev:{dev_path}'], text=True)
+
+          # Keep the Stable application/package and its own resource set.
+          s = s.replace('com.harleytg.forum.dev', 'com.harleytg.forum')
+          s = s.replace('comharleytgforumdev', 'comharleytgforum')
+          s = s.replace('com-harleytg-forum-dev', 'com-harleytg-forum')
+
+          # Stable labels/version information come from Stable BuildInfo rather than Dev literals.
+          s = s.replace(
+              'TextView label = label("Harley\'s Clan Forum • Contact Support v2 • v1.0", 9, R.color.hcf_hint, false);',
+              'TextView label = label("Harley\'s Clan Forum • Contact Support v2 • " + BuildInfo.VERSION_TAG + " • " + BuildInfo.CHANNEL, 9, R.color.hcf_hint, false);'
+          )
+          s = s.replace(
+              'addLockedRow(bodyContainer, "App", "Harley\'s Clan Forum v1.0 • build 10000072");',
+              'addLockedRow(bodyContainer, "App", "Harley\'s Clan Forum " + BuildInfo.VERSION_TAG + " • " + BuildInfo.CHANNEL + " • build " + BuildInfo.VERSION_CODE);'
+          )
+          s = s.replace(
+              'sb.append("\\n--- Sanitized Diagnostics ---\\nApp: Harley\'s Clan Forum v1.0\\nVersion code: 10000072\\nPackage: ");',
+              'sb.append("\\n--- Sanitized Diagnostics ---\\nApp: Harley\'s Clan Forum ");\n            sb.append(BuildInfo.VERSION_TAG);\n            sb.append(" • ");\n            sb.append(BuildInfo.CHANNEL);\n            sb.append("\\nVersion code: ");\n            sb.append(BuildInfo.VERSION_CODE);\n            sb.append("\\nPackage: ");'
+          )
+          s = s.replace(
+              'String str2 = "HCF Support • " + obj + " • v1.0 • " + clean;',
+              'String str2 = "HCF Support • " + obj + " • " + BuildInfo.VERSION_TAG + " • " + BuildInfo.CHANNEL + " • " + clean;'
+          )
+          s = s.replace(
+              'public final class SupportContactActivity extends ThemedActivity {',
+              '/** Stable Contact Support v2 aligned with Dev UI; Stable branding/channel remain authoritative. */\npublic final class SupportContactActivity extends ThemedActivity {',
+              1
+          )
+          java_path.write_text(s, encoding='utf-8')
+
+          # Only neutral accordion chrome is shared from Dev. Stable icons and logo are left untouched.
+          for name in (
+              'settings_section_body.xml',
+              'settings_section_header_collapsed.xml',
+              'settings_section_header_expanded.xml',
+          ):
+              repo_path = f'source code/res/drawable/{name}'
+              data = subprocess.check_output(['git', 'show', f'origin/dev:{repo_path}'])
+              Path(repo_path).write_bytes(data)
+
+          assert 'package com.harleytg.forum;' in s
+          assert 'package com.harleytg.forum.dev;' not in s
+          assert 'BuildInfo.CHANNEL' in s
+          assert 'BuildInfo.VERSION_CODE' in s
+          assert 'supportPanel("Your account"' in s and 'accountBody(), false)' in s
+          assert 'supportPanel("Support request"' in s and 'requestBody(), false)' in s
+          assert 'supportPanel("Report context"' in s and 'contextBody(), false)' in s
+          assert 'supportPanel("Privacy & send"' in s and 'privacyBody(), false)' in s
+
+          build_info = Path('source code/src/com/harleytg/forum/BuildInfo.java').read_text(encoding='utf-8')
+          assert 'static final String CHANNEL = "Stable";' in build_info
+          assert 'static final String DEFAULT_UPDATE_CHANNEL = "stable";' in build_info
+          assert 'static final boolean ALLOW_UPDATE_CHANNEL_SWITCH = false;' in build_info
+          PY
+
+          # Ensure no Stable branding/updater/icon files were changed by this sync.
+          test -z "$(git diff --name-only -- 'source code/src/com/harleytg/forum/BuildInfo.java' 'source code/src/com/harleytg/forum/UpdateChecker.java' 'source code/src/com/harleytg/forum/UpdateAutomation.java')"
+          if git diff --name-only | grep -E '/(htg_app_logo|htg_icon|ic_launcher|fa_[^/]+)'; then
+            echo 'Unexpected Stable logo/icon change detected' >&2
+            exit 20
+          fi
+
+      - name: Commit Stable Contact Support UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- \
+            'source code/src/com/harleytg/forum/SupportContactActivity.java' \
+            'source code/res/drawable/settings_section_body.xml' \
+            'source code/res/drawable/settings_section_header_collapsed.xml' \
+            'source code/res/drawable/settings_section_header_expanded.xml'
+          git diff --cached --check
+          git commit -m 'Match Stable Contact Support UI to Dev v10000072'
+          git push origin HEAD:stable
