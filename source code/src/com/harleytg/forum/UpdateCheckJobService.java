@@ -2,29 +2,22 @@ package com.harleytg.forum;
 
 import android.app.job.JobParameters;
 import android.app.job.JobService;
-import com.harleytg.forum.UpdateAutomation;
-import com.harleytg.forum.UpdateChecker;
 
-/* loaded from: classes.dex */
+/** Periodic background job for the locked Stable update channel. */
 public final class UpdateCheckJobService extends JobService {
-    @Override // android.app.job.JobService
-    public boolean onStopJob(JobParameters jobParameters) {
+    @Override
+    public boolean onStartJob(final JobParameters params) {
+        UpdateAutomation.maybeCheck(this, true, new UpdateAutomation.Listener() {
+            @Override
+            public void onFinished(UpdateChecker.Release release, boolean updateAvailable, String error) {
+                jobFinished(params, false);
+            }
+        });
         return true;
     }
 
-    /* renamed from: lambda$onStartJob$0$com-harleytg-forum-dev-UpdateCheckJobService, reason: not valid java name */
-    /* synthetic */ void m211lambda$onStartJob$0$comharleytgforumdevUpdateCheckJobService(JobParameters jobParameters, UpdateChecker.Release release, boolean z, String str) {
-        jobFinished(jobParameters, false);
-    }
-
-    @Override // android.app.job.JobService
-    public boolean onStartJob(final JobParameters jobParameters) {
-        UpdateAutomation.maybeCheck(this, true, new UpdateAutomation.Listener() { // from class: com.harleytg.forum.UpdateCheckJobService$$ExternalSyntheticLambda0
-            @Override // com.harleytg.forum.UpdateAutomation.Listener
-            public final void onFinished(UpdateChecker.Release release, boolean z, String str) {
-                UpdateCheckJobService.this.m211lambda$onStartJob$0$comharleytgforumdevUpdateCheckJobService(jobParameters, release, z, str);
-            }
-        });
+    @Override
+    public boolean onStopJob(JobParameters params) {
         return true;
     }
 }
