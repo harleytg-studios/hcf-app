@@ -1,0 +1,130 @@
+name: Build Stable v10000077 Runtime Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-stable-v10000077-runtime-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-stable-runtime-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout build controls
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: control
+
+      - name: Checkout exact current Beta UI source
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: dev-repo
+
+      - name: Checkout current Stable source
+        uses: actions/checkout@v4
+        with:
+          ref: stable
+          path: stable-repo
+          token: ${{ github.token }}
+
+      - name: Promote current UI and apply Stable runtime fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/promoted"
+          rm -rf "$OUT"
+          python3 control/.github/scripts/temp-promote-full-dev-to-stable.py \
+            'dev-repo/source code' \
+            "$OUT" \
+            'stable-repo/source code'
+          python3 control/.github/scripts/stable-runtime-fixes-v10000077.py "$OUT"
+          rm -f "$OUT/res/values/public.xml"
+
+          grep -q 'package="com.harleytg.forum"' "$OUT/AndroidManifest.xml"
+          grep -q 'android:versionCode="10000077"' "$OUT/AndroidManifest.xml"
+          grep -q 'DEFAULT_UPDATE_CHANNEL = "stable"' "$OUT/src/com/harleytg/forum/BuildInfo.java"
+          grep -q 'ENABLE_DEV_TEST_MENU = false' "$OUT/src/com/harleytg/forum/BuildInfo.java"
+          ! grep -RInE 'Harley.s Clan Forum \[Beta\]|Development Build / Beta|Beta test alerts|Preview Releases|started • adaptive v10000047' \
+            "$OUT/res" "$OUT/src" || exit 31
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Compile and align Stable APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/promoted"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/build"
+          rm -rf "$WORK"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$GITHUB_WORKSPACE/out"
+
+          "$BT/aapt" package -f -m -J "$WORK/gen" -M "$ROOT/AndroidManifest.xml" \
+            -S "$ROOT/res" -A "$ROOT/assets" -I "$ANDROID_JAR" -F "$WORK/resources.apk"
+
+          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
+
+          mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
+
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$GITHUB_WORKSPACE/out/HCF-Stable-v10000077-aligned-unsigned.apk"
+          "$BT/zipalign" -c -p 4 "$GITHUB_WORKSPACE/out/HCF-Stable-v10000077-aligned-unsigned.apk"
+
+          "$BT/aapt" dump badging "$GITHUB_WORKSPACE/out/HCF-Stable-v10000077-aligned-unsigned.apk" | head -1 | tee "$GITHUB_WORKSPACE/out/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum'" "$GITHUB_WORKSPACE/out/APK-BADGING.txt"
+          grep -q "versionCode='10000077'" "$GITHUB_WORKSPACE/out/APK-BADGING.txt"
+          cp "$BT/lib/apksigner.jar" "$GITHUB_WORKSPACE/out/apksigner.jar"
+
+      - name: Publish corrected Stable source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf 'stable-repo/source code'
+          cp -a "$RUNNER_TEMP/promoted" 'stable-repo/source code'
+
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('README.md', 'STABLE-RELEASE.md'):
+              p = Path('stable-repo') / name
+              if not p.exists():
+                  continue
+              s = p.read_text(encoding='utf-8')
+              s = s.replace('10000072', '10000077').replace('10000076', '10000077')
+              s = s.replace('Stable v10000077 carries forward the normal user-facing work from newer builds that is not explicitly Beta/Dev-only.',
+                            'Stable v10000077 uses the current app UI generation with Stable production identity and runtime fixes.')
+              p.write_text(s, encoding='utf-8')
+          PY
+
+          cd stable-repo
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'source code' README.md STABLE-RELEASE.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'Promote current UI and fix Stable notification runtime v10000077'
+            git push origin HEAD:stable
+          fi
+
+      - name: Upload unsigned build for local Stable V2 signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: hcf-stable-v10000077-runtime-fix
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
