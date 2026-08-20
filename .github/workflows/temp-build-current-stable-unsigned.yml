@@ -71,10 +71,27 @@ jobs:
           mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$WORK/src" "$OUT"
           cp -R "$SRC/src/." "$WORK/src/"
 
-          MAIN_PATCH="$SRC/patches/v10000072-mainactivity.patch"
-          if [[ -f "$MAIN_PATCH" ]]; then
-            patch --batch --forward -p1 -d "$WORK/src" < "$MAIN_PATCH"
-          fi
+          # Apply the intended v10000072 notification-bridge change directly to
+          # this isolated build copy. This avoids the legacy patch-file context
+          # drift while preserving the exact intended behavior.
+          python3 - "$WORK/src/com/harleytg/forum/MainActivity.java" <<'PY'
+          from pathlib import Path
+          import sys
+          p = Path(sys.argv[1])
+          s = p.read_text(encoding="utf-8")
+          field = "    private long lastBridgeNotificationAt;\n"
+          gate = (
+              "                long now = System.currentTimeMillis();\n"
+              "                if (now - lastBridgeNotificationAt < 2500L) return;\n"
+              "                lastBridgeNotificationAt = now;\n"
+          )
+          if field not in s:
+              raise SystemExit("Expected v10000072 bridge field not found")
+          if gate not in s:
+              raise SystemExit("Expected v10000072 bridge cooldown block not found")
+          s = s.replace(field, "", 1).replace(gate, "", 1)
+          p.write_text(s, encoding="utf-8")
+          PY
 
           "$BT/aapt" package -f -m \
             -J "$WORK/gen" \
@@ -113,5 +130,3 @@ jobs:
             out/UNSIGNED-SHA256.txt
           if-no-files-found: error
           retention-days: 1
-
-# rerun after repairing Stable v10000072 MainActivity patch
