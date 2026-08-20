@@ -1,5 +1,5 @@
 from pathlib import Path
-import runpy, sys, tempfile
+import re, runpy, sys, tempfile
 
 # Text markers kept so the historical workflow's compatibility patch still succeeds.
 # They are deliberately inert; the active replacement strings below are split so
@@ -33,8 +33,10 @@ runpy.run_path(temp_path, run_name='__main__')
 out = Path(sys.argv[2])
 p = out/'src/com/harleytg/forum/LogsActivity.java'
 s = p.read_text(encoding='utf-8')
-s = s.replace(
-    '    @Override\n    @Override\n    protected void onActivityResult(',
-    '    @Override\n    protected void onActivityResult('
+s = re.sub(
+    r'(?m)^(\s*)@Override\s*\n\s*@Override\s*\n(\s*protected void onActivityResult\()',
+    r'\1@Override\n\2',
+    s,
+    count=1,
 )
 p.write_text(s, encoding='utf-8')
