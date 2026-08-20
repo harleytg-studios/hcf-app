@@ -63,17 +63,21 @@ jobs:
           rm -rf "$RUNNER_TEMP/promoted"
           cp -a 'stable-repo/source code' "$RUNNER_TEMP/stable-source-backup"
 
-          # The promotion helper originally expected the older private renderLogs()
-          # Stable repair method. Current Stable already exposes it publicly.
+          # Make the old promotion helper compatible with the current Stable source layout.
           python3 - <<'PY'
           from pathlib import Path
           p=Path('control/.github/scripts/temp-promote-full-dev-to-stable.py')
           s=p.read_text(encoding='utf-8')
           old="logs=extract(STROOT/'src/com/harleytg/forum/LogsActivity.java',r'^\\s*private void renderLogs\\(\\)').replace('private void renderLogs()','public void renderLogs()',1)"
           new="logs=extract(STROOT/'src/com/harleytg/forum/LogsActivity.java',r'^\\s*(?:private|public) void renderLogs\\(\\)')\nlogs=re.sub(r'^\\s*(?:private|public) void renderLogs\\(\\)', '    public void renderLogs()', logs, count=1, flags=re.M)"
-          if old not in s:
-              raise SystemExit('renderLogs promotion compatibility line not found')
-          p.write_text(s.replace(old,new),encoding='utf-8')
+          if old in s:
+              s=s.replace(old,new)
+          old_logo="stable_res=STROOT/'res'; logo=stable_res/'drawable-nodpi/htg_app_logo.png'"
+          new_logo="stable_res=STROOT/'res'; logo=stable_res/'drawable-nodpi/htg_app_logo.png'\nif not logo.exists(): logo=stable_res/'drawable-nodpi-v4/htg_app_logo.png'"
+          if old_logo not in s:
+              raise SystemExit('Stable logo promotion line not found')
+          s=s.replace(old_logo,new_logo)
+          p.write_text(s,encoding='utf-8')
           PY
 
           python3 control/.github/scripts/temp-promote-full-dev-to-stable.py \
