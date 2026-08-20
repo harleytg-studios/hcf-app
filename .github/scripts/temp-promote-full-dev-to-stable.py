@@ -105,19 +105,16 @@ p.write_text(s2, encoding='utf-8')
 # Repair the remaining JADX-only MainActivity compiler issues without changing UI.
 p = out/'src/com/harleytg/forum/MainActivity.java'
 s = p.read_text(encoding='utf-8')
-
 old = '''    private void showChecking(final String str) {\n        boolean z = true;\n        final int i = this.connectionUiGeneration + 1;\n        this.connectionUiGeneration = i;\n        if (str == null || str.trim().isEmpty()) {\n            str = "forum.harleytg.com";\n        }'''
 new = '''    private void showChecking(final String requestedHost) {\n        boolean z = true;\n        final int i = this.connectionUiGeneration + 1;\n        this.connectionUiGeneration = i;\n        final String str = (requestedHost == null || requestedHost.trim().isEmpty())\n                ? "forum.harleytg.com" : requestedHost;'''
 if old not in s:
     raise SystemExit('MainActivity showChecking recovery block not found')
 s = s.replace(old, new, 1)
-
 old = '''        String url;\n        if (i == this.connectionUiGeneration && this.startupProgress.getVisibility() == 0) {'''
 new = '''        String url = null;\n        if (i == this.connectionUiGeneration && this.startupProgress.getVisibility() == 0) {'''
 if old not in s:
     raise SystemExit('MainActivity timeout URL declaration not found')
 s = s.replace(old, new, 1)
-
 old = '''    /* synthetic */ void m77lambda$loadIdentityAvatar$71$comharleytgforumdevMainActivity(final String str) {\n        HttpsURLConnection httpsURLConnection;\n        HttpsURLConnection httpsURLConnection2 = null;'''
 new = '''    /* synthetic */ void m77lambda$loadIdentityAvatar$71$comharleytgforumdevMainActivity(final String str) {\n        HttpsURLConnection httpsURLConnection = null;\n        HttpsURLConnection httpsURLConnection2 = null;'''
 if old not in s:
@@ -133,5 +130,16 @@ old = '''    /* synthetic */ void m20lambda$poll$1$comharleytgforumdevLiveForumU
 new = '''    /* synthetic */ void m20lambda$poll$1$comharleytgforumdevLiveForumUpdater(String str, final String str2) {\n        String fingerprint;\n        try {\n            fingerprint = fetchFingerprint(str);\n        } catch (Throwable th) {\n            if (this.failures == 0 || this.failures == 2) {\n                AppLogger.warn(this.app, "live_update_poll", th.getClass().getSimpleName());\n            }\n            fingerprint = null;\n        }\n        final String str3 = fingerprint;\n        this.main.post(new Runnable() {'''
 if old not in s:
     raise SystemExit('LiveForumUpdater fingerprint recovery block not found')
+s = s.replace(old, new, 1)
+p.write_text(s, encoding='utf-8')
+
+# readableValue() is intentionally tolerant of arbitrary notification payload text.
+# JADX lost the checked JSONException handling around stringified JSON parsing.
+p = out/'src/com/harleytg/forum/ForumNotificationClient.java'
+s = p.read_text(encoding='utf-8')
+old = '''        if ((trim.startsWith("{") && trim.endsWith("}")) || (trim.startsWith("[") && trim.endsWith("]"))) {\n            if (trim.startsWith("{")) {\n                return firstDeepObject(new JSONObject(trim), i + 1, strArr);\n            }\n            JSONArray jSONArray2 = new JSONArray(trim);\n            while (i2 < jSONArray2.length()) {\n                String readableValue2 = readableValue(jSONArray2.opt(i2), i + 1, strArr);\n                if (!readableValue2.isEmpty()) {\n                    return readableValue2;\n                }\n                i2++;\n            }\n            return "";\n        }'''
+new = '''        if ((trim.startsWith("{") && trim.endsWith("}")) || (trim.startsWith("[") && trim.endsWith("]"))) {\n            try {\n                if (trim.startsWith("{")) {\n                    return firstDeepObject(new JSONObject(trim), i + 1, strArr);\n                }\n                JSONArray jSONArray2 = new JSONArray(trim);\n                while (i2 < jSONArray2.length()) {\n                    String readableValue2 = readableValue(jSONArray2.opt(i2), i + 1, strArr);\n                    if (!readableValue2.isEmpty()) {\n                        return readableValue2;\n                    }\n                    i2++;\n                }\n                return "";\n            } catch (org.json.JSONException ignored) {\n                return clean(trim, 500);\n            }\n        }'''
+if old not in s:
+    raise SystemExit('ForumNotificationClient readableValue JSON block not found')
 s = s.replace(old, new, 1)
 p.write_text(s, encoding='utf-8')
