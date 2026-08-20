@@ -91,3 +91,13 @@ public final class NotificationSyncJobService extends JobService {
     }
 }
 ''', encoding='utf-8')
+
+# The recovered notification sync method leaves the delivery count undefined if
+# detailed alert delivery throws and the generic fallback is used. A zero default
+# accurately means no detailed alerts were delivered while preserving the fallback.
+p = out/'src/com/harleytg/forum/ForumNotificationSync.java'
+s = p.read_text(encoding='utf-8')
+s2, count = re.subn(r'(?m)^(\s*)int i;\s*$', r'\1int i = 0;', s, count=1)
+if count != 1:
+    raise SystemExit('ForumNotificationSync delivery count declaration not found')
+p.write_text(s2, encoding='utf-8')
