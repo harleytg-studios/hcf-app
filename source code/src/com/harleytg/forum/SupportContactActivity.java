@@ -1,6 +1,5 @@
 package com.harleytg.forum;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Typeface;
 import android.net.Uri;
@@ -23,13 +22,11 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-
 /**
- * Native privacy-scoped support form.
+ * Contact Support v2.
  *
- * The form pulls only the current user's locally mirrored ForumIdentity snapshot.
- * It never reads passwords, session/access tokens, cookies, recovery codes, or
- * linked-provider account identifiers. Sending is delegated to the user's mail app.
+ * Stable v10000072 intentionally starts every support section collapsed on each
+ * new Activity opening. Expanded/collapsed UI state is never persisted.
  */
 public final class SupportContactActivity extends ThemedActivity {
     private static final String SUPPORT_EMAIL = "harleytg.hq@gmail.com";
@@ -56,7 +53,40 @@ public final class SupportContactActivity extends ThemedActivity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(getColor(R.color.hcf_bg));
+        root.addView(buildHeader(), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(12), dp(12), dp(12), dp(24));
+
+        content.addView(collapsibleCard(
+                "Your account",
+                identity.loggedIn ? "Current forum identity" : "Guest support is available",
+                buildAccountSection()));
+        content.addView(collapsibleCard(
+                "Support request",
+                "Describe what you need help with",
+                buildRequestSection()));
+        content.addView(collapsibleCard(
+                "Report context",
+                "Choose optional account/device details",
+                buildContextSection()));
+        content.addView(collapsibleCard(
+                "Privacy & send",
+                "Review what leaves the app",
+                buildPrivacySection()));
+
+        scroll.addView(content, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        root.addView(scroll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        setContentView(root);
+    }
+
+    private View buildHeader() {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
@@ -78,70 +108,104 @@ public final class SupportContactActivity extends ThemedActivity {
 
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         titleParams.leftMargin = dp(10);
-
         TextView title = label("Contact Support", 19, R.color.hcf_text, true);
+        TextView meta = label("Harley's Clan Forum • " + BuildInfo.VERSION_TAG,
+                10, R.color.hcf_cyan_bright, true);
         titles.addView(title);
-        TextView meta = label("Harley's Clan Forum • " + BuildInfo.VERSION_TAG, 10, R.color.hcf_cyan_bright, true);
         titles.addView(meta);
         header.addView(titles, titleParams);
-        root.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(12), dp(12), dp(12), dp(24));
-
-        content.addView(identityCard());
-        content.addView(formCard());
-        content.addView(privacyCard());
-
-        scroll.addView(content, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-        setContentView(root);
+        return header;
     }
 
-    private View identityCard() {
+    private View collapsibleCard(String titleText, String subtitleText, View sectionBody) {
         LinearLayout card = card();
-        card.addView(sectionTitle("Forum Identity", identity.loggedIn ? "Synced from the current signed-in forum session" : "No signed-in forum identity detected"));
 
-        if (identity.loggedIn) {
-            addRow(card, "Display name", nonEmpty(identity.displayName, "Not exposed"));
-            addRow(card, "Username", identity.username.isEmpty() ? "Not exposed" : "@" + identity.username);
-            addRow(card, "Forum email", identity.email.isEmpty() ? "Not exposed" : identity.email + (identity.emailConfirmed ? " • verified" : ""));
-            addRow(card, "Role", identity.identityMetaLabel());
-            addRow(card, "Forum host", nonEmpty(identity.host, ForumConfig.PRIMARY_HOST));
-        } else {
-            TextView guest = label("You can still contact support as a guest. Sign in to the forum first if you want the form to pull your account identity automatically.", 11, R.color.hcf_muted, false);
-            guest.setPadding(0, dp(8), 0, 0);
-            card.addView(guest);
-        }
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setClickable(true);
+        header.setFocusable(true);
+        header.setBackgroundResource(R.drawable.quick_action_background);
+        header.setPadding(dp(12), dp(10), dp(10), dp(10));
+
+        LinearLayout labels = new LinearLayout(this);
+        labels.setOrientation(LinearLayout.VERTICAL);
+        TextView title = label(titleText, 14, R.color.hcf_text, true);
+        TextView subtitle = label(subtitleText, 10, R.color.hcf_muted, false);
+        labels.addView(title);
+        labels.addView(subtitle);
+        header.addView(labels, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView state = label("+", 22, R.color.hcf_cyan_bright, true);
+        state.setGravity(Gravity.CENTER);
+        state.setContentDescription(titleText + " collapsed");
+        header.addView(state, new LinearLayout.LayoutParams(dp(36), dp(36)));
+
+        // Required v10000072 default: CLOSED every time Contact Support opens.
+        sectionBody.setVisibility(View.GONE);
+        header.setContentDescription(titleText + ", collapsed. Tap to expand.");
+        header.setOnClickListener(v -> {
+            boolean opening = sectionBody.getVisibility() != View.VISIBLE;
+            sectionBody.setVisibility(opening ? View.VISIBLE : View.GONE);
+            state.setText(opening ? "−" : "+");
+            state.setContentDescription(titleText + (opening ? " expanded" : " collapsed"));
+            header.setContentDescription(titleText + (opening
+                    ? ", expanded. Tap to collapse."
+                    : ", collapsed. Tap to expand."));
+        });
+
+        card.addView(header, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams bodyParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        bodyParams.topMargin = dp(10);
+        card.addView(sectionBody, bodyParams);
         return card;
     }
 
-    private View formCard() {
-        LinearLayout card = card();
-        card.addView(sectionTitle("Support Request", "Complete the form, then review it in your mail app before sending"));
+    private View buildAccountSection() {
+        LinearLayout body = sectionBody();
+        if (identity.loggedIn) {
+            addRow(body, "Display name", nonEmpty(identity.displayName, "Not exposed"));
+            addRow(body, "Username", identity.username.isEmpty() ? "Not exposed" : "@" + identity.username);
+            addRow(body, "Forum email", identity.email.isEmpty()
+                    ? "Not exposed"
+                    : identity.email + (identity.emailConfirmed ? " • verified" : ""));
+            addRow(body, "Role", identity.identityMetaLabel());
+            addRow(body, "Forum host", nonEmpty(identity.host, ForumConfig.PRIMARY_HOST));
+        } else {
+            TextView guest = label(
+                    "You can contact support as a guest. Sign in first if you want the form to include your current forum identity.",
+                    11, R.color.hcf_muted, false);
+            guest.setLineSpacing(0f, 1.08f);
+            body.addView(guest);
+        }
+        return body;
+    }
 
+    private View buildRequestSection() {
+        LinearLayout body = sectionBody();
         TextView destination = label("To: " + SUPPORT_EMAIL, 11, R.color.hcf_cyan_bright, true);
         destination.setPadding(0, 0, 0, dp(10));
-        card.addView(destination);
+        body.addView(destination);
 
         nameField = input("Name or display name", InputType.TYPE_CLASS_TEXT, false);
         String pulledName = !identity.displayName.isEmpty() ? identity.displayName : identity.username;
         if (identity.loggedIn && !pulledName.isEmpty()) nameField.setText(pulledName);
-        addField(card, "Name", nameField);
+        addField(body, "Name", nameField);
 
-        replyEmailField = input("Email support can reply to", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, false);
+        replyEmailField = input("Email support can reply to",
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, false);
         if (identity.loggedIn && !identity.email.isEmpty()) replyEmailField.setText(identity.email);
-        addField(card, "Reply email", replyEmailField);
+        addField(body, "Reply email", replyEmailField);
 
-        TextView categoryLabel = fieldLabel("Category");
-        card.addView(categoryLabel);
+        body.addView(fieldLabel("Category"));
         categoryField = new Spinner(this);
-        String[] categories = new String[] {
+        String[] categories = new String[]{
                 "General Support",
                 "Account / Sign In",
                 "Notifications",
@@ -150,47 +214,69 @@ public final class SupportContactActivity extends ThemedActivity {
                 "Privacy / Security",
                 "Other"
         };
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, categories);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_dropdown_item, categories);
         categoryField.setAdapter(adapter);
         categoryField.setBackgroundResource(R.drawable.identity_card_background);
         categoryField.setPadding(dp(8), dp(3), dp(8), dp(3));
-        LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
+        LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
         spinnerParams.bottomMargin = dp(11);
-        card.addView(categoryField, spinnerParams);
+        body.addView(categoryField, spinnerParams);
 
-        subjectField = input("Short description of the issue", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES, false);
-        addField(card, "Subject", subjectField);
+        subjectField = input("Short description of the issue",
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES, false);
+        addField(body, "Subject", subjectField);
 
-        messageField = input("Tell us what happened, what you expected, and any error message you saw.", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES | InputType.TYPE_TEXT_FLAG_MULTI_LINE, true);
+        messageField = input(
+                "Tell us what happened, what you expected, and any error message you saw.",
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                        | InputType.TYPE_TEXT_FLAG_MULTI_LINE,
+                true);
         messageField.setMinLines(6);
         messageField.setGravity(Gravity.TOP | Gravity.START);
-        addField(card, "Message", messageField);
+        addField(body, "Message", messageField);
+        return body;
+    }
 
+    private View buildContextSection() {
+        LinearLayout body = sectionBody();
         includeIdentity = new CheckBox(this);
         includeIdentity.setText("Include Forum Identity in support message");
         includeIdentity.setTextColor(getColor(R.color.hcf_text));
         includeIdentity.setTextSize(12f);
         includeIdentity.setChecked(identity.loggedIn);
         includeIdentity.setEnabled(identity.loggedIn);
-        card.addView(includeIdentity);
+        body.addView(includeIdentity);
 
         includeDiagnostics = new CheckBox(this);
         includeDiagnostics.setText("Include basic app/device diagnostics");
         includeDiagnostics.setTextColor(getColor(R.color.hcf_text));
         includeDiagnostics.setTextSize(12f);
         includeDiagnostics.setChecked(false);
-        card.addView(includeDiagnostics);
+        body.addView(includeDiagnostics);
 
-        TextView diagnosticHint = label("Diagnostics are optional and off by default. They include only app version, Android version, device model and forum host — not logs, cookies, passwords or tokens.", 10, R.color.hcf_muted, false);
-        diagnosticHint.setPadding(dp(4), 0, dp(4), dp(8));
-        card.addView(diagnosticHint);
+        TextView hint = label(
+                "Diagnostics are optional and off by default. They include only app version, Android version, device model and forum host — not logs, cookies, passwords or tokens.",
+                10, R.color.hcf_muted, false);
+        hint.setPadding(dp(4), dp(4), dp(4), 0);
+        hint.setLineSpacing(0f, 1.08f);
+        body.addView(hint);
+        return body;
+    }
+
+    private View buildPrivacySection() {
+        LinearLayout body = sectionBody();
+        TextView copy = label(
+                "The app does not submit this form directly. Continue to Email opens your installed mail app with the request prefilled so you can review, edit or cancel it before sending to "
+                        + SUPPORT_EMAIL + ".",
+                11, R.color.hcf_muted, false);
+        copy.setLineSpacing(0f, 1.08f);
+        body.addView(copy);
 
         Button continueButton = new Button(this);
         UiButtons.normalizeText(continueButton);
         continueButton.setText("Continue to Email");
-        // Keep this full-width action text-only. Some Android skins position a
-        // compound start drawable at the far edge while centering the label,
-        // which makes the envelope look detached from the button text.
         continueButton.setCompoundDrawablesRelative(null, null, null, null);
         continueButton.setCompoundDrawablePadding(0);
         continueButton.setAllCaps(false);
@@ -202,38 +288,29 @@ public final class SupportContactActivity extends ThemedActivity {
         continueButton.setTypeface(null, Typeface.BOLD);
         continueButton.setBackgroundResource(R.drawable.button_background);
         continueButton.setOnClickListener(v -> composeEmail());
-        LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
-        buttonParams.topMargin = dp(8);
-        card.addView(continueButton, buttonParams);
-
-        return card;
-    }
-
-    private View privacyCard() {
-        LinearLayout card = card();
-        card.addView(sectionTitle("Privacy", "You stay in control of what leaves the app"));
-        TextView copy = label("The app does not submit this form directly. Continue to Email opens your installed mail app with the request prefilled so you can review, edit or cancel it before sending to " + SUPPORT_EMAIL + ".", 11, R.color.hcf_muted, false);
-        copy.setLineSpacing(0f, 1.08f);
-        card.addView(copy);
-        return card;
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
+        p.topMargin = dp(14);
+        body.addView(continueButton, p);
+        return body;
     }
 
     private void composeEmail() {
-        String name = clean(nameField.getText().toString());
-        String reply = clean(replyEmailField.getText().toString());
-        String category = categoryField.getSelectedItem() == null ? "General Support" : categoryField.getSelectedItem().toString();
-        String subject = clean(subjectField.getText().toString());
-        String message = clean(messageField.getText().toString());
+        String name = clean(nameField == null ? "" : nameField.getText().toString());
+        String reply = clean(replyEmailField == null ? "" : replyEmailField.getText().toString());
+        String category = categoryField == null || categoryField.getSelectedItem() == null
+                ? "General Support" : categoryField.getSelectedItem().toString();
+        String subject = clean(subjectField == null ? "" : subjectField.getText().toString());
+        String message = clean(messageField == null ? "" : messageField.getText().toString());
 
         if (message.isEmpty()) {
             Toast.makeText(this, "Please enter a message for support.", Toast.LENGTH_SHORT).show();
-            messageField.requestFocus();
+            if (messageField != null) messageField.requestFocus();
             return;
         }
-
         if (subject.isEmpty()) subject = category;
-        String mailSubject = "HCF Support • " + category + " • " + BuildInfo.VERSION_TAG + " • " + subject;
 
+        String mailSubject = "HCF Support • " + category + " • " + BuildInfo.VERSION_TAG + " • " + subject;
         StringBuilder body = new StringBuilder();
         body.append("Hello Harley's Clan Forum Support,\n\n");
         body.append(message).append("\n\n");
@@ -242,72 +319,71 @@ public final class SupportContactActivity extends ThemedActivity {
         body.append("Name: ").append(name.isEmpty() ? "Not provided" : name).append('\n');
         body.append("Reply email: ").append(reply.isEmpty() ? "Not provided" : reply).append('\n');
 
-        if (includeIdentity.isChecked() && identity.loggedIn) {
+        if (includeIdentity != null && includeIdentity.isChecked() && identity.loggedIn) {
             body.append("\n--- Forum Identity ---\n");
             body.append("Status: Signed in\n");
             body.append("Display name: ").append(nonEmpty(identity.displayName, "Not exposed")).append('\n');
-            body.append("Username: ").append(identity.username.isEmpty() ? "Not exposed" : "@" + identity.username).append('\n');
-            if (!identity.email.isEmpty()) body.append("Forum email: ").append(identity.email).append(identity.emailConfirmed ? " (verified)" : "").append('\n');
+            body.append("Username: ").append(identity.username.isEmpty()
+                    ? "Not exposed" : "@" + identity.username).append('\n');
+            if (!identity.email.isEmpty()) {
+                body.append("Forum email: ").append(identity.email)
+                        .append(identity.emailConfirmed ? " (verified)" : "").append('\n');
+            }
             body.append("Role: ").append(identity.identityMetaLabel()).append('\n');
             body.append("Forum host: ").append(nonEmpty(identity.host, ForumConfig.PRIMARY_HOST)).append('\n');
         }
 
-        if (includeDiagnostics.isChecked()) {
+        if (includeDiagnostics != null && includeDiagnostics.isChecked()) {
             body.append("\n--- Basic Diagnostics ---\n");
             body.append("App: Harley's Clan Forum ").append(BuildInfo.VERSION_TAG).append('\n');
             body.append("Version code: ").append(BuildInfo.VERSION_CODE).append('\n');
-            body.append("Android: ").append(Build.VERSION.RELEASE).append(" (API ").append(Build.VERSION.SDK_INT).append(")\n");
-            body.append("Device: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL).append('\n');
+            body.append("Android: ").append(Build.VERSION.RELEASE)
+                    .append(" (API ").append(Build.VERSION.SDK_INT).append(")\n");
+            body.append("Device: ").append(Build.MANUFACTURER).append(' ')
+                    .append(Build.MODEL).append('\n');
             body.append("Forum host: ").append(nonEmpty(identity.host, ForumConfig.PRIMARY_HOST)).append('\n');
         }
 
         body.append("\nSent from the Harley's Clan Forum in-app Contact Support form.");
 
         try {
-            // Put the recipient in BOTH the mailto URI and EXTRA_EMAIL. Some OEM
-            // mail clients only honor one of these forms; using both keeps the
-            // To: field populated while still restricting the chooser to mail apps.
             String mailto = "mailto:" + SUPPORT_EMAIL
                     + "?subject=" + Uri.encode(mailSubject)
                     + "&body=" + Uri.encode(body.toString());
             Intent intent = new Intent(Intent.ACTION_SENDTO);
             intent.setData(Uri.parse(mailto));
-            intent.putExtra(Intent.EXTRA_EMAIL, new String[] { SUPPORT_EMAIL });
+            intent.putExtra(Intent.EXTRA_EMAIL, new String[]{SUPPORT_EMAIL});
             intent.putExtra(Intent.EXTRA_SUBJECT, mailSubject);
             intent.putExtra(Intent.EXTRA_TEXT, body.toString());
             startActivity(Intent.createChooser(intent, "Send support email"));
-            AppLogger.info(this, "support_contact", "mailto recipient=" + SUPPORT_EMAIL + " identity=" + (includeIdentity.isChecked() && identity.loggedIn) + " diagnostics=" + includeDiagnostics.isChecked());
+            AppLogger.info(this, "support_contact",
+                    "mailto recipient=" + SUPPORT_EMAIL
+                            + " identity=" + (includeIdentity != null && includeIdentity.isChecked() && identity.loggedIn)
+                            + " diagnostics=" + (includeDiagnostics != null && includeDiagnostics.isChecked()));
         } catch (Throwable t) {
-            Toast.makeText(this, "No email app is available. Email " + SUPPORT_EMAIL, Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "No email app is available. Email " + SUPPORT_EMAIL,
+                    Toast.LENGTH_LONG).show();
             AppLogger.error(this, "support_contact", t.getClass().getSimpleName());
         }
+    }
+
+    private LinearLayout sectionBody() {
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(2), dp(2), dp(2), dp(2));
+        return body;
     }
 
     private LinearLayout card() {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setBackgroundResource(R.drawable.card_background);
-        card.setPadding(dp(14), dp(14), dp(14), dp(14));
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        card.setPadding(dp(12), dp(12), dp(12), dp(12));
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         p.bottomMargin = dp(12);
         card.setLayoutParams(p);
         return card;
-    }
-
-    private View sectionTitle(String title, String subtitle) {
-        LinearLayout wrap = new LinearLayout(this);
-        wrap.setOrientation(LinearLayout.VERTICAL);
-
-        TextView heading = label(title, 14, R.color.hcf_text, true);
-        wrap.addView(heading);
-        if (subtitle != null && !subtitle.isEmpty()) {
-            TextView sub = label(subtitle, 10, R.color.hcf_muted, false);
-            sub.setPadding(0, dp(2), 0, dp(9));
-            wrap.addView(sub);
-        } else {
-            wrap.setPadding(0, 0, 0, dp(9));
-        }
-        return wrap;
     }
 
     private void addRow(LinearLayout parent, String labelText, String valueText) {
@@ -322,9 +398,10 @@ public final class SupportContactActivity extends ThemedActivity {
         parent.addView(row);
     }
 
-    private void addField(LinearLayout parent, String label, EditText field) {
-        parent.addView(fieldLabel(label));
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+    private void addField(LinearLayout parent, String labelText, EditText field) {
+        parent.addView(fieldLabel(labelText));
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         p.bottomMargin = dp(11);
         parent.addView(field, p);
     }
@@ -351,9 +428,9 @@ public final class SupportContactActivity extends ThemedActivity {
 
     private TextView label(String value, int sizeSp, int colorRes, boolean bold) {
         TextView view = new TextView(this);
-        view.setText(value == null ? "" : value);
-        view.setTextSize(sizeSp);
+        view.setText(value);
         view.setTextColor(getColor(colorRes));
+        view.setTextSize(sizeSp);
         if (bold) view.setTypeface(null, Typeface.BOLD);
         return view;
     }
