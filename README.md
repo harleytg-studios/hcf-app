@@ -6,7 +6,7 @@ Stable Android release branch for Harley's Clan Forum.
 
 - App name: **Harley's Clan Forum**
 - Android package: `com.harleytg.forum`
-- Current stable version: `1.0 (10000072)`
+- Current Stable version: `1.0 (10000072)`
 - Android versionCode: `10000072`
 - GitHub tag: `v1.0`
 - Update channel: Stable only
@@ -14,9 +14,11 @@ Stable Android release branch for Harley's Clan Forum.
 
 ## Current Stable feature set
 
-The v10000072 Stable line promotes the user-facing work from newer builds that is not explicitly Beta/Dev-only. This includes Contact Support v2/default-collapsed behavior, account/identity fixes, Settings/theme improvements, notification history/routing/adaptive polling, registered-domain routing, logs/diagnostics/error UI improvements, and performance/backoff work.
+Stable v10000072 carries forward the normal user-facing work from newer builds that is not explicitly Beta/Dev-only. This includes Contact Support v2/default-collapsed behavior, account/identity fixes, Settings/theme improvements, notification history/routing, registered-domain routing, logs/diagnostics/error UI improvements, and performance/backoff work.
 
-Features explicitly designated Beta/Dev-only are not listed as Stable features and remain outside the Stable promotion policy until separately approved.
+The v10000072 notification patch also removes the foreground bridge cooldown, uses a 1-second live fallback/retry cap, keeps reconnect sync immediate, and does not stop the live notification service merely because Silent Alerts are silenced.
+
+Features explicitly designated Beta/Dev-only remain outside the Stable promotion policy until separately approved.
 
 ## Forum domains
 
@@ -24,23 +26,25 @@ Features explicitly designated Beta/Dev-only are not listed as Stable features a
 - Backup: `harleysclan.freeflarum.com`
 - Retired `.online` domains are not part of the Stable registry.
 
-## Update behavior
+## Release artifacts
 
-Stable builds use the Stable update channel only and must never consume Dev/Beta update feeds. The current v10000072 release identity and hashes are recorded in `STABLE-LATEST.json` and `STABLE-RELEASE.md`.
+The matching Stable release artifact names are:
 
-## Repository layout
+- `HCF-Stable-v10000072.apk`
+- `HCF-Stable-v10000072-source.zip`
+- `HCF-Stable-v10000072-VERIFICATION.txt`
+- `STABLE-LATEST.json`
 
-- `source code/` — Stable Android source/reference tree
-- `STABLE-RELEASE.md` — current Stable release details and feature policy
-- `STABLE-LATEST.json` — machine-readable Stable release metadata
-- `build-output/` — published Stable build pointers/artifacts when present
+The branch stores source and release metadata; private signing material is never stored here.
 
-## Signing line
+## Stable V2 signing line
 
-Starting with Stable v10000072, the local Stable signer certificate SHA-256 is:
+Stable v10000072 uses the established **Stable V2** signing identity already used by the Stable v10000034 line.
 
-`9D:46:75:EC:2A:CB:83:22:AB:14:FD:97:0D:A5:B0:61:F5:9E:42:FA:5E:8E:45:3B:67:15:57:B2:13:13:78:05`
+Certificate SHA-256:
 
-This differs from the earlier Stable certificate. Android cannot update across signing identities, so devices on the previous Stable signer require a one-time reinstall to join the v10000072 signing line. Future Stable releases intended to update v10000072 in place must use the same local private key.
+`77:E0:E9:6C:11:77:84:2A:AA:31:1A:8F:C0:EB:EA:29:B9:2D:3C:D2:90:BB:81:5B:DB:86:AD:0E:0A:85:84:4F`
 
-**Never commit the private signing key, keystore, or password to this public repository.**
+Stable installs already signed with Stable V2 can update in place to v10000072. Older Stable installs signed by a different certificate still require the normal one-time signer migration.
+
+**Never commit the Stable V2 private JKS, password, or other private signing material to this public repository.**
