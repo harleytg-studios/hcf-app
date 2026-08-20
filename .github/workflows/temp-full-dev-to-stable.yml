@@ -69,10 +69,10 @@ jobs:
             'dev-repo/source code' \
             'stable-repo/source code' \
             "$RUNNER_TEMP/stable-source-backup"
-          # public.xml is decoded APK resource-table metadata rather than authored
-          # source. Its stale ID declarations cannot be rebuilt by aapt, so allow
-          # aapt to regenerate the resource table from the real resources.
           rm -f 'stable-repo/source code/res/values/public.xml'
+          python3 control/.github/scripts/temp-repair-dev-decompile-artifacts.py \
+            'stable-repo/source code' \
+            "$RUNNER_TEMP/stable-source-backup"
           test "$(find 'stable-repo/source code/src/com/harleytg/forum' -maxdepth 1 -name '*.java' | wc -l)" -eq 46
           ! grep -R -q 'Method not decompiled' 'stable-repo/source code/src'
           ! grep -R -q 'com.harleytg.forum.dev' 'stable-repo/source code/src'
@@ -138,4 +138,4 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-# fresh-run: corrected public.xml handling
+# fresh-run: targeted Java decompile repair pass
