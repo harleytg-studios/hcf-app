@@ -31,6 +31,8 @@ with tempfile.NamedTemporaryFile('w', suffix='.py', delete=False, encoding='utf-
 runpy.run_path(temp_path, run_name='__main__')
 
 out = Path(sys.argv[2])
+
+# Deduplicate the recovered LogsActivity method annotation.
 p = out/'src/com/harleytg/forum/LogsActivity.java'
 s = p.read_text(encoding='utf-8')
 needle = 'protected void onActivityResult('
@@ -41,14 +43,46 @@ block_start = s.rfind('}', 0, idx) + 1
 segment = s[block_start:idx]
 overrides = list(re.finditer(r'@Override', segment))
 if len(overrides) > 1:
-    # Keep the annotation closest to onActivityResult and remove older duplicates.
     for match in reversed(overrides[:-1]):
         a = block_start + match.start()
         b = block_start + match.end()
         s = s[:a] + s[b:]
-# Fail early if the annotation block is still duplicated.
 idx = s.find(needle)
 block_start = s.rfind('}', 0, idx) + 1
 if s[block_start:idx].count('@Override') > 1:
     raise SystemExit('duplicate Override remains before LogsActivity onActivityResult')
 p.write_text(s, encoding='utf-8')
+
+# Repair the JADX-damaged asynchronous JobService worker. The recovered source
+# declared syncNow() throws Exception but did not catch it, and also lost the
+# required jobFinished() call from its empty nested finally block.
+p = out/'src/com/harleytg/forum/NotificationSyncJobService.java'
+s = p.read_text(encoding='utf-8')
+pattern = re.compile(
+    r'(?ms)^\s*/\* renamed from: lambda\$onStartJob\$0\$.*?\*/\s*\n'
+    r'\s*/\* synthetic \*/ void m128x38509368\(JobParameters jobParameters\) \{.*?^\s*\}',
+)
+replacement = r'''    /* synthetic */ void m128x38509368(JobParameters jobParameters) {
+        try {
+            syncNow();
+        } catch (Throwable t) {
+            AppLogger.warn(this, "background_notification_sync", "job-failed | " + t.getClass().getSimpleName());
+        } finally {
+            try {
+                jobFinished(jobParameters, false);
+            } catch (Throwable ignored) {
+            }
+        }
+    }'''
+s2, count = pattern.subn(replacement, s, count=1)
+if count != 1:
+    # Fallback anchored from the synthetic method declaration to syncNow().
+    start = s.find('/* synthetic */ void m128x38509368(JobParameters jobParameters)')
+    end = s.find('    private void syncNow()', start)
+    if start < 0 or end < 0:
+        raise SystemExit('NotificationSyncJobService worker not found after promotion')
+    prefix_start = s.rfind('    /* renamed from:', 0, start)
+    if prefix_start < 0:
+        prefix_start = start
+    s2 = s[:prefix_start] + replacement + '\n\n' + s[end:]
+p.write_text(s2, encoding='utf-8')
