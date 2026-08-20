@@ -7,7 +7,7 @@ on:
       - '.github/workflows/temp-build-stable-v10000075.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -19,6 +19,18 @@ jobs:
           ref: dev
           fetch-depth: 0
 
+      - name: Record run locator
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .temp-stable75-run
+          printf 'RUN_ID=%s\nHEAD_SHA=%s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > .temp-stable75-run/INFO.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .temp-stable75-run/INFO.txt
+          git commit -m '[skip ci] Record Stable v10000075 build run'
+          git push origin HEAD:dev
+
       - name: Prepare Stable source tree
         shell: bash
         run: |
@@ -28,33 +40,28 @@ jobs:
           cp -a 'source code' 'stable-promotion/source code'
           python3 - <<'PY'
           from pathlib import Path
-          import re, shutil
+          import re
 
           root = Path('stable-promotion/source code')
           version_code = '10000075'
           version_name = '1.0 (10000075)'
 
-          # Stable Java namespace throughout: no .dev package identity.
           for p in root.rglob('*.java'):
               s = p.read_text(encoding='utf-8')
               s = s.replace('com.harleytg.forum.dev', 'com.harleytg.forum')
               p.write_text(s, encoding='utf-8')
 
-          # Stable manifest identity/channel/version.
           manifest = root / 'AndroidManifest.xml.in'
           s = manifest.read_text(encoding='utf-8')
           s = s.replace('package="com.harleytg.forum.dev"', 'package="com.harleytg.forum"')
           s = re.sub(r'android:versionCode="\d+"', f'android:versionCode="{version_code}"', s, count=1)
           s = re.sub(r'android:versionName="[^"]+"', f'android:versionName="{version_name}"', s, count=1)
           s = s.replace('android:value="dev"', 'android:value="stable"')
-          s = re.sub(r'<meta-data android:name="com\.harleytg\.APP_VERSION" android:value="[^"]+" />',
-                     f'<meta-data android:name="com.harleytg.APP_VERSION" android:value="{version_name}" />', s)
-          s = re.sub(r'<meta-data android:name="com\.harleytg\.APP_VERSION_CODE" android:value="[^"]+" />',
-                     f'<meta-data android:name="com.harleytg.APP_VERSION_CODE" android:value="{version_code}" />', s)
+          s = re.sub(r'<meta-data android:name="com\.harleytg\.APP_VERSION" android:value="[^"]+" />', f'<meta-data android:name="com.harleytg.APP_VERSION" android:value="{version_name}" />', s)
+          s = re.sub(r'<meta-data android:name="com\.harleytg\.APP_VERSION_CODE" android:value="[^"]+" />', f'<meta-data android:name="com.harleytg.APP_VERSION_CODE" android:value="{version_code}" />', s)
           s = s.replace('com.harleytg.forum.dev.updatefiles', 'com.harleytg.forum.updatefiles')
           manifest.write_text(s, encoding='utf-8')
 
-          # Stable build constants while retaining the shared Dev feature code.
           appconfig = root / 'src/com/harleytg/forum/AppConfig.java'
           s = appconfig.read_text(encoding='utf-8')
           s = re.sub(r'static final int VERSION_CODE = \d+;', f'static final int VERSION_CODE = {version_code};', s)
@@ -68,25 +75,21 @@ jobs:
           s = re.sub(r'static final boolean ALLOW_UPDATE_CHANNEL_SWITCH = (true|false);', 'static final boolean ALLOW_UPDATE_CHANNEL_SWITCH = false;', s)
           appconfig.write_text(s, encoding='utf-8')
 
-          # Stable app label.
           strings = root / 'res/values/strings.xml'
           s = strings.read_text(encoding='utf-8')
           s = s.replace("Harley\\'s Clan Forum [Beta]", "Harley\\'s Clan Forum")
           s = s.replace("Harley\\'s Clan Forum [DevBuild]", "Harley\\'s Clan Forum")
           strings.write_text(s, encoding='utf-8')
 
-          # No separate round launcher artwork in the Stable source package.
           for p in list(root.glob('res/mipmap-*/ic_launcher_round.png')) + list(root.glob('res/mipmap-*/ic_launcher_round.xml')):
               if p.exists(): p.unlink()
 
-          # Promote the v10000072 notification latency fixes into source.
           svc = root / 'src/com/harleytg/forum/InstantNotificationService.java'
           s = svc.read_text(encoding='utf-8')
           s = re.sub(r'private static final long FAILURE_MIN_MS = [0-9_]+L;', 'private static final long FAILURE_MIN_MS = 1_000L;', s)
           s = re.sub(r'private static final long FAILURE_MAX_MS = [0-9_]+L;', 'private static final long FAILURE_MAX_MS = 1_000L;', s)
           svc.write_text(s, encoding='utf-8')
 
-          # Basic safety assertions before compilation.
           for p in root.rglob('*.java'):
               txt = p.read_text(encoding='utf-8')
               if 'package com.harleytg.forum.dev;' in txt:
@@ -108,13 +111,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          keytool -genkeypair -v \
-            -keystore "$RUNNER_TEMP/hcf-ci.jks" \
-            -storepass hcf-ci-v10000075 \
-            -keypass hcf-ci-v10000075 \
-            -alias hcf-ci \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=HCF Stable v10000075 CI,O=Harley's Studios,C=US"
+          keytool -genkeypair -v -keystore "$RUNNER_TEMP/hcf-ci.jks" -storepass hcf-ci-v10000075 -keypass hcf-ci-v10000075 -alias hcf-ci -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=HCF Stable v10000075 CI,O=Harley's Studios,C=US"
           printf '%s\n' hcf-ci-v10000075 > "$RUNNER_TEMP/hcf-pass.txt"
           FP="$(keytool -list -v -keystore "$RUNNER_TEMP/hcf-ci.jks" -storepass hcf-ci-v10000075 -alias hcf-ci | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -n1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
           echo "CI_FP=$FP" >> "$GITHUB_ENV"
@@ -146,14 +143,7 @@ jobs:
           OUT="$GITHUB_WORKSPACE/stable-promotion/out"
           mkdir -p "$OUT"
           chmod +x "$SRC/build-release.sh"
-          ANDROID_SDK_ROOT="$ANDROID_HOME" \
-          BUILD_TOOLS_VERSION='35.0.0' \
-          ANDROID_PLATFORM_VERSION='35' \
-          HCF_KEYSTORE="$RUNNER_TEMP/hcf-ci.jks" \
-          HCF_KEY_ALIAS='hcf-ci' \
-          HCF_KEY_PASSWORD_FILE="$RUNNER_TEMP/hcf-pass.txt" \
-          HCF_OUTPUT_DIR="$OUT" \
-          "$SRC/build-release.sh"
+          ANDROID_SDK_ROOT="$ANDROID_HOME" BUILD_TOOLS_VERSION='35.0.0' ANDROID_PLATFORM_VERSION='35' HCF_KEYSTORE="$RUNNER_TEMP/hcf-ci.jks" HCF_KEY_ALIAS='hcf-ci' HCF_KEY_PASSWORD_FILE="$RUNNER_TEMP/hcf-pass.txt" HCF_OUTPUT_DIR="$OUT" "$SRC/build-release.sh"
 
       - name: Verify Stable identity
         shell: bash
