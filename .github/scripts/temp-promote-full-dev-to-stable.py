@@ -101,3 +101,27 @@ s2, count = re.subn(r'(?m)^(\s*)int i;\s*$', r'\1int i = 0;', s, count=1)
 if count != 1:
     raise SystemExit('ForumNotificationSync delivery count declaration not found')
 p.write_text(s2, encoding='utf-8')
+
+# Repair the remaining JADX-only MainActivity compiler issues without changing UI.
+p = out/'src/com/harleytg/forum/MainActivity.java'
+s = p.read_text(encoding='utf-8')
+
+old = '''    private void showChecking(final String str) {\n        boolean z = true;\n        final int i = this.connectionUiGeneration + 1;\n        this.connectionUiGeneration = i;\n        if (str == null || str.trim().isEmpty()) {\n            str = "forum.harleytg.com";\n        }'''
+new = '''    private void showChecking(final String requestedHost) {\n        boolean z = true;\n        final int i = this.connectionUiGeneration + 1;\n        this.connectionUiGeneration = i;\n        final String str = (requestedHost == null || requestedHost.trim().isEmpty())\n                ? "forum.harleytg.com" : requestedHost;'''
+if old not in s:
+    raise SystemExit('MainActivity showChecking recovery block not found')
+s = s.replace(old, new, 1)
+
+old = '''        String url;\n        if (i == this.connectionUiGeneration && this.startupProgress.getVisibility() == 0) {'''
+new = '''        String url = null;\n        if (i == this.connectionUiGeneration && this.startupProgress.getVisibility() == 0) {'''
+if old not in s:
+    raise SystemExit('MainActivity timeout URL declaration not found')
+s = s.replace(old, new, 1)
+
+old = '''    /* synthetic */ void m77lambda$loadIdentityAvatar$71$comharleytgforumdevMainActivity(final String str) {\n        HttpsURLConnection httpsURLConnection;\n        HttpsURLConnection httpsURLConnection2 = null;'''
+new = '''    /* synthetic */ void m77lambda$loadIdentityAvatar$71$comharleytgforumdevMainActivity(final String str) {\n        HttpsURLConnection httpsURLConnection = null;\n        HttpsURLConnection httpsURLConnection2 = null;'''
+if old not in s:
+    raise SystemExit('MainActivity avatar connection declaration not found')
+s = s.replace(old, new, 1)
+
+p.write_text(s, encoding='utf-8')
