@@ -7,7 +7,7 @@ final class BuildInfo {
     static final String CHANNEL = "Stable";
     static final String DEFAULT_UPDATE_CHANNEL = "stable";
     static final String DEVELOPMENT_BUILD_LABEL = "Harley's Clan Forum v1.0 [Stable]";
-    static final boolean ENABLE_DEV_TEST_MENU = false;
+    static final boolean ENABLE_DEV_TEST_MENU = true;
     static final boolean FIREBASE_WEB_CONFIG_BUNDLED = true;
     static final boolean FCM_CONFIGURED = false;
     static final int INTERNAL_BUILD = 100;
