@@ -33,10 +33,22 @@ runpy.run_path(temp_path, run_name='__main__')
 out = Path(sys.argv[2])
 p = out/'src/com/harleytg/forum/LogsActivity.java'
 s = p.read_text(encoding='utf-8')
-s = re.sub(
-    r'(?m)^(\s*)@Override\s*\n\s*@Override\s*\n(\s*protected void onActivityResult\()',
-    r'\1@Override\n\2',
-    s,
-    count=1,
-)
+needle = 'protected void onActivityResult('
+idx = s.find(needle)
+if idx < 0:
+    raise SystemExit('LogsActivity onActivityResult not found after promotion')
+block_start = s.rfind('}', 0, idx) + 1
+segment = s[block_start:idx]
+overrides = list(re.finditer(r'@Override', segment))
+if len(overrides) > 1:
+    # Keep the annotation closest to onActivityResult and remove older duplicates.
+    for match in reversed(overrides[:-1]):
+        a = block_start + match.start()
+        b = block_start + match.end()
+        s = s[:a] + s[b:]
+# Fail early if the annotation block is still duplicated.
+idx = s.find(needle)
+block_start = s.rfind('}', 0, idx) + 1
+if s[block_start:idx].count('@Override') > 1:
+    raise SystemExit('duplicate Override remains before LogsActivity onActivityResult')
 p.write_text(s, encoding='utf-8')
