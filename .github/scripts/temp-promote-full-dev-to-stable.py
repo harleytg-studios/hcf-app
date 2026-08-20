@@ -137,8 +137,6 @@ if old not in s: raise SystemExit('UpdateFileProvider openFile return not found'
 s = s.replace(old, new, 1)
 p.write_text(s, encoding='utf-8')
 
-# Battery and memory probes tolerate missing Android services. JADX lost the null
-# initialization for the catch paths, so initialize both probe locals safely.
 p = out/'src/com/harleytg/forum/PerformanceProfile.java'
 s = p.read_text(encoding='utf-8')
 old = '''    static int batteryPercent(Context context) {\n        Intent registerReceiver;'''
@@ -150,3 +148,9 @@ new = '''    private static MemorySnapshot memory(Context context) {\n        Ac
 if old not in s: raise SystemExit('PerformanceProfile memory local not found')
 s = s.replace(old, new, 1)
 p.write_text(s, encoding='utf-8')
+
+# Keep later one-off compiler repairs in a small supplemental file so the core
+# promotion helper stays stable while recovered JADX edge cases are exhausted.
+extra = Path(__file__).with_name('temp-promote-extra-fixes.py')
+if extra.exists():
+    runpy.run_path(str(extra), init_globals={'out': out})
