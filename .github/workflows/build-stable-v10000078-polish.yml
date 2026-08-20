@@ -49,7 +49,6 @@ jobs:
           repo = Path('stable-repo')
           src = repo / 'source code'
 
-          # 1) Stable updater must never use the Dev feed.
           p = src / 'src/com/harleytg/forum/UpdateAutomation.java'
           s = p.read_text(encoding='utf-8')
           old1 = '            final String str = "dev";'
@@ -60,7 +59,6 @@ jobs:
           s = s.replace(old2, '            UpdateChecker.check(applicationContext, BuildInfo.DEFAULT_UPDATE_CHANNEL, new UpdateChecker.Callback()', 1)
           p.write_text(s, encoding='utf-8')
 
-          # 2) Do not log identical notification counts on every fast adaptive poll.
           p = src / 'src/com/harleytg/forum/NotificationHelper.java'
           s = p.read_text(encoding='utf-8')
           old = '''        AppLogger.info(context, "notification_count",
@@ -74,9 +72,6 @@ jobs:
           s = s.replace(old, new, 1)
           p.write_text(s, encoding='utf-8')
 
-          # 3) A fresh normal app launch always starts on Primary. Backup remains automatic
-          #    only after a real Primary failure in the current session. Explicit backup
-          #    deep-links and restored WebView state continue to be honored by onCreate().
           p = src / 'src/com/harleytg/forum/MainActivity.java'
           s = p.read_text(encoding='utf-8')
           old = '''    public String chooseInitialHost() {
@@ -96,7 +91,6 @@ jobs:
                         "Update when you're ready to install the latest Stable build.")
           p.write_text(s, encoding='utf-8')
 
-          # Version identity and current release notes.
           for rel in [
               'src/com/harleytg/forum/BuildInfo.java',
               'src/com/harleytg/forum/ReleaseNotes.java',
@@ -114,7 +108,6 @@ jobs:
                   s = s.replace('10000072', '10000078').replace('10000077', '10000078')
                   p.write_text(s, encoding='utf-8')
 
-          # Make sure Stable metadata is internally consistent.
           p = src / 'AndroidManifest.xml'
           s = p.read_text(encoding='utf-8')
           s = re.sub(r'android:versionCode="[0-9]+"', 'android:versionCode="10000078"', s, count=1)
@@ -123,7 +116,6 @@ jobs:
           s = re.sub(r'(android:name="com\.harleytg\.APP_VERSION_CODE"\s*\n\s*android:value=")[^"]+("/>)', r'\g<1>10000078\g<2>', s, count=1)
           p.write_text(s, encoding='utf-8')
 
-          # Stable-specific safety checks.
           ua = (src / 'src/com/harleytg/forum/UpdateAutomation.java').read_text(encoding='utf-8')
           if 'UpdateChecker.check(applicationContext, "dev"' in ua or 'final String str = "dev";' in ua:
               raise SystemExit('Dev updater channel still present in UpdateAutomation')
@@ -199,3 +191,5 @@ jobs:
           path: out/
           if-no-files-found: error
           retention-days: 1
+
+# trigger: 2026-08-20-v10000078-1
