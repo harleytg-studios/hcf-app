@@ -143,3 +143,13 @@ if old not in s:
     raise SystemExit('ForumNotificationClient readableValue JSON block not found')
 s = s.replace(old, new, 1)
 p.write_text(s, encoding='utf-8')
+
+# ResolveInfo.loadLabel can throw; JADX lost the null assignment in the catch path.
+p = out/'src/com/harleytg/forum/HcfIntentChooser.java'
+s = p.read_text(encoding='utf-8')
+old = '''    private static String resolveLabel(PackageManager packageManager, ResolveInfo resolveInfo) {\n        CharSequence loadLabel;\n        if (resolveInfo == null) {\n            loadLabel = null;\n        } else {\n            try {\n                loadLabel = resolveInfo.loadLabel(packageManager);\n            } catch (Throwable unused) {\n            }\n        }'''
+new = '''    private static String resolveLabel(PackageManager packageManager, ResolveInfo resolveInfo) {\n        CharSequence loadLabel = null;\n        if (resolveInfo != null) {\n            try {\n                loadLabel = resolveInfo.loadLabel(packageManager);\n            } catch (Throwable unused) {\n                loadLabel = null;\n            }\n        }'''
+if old not in s:
+    raise SystemExit('HcfIntentChooser resolveLabel recovery block not found')
+s = s.replace(old, new, 1)
+p.write_text(s, encoding='utf-8')
