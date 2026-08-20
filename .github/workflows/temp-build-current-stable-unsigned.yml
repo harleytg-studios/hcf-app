@@ -113,3 +113,5 @@ jobs:
             out/UNSIGNED-SHA256.txt
           if-no-files-found: error
           retention-days: 1
+
+# rerun after repairing Stable v10000072 MainActivity patch
