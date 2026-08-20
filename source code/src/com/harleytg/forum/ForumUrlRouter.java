@@ -1,38 +1,41 @@
 package com.harleytg.forum;
 
 import android.net.Uri;
-
 import java.util.Locale;
 
+/* loaded from: classes.dex */
 final class ForumUrlRouter {
-    private ForumUrlRouter() {}
+    private ForumUrlRouter() {
+    }
 
-    static boolean isForumHost(String host) {
-        return host != null && ForumConfig.FORUM_HOSTS.contains(host.toLowerCase(Locale.US));
+    static boolean isForumHost(String str) {
+        return str != null && ForumConfig.FORUM_HOSTS.contains(str.toLowerCase(Locale.US));
     }
 
     static boolean isForumUrl(Uri uri) {
-        if (uri == null || !isForumHost(uri.getHost())) return false;
+        if (uri == null || !isForumHost(uri.getHost())) {
+            return false;
+        }
         String scheme = uri.getScheme();
-        return ForumConfig.HTTPS.equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme);
+        return "https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme);
     }
 
-    static String equivalentOnHost(Uri source, String targetHost) {
-        Uri.Builder b = new Uri.Builder()
-                .scheme(ForumConfig.HTTPS)
-                .authority(targetHost)
-                .encodedPath(emptyToSlash(source.getEncodedPath()));
-
-        if (source.getEncodedQuery() != null) b.encodedQuery(source.getEncodedQuery());
-        if (source.getEncodedFragment() != null) b.encodedFragment(source.getEncodedFragment());
-        return b.build().toString();
+    static String equivalentOnHost(Uri uri, String str) {
+        Uri.Builder encodedPath = new Uri.Builder().scheme("https").authority(str).encodedPath(emptyToSlash(uri.getEncodedPath()));
+        if (uri.getEncodedQuery() != null) {
+            encodedPath.encodedQuery(uri.getEncodedQuery());
+        }
+        if (uri.getEncodedFragment() != null) {
+            encodedPath.encodedFragment(uri.getEncodedFragment());
+        }
+        return encodedPath.build().toString();
     }
 
-    static String home(String host) {
-        return ForumConfig.HTTPS + "://" + host + "/";
+    static String home(String str) {
+        return "https://" + str + "/";
     }
 
-    private static String emptyToSlash(String path) {
-        return (path == null || path.isEmpty()) ? "/" : path;
+    private static String emptyToSlash(String str) {
+        return (str == null || str.isEmpty()) ? "/" : str;
     }
 }

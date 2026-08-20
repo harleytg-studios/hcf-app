@@ -4,49 +4,47 @@ import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.SharedPreferences;
 
+/* loaded from: classes.dex */
 final class UpdateScheduler {
     private static final int JOB_ID = 41072;
-    private static final long PERIOD_MS = 6L * 60L * 60L * 1000L;
+    private static final long PERIOD_MS = 21600000;
 
     static void apply(Context context) {
-        if (context == null) return;
-        SharedPreferences prefs = context.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
-        if (!prefs.getBoolean(AppPrefs.UPDATE_AUTO_CHECK, true)) {
-            cancel(context);
+        if (context == null) {
             return;
         }
-        schedule(context);
+        if (!context.getSharedPreferences("hcf_app", 0).getBoolean("update_auto_check", true)) {
+            cancel(context);
+        } else {
+            schedule(context);
+        }
     }
 
     static void schedule(Context context) {
         try {
-            JobScheduler scheduler = (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
-            if (scheduler == null) return;
-            JobInfo info = new JobInfo.Builder(
-                    JOB_ID,
-                    new ComponentName(context, UpdateCheckJobService.class))
-                    .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
-                    .setPeriodic(PERIOD_MS)
-                    .setPersisted(true)
-                    .build();
-            int result = scheduler.schedule(info);
-            AppLogger.info(context, "update_schedule", result == JobScheduler.RESULT_SUCCESS ? "scheduled_6h" : "failed");
-        } catch (Throwable t) {
-            AppLogger.error(context, "update_schedule", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));
+            JobScheduler jobScheduler = (JobScheduler) context.getSystemService("jobscheduler");
+            if (jobScheduler == null) {
+                return;
+            }
+            AppLogger.info(context, "update_schedule", jobScheduler.schedule(new JobInfo.Builder(JOB_ID, new ComponentName(context, (Class<?>) UpdateCheckJobService.class)).setRequiredNetworkType(1).setPeriodic(PERIOD_MS).setPersisted(true).build()) == 1 ? "scheduled_6h" : "failed");
+        } catch (Throwable th) {
+            AppLogger.error(context, "update_schedule", th.getClass().getSimpleName() + ": " + String.valueOf(th.getMessage()));
         }
     }
 
     static void cancel(Context context) {
         try {
-            JobScheduler scheduler = (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
-            if (scheduler != null) scheduler.cancel(JOB_ID);
+            JobScheduler jobScheduler = (JobScheduler) context.getSystemService("jobscheduler");
+            if (jobScheduler != null) {
+                jobScheduler.cancel(JOB_ID);
+            }
             AppLogger.info(context, "update_schedule", "cancelled");
-        } catch (Throwable t) {
-            AppLogger.error(context, "update_schedule_cancel", t.getClass().getSimpleName());
+        } catch (Throwable th) {
+            AppLogger.error(context, "update_schedule_cancel", th.getClass().getSimpleName());
         }
     }
 
-    private UpdateScheduler() {}
+    private UpdateScheduler() {
+    }
 }

@@ -1,4 +1,0 @@
-# Historical note: Stable v10000072 removes the old 2.5-second foreground
-# notification bridge cooldown. The current build-release.sh applies that small
-# promotion deterministically to its isolated build copy, so no line-sensitive
-# patch is required here.

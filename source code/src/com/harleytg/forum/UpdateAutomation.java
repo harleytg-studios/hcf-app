@@ -2,65 +2,69 @@ package com.harleytg.forum;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import com.harleytg.forum.UpdateChecker;
 
+/* loaded from: classes.dex */
 final class UpdateAutomation {
-    private static final long FOREGROUND_MIN_INTERVAL_MS = 30L * 60L * 1000L;
+    private static final long FOREGROUND_MIN_INTERVAL_MS = 1800000;
 
     interface Listener {
-        void onFinished(UpdateChecker.Release release, boolean updateAvailable, String error);
+        void onFinished(UpdateChecker.Release release, boolean z, String str);
     }
 
-    static void maybeCheck(Context context, boolean force, Listener listener) {
-        if (context == null) return;
-        Context app = context.getApplicationContext();
-        SharedPreferences prefs = app.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
-        if (!force && !prefs.getBoolean(AppPrefs.UPDATE_AUTO_CHECK, true)) {
+    static void maybeCheck(Context context, boolean z, final Listener listener) {
+        if (context == null) {
+            return;
+        }
+        final Context applicationContext = context.getApplicationContext();
+        final SharedPreferences sharedPreferences = applicationContext.getSharedPreferences("hcf_app", 0);
+        if (!z && !sharedPreferences.getBoolean("update_auto_check", true)) {
             finish(listener, null, false, "Automatic update checks are off.");
             return;
         }
-        long now = System.currentTimeMillis();
-        long last = prefs.getLong(AppPrefs.UPDATE_LAST_CHECK, 0L);
-        if (!force && last > 0L && now - last < FOREGROUND_MIN_INTERVAL_MS) {
+        long currentTimeMillis = System.currentTimeMillis();
+        long j = sharedPreferences.getLong("update_last_check", 0L);
+        if (!z && j > 0 && currentTimeMillis - j < FOREGROUND_MIN_INTERVAL_MS) {
             finish(listener, null, false, null);
-            return;
-        }
-
-        String channel = BuildInfo.ALLOW_UPDATE_CHANNEL_SWITCH
-                ? prefs.getString(AppPrefs.UPDATE_CHANNEL, BuildInfo.DEFAULT_UPDATE_CHANNEL)
-                : UpdateChecker.CHANNEL_STABLE;
-        UpdateChecker.check(app, channel, new UpdateChecker.Callback() {
-            @Override
-            public void onResult(UpdateChecker.Release release, boolean updateAvailable) {
-                String priorTag = prefs.getString(AppPrefs.UPDATE_LAST_AVAILABLE_TAG, "");
-                String releaseIdentity = release.assetKey();
-                prefs.edit().putLong(AppPrefs.UPDATE_LAST_CHECK, System.currentTimeMillis()).apply();
-                if (updateAvailable) {
-                    prefs.edit().putString(AppPrefs.UPDATE_LAST_AVAILABLE_TAG, releaseIdentity).apply();
-                    boolean autoDownload = prefs.getBoolean(AppPrefs.UPDATE_AUTO_DOWNLOAD, true);
-                    if (autoDownload && release.apkUrl != null && !release.apkUrl.isEmpty()) {
-                        AppUpdateDownloader.enqueue(app, release, false);
-                    } else if (!releaseIdentity.equals(priorTag)) {
-                        NotificationHelper.postUpdateAvailable(app, release);
+        } else {
+            final String str = "dev";
+            UpdateChecker.check(applicationContext, "dev", new UpdateChecker.Callback() { // from class: com.harleytg.forum.UpdateAutomation.1
+                @Override // com.harleytg.forum.UpdateChecker.Callback
+                public void onResult(UpdateChecker.Release release, boolean z2) {
+                    String string = sharedPreferences.getString("update_last_available_tag", "");
+                    String assetKey = release.assetKey();
+                    sharedPreferences.edit().putLong("update_last_check", System.currentTimeMillis()).apply();
+                    if (z2) {
+                        sharedPreferences.edit().putString("update_last_available_tag", assetKey).apply();
+                        if (sharedPreferences.getBoolean("update_auto_download", false) && release.apkUrl != null && !release.apkUrl.isEmpty()) {
+                            AppUpdateDownloader.enqueue(applicationContext, release, false);
+                        } else if (!assetKey.equals(string)) {
+                            NotificationHelper.postUpdateAvailable(applicationContext, release);
+                        }
                     }
+                    boolean z3 = UpdateChecker.compareReleaseToInstalled(release) < 0;
+                    AppLogger.info(applicationContext, "update_auto_check", str + " | " + release.tag + " | newer=" + z2 + " | feedBehind=" + z3);
+                    UpdateAutomation.finish(listener, release, z2, null);
                 }
-                boolean feedBehind = UpdateChecker.compareReleaseToInstalled(release) < 0;
-                AppLogger.info(app, "update_auto_check", channel + " | " + release.tag + " | newer=" + updateAvailable + " | feedBehind=" + feedBehind);
-                finish(listener, release, updateAvailable, null);
-            }
 
-            @Override
-            public void onError(String message) {
-                prefs.edit().putLong(AppPrefs.UPDATE_LAST_CHECK, System.currentTimeMillis()).apply();
-                AppLogger.warn(app, "update_auto_check", message);
-                TelemetryService.sendDiagnosticEvent(app, "update_check_failed", message);
-                finish(listener, null, false, message);
-            }
-        });
+                @Override // com.harleytg.forum.UpdateChecker.Callback
+                public void onError(String str2) {
+                    sharedPreferences.edit().putLong("update_last_check", System.currentTimeMillis()).apply();
+                    AppLogger.warn(applicationContext, "update_auto_check", str2);
+                    TelemetryService.sendDiagnosticEvent(applicationContext, "update_check_failed", str2);
+                    UpdateAutomation.finish(listener, null, false, str2);
+                }
+            });
+        }
     }
 
-    private static void finish(Listener listener, UpdateChecker.Release release, boolean updateAvailable, String error) {
-        if (listener != null) listener.onFinished(release, updateAvailable, error);
+    /* JADX INFO: Access modifiers changed from: private */
+    public static void finish(Listener listener, UpdateChecker.Release release, boolean z, String str) {
+        if (listener != null) {
+            listener.onFinished(release, z, str);
+        }
     }
 
-    private UpdateAutomation() {}
+    private UpdateAutomation() {
+    }
 }

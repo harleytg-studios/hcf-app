@@ -1,11 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.HCF" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.HCF" parent="@android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">@color/hcf_cyan</item>
         <item name="android:statusBarColor">@color/hcf_bg</item>
         <item name="android:navigationBarColor">@color/hcf_bg</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
-        <item name="android:colorAccent">@color/hcf_cyan</item>
         <item name="android:windowSplashScreenBackground">@color/hcf_bg</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_empty_icon</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@color/hcf_bg</item>

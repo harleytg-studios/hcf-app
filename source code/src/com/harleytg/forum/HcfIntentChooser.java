@@ -2,424 +2,456 @@ package com.harleytg.forum;
 
 import android.app.Activity;
 import android.app.Dialog;
-import android.content.ComponentName;
 import android.content.ClipData;
 import android.content.ClipboardManager;
-import android.content.Context;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
-import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Locale;
 
-/** HCF-styled chooser for app-initiated external intents. */
+/* loaded from: classes.dex */
 final class HcfIntentChooser {
-    private HcfIntentChooser() {}
-
-    static boolean show(Activity activity, Intent baseIntent, String title, String detail, boolean excludeSelf) {
-        return showInternal(activity, baseIntent, title, detail, excludeSelf, false);
+    private HcfIntentChooser() {
     }
 
-    static boolean showShare(Activity activity, Intent baseIntent, String title, String detail) {
-        return showSimpleShare(activity, baseIntent, title);
+    static boolean show(Activity activity, Intent intent, String str, String str2, boolean z) {
+        return showInternal(activity, intent, str, str2, z, false);
     }
 
-    /**
-     * Sharing is intentionally kept simple: the HCF dialog offers Copy Link or Share with…,
-     * then Android's normal Sharesheet handles the actual destination app selection.
-     */
-    private static boolean showSimpleShare(Activity activity, Intent baseIntent, String title) {
-        if (activity == null || baseIntent == null || activity.isFinishing() || activity.isDestroyed()) return false;
+    static boolean showShare(Activity activity, Intent intent, String str, String str2) {
+        return showSimpleShare(activity, intent, str);
+    }
 
+    private static boolean showSimpleShare(final Activity activity, final Intent intent, final String str) {
+        if (activity == null || intent == null || activity.isFinishing() || activity.isDestroyed()) {
+            return false;
+        }
         final Dialog dialog = new Dialog(activity);
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.requestWindowFeature(1);
         dialog.setCancelable(true);
-
-        LinearLayout shell = new LinearLayout(activity);
-        shell.setOrientation(LinearLayout.VERTICAL);
-        shell.setBackgroundResource(R.drawable.card_background);
-        int pad = dp(activity, 18);
-        shell.setPadding(pad, pad, pad, pad);
-
-        LinearLayout hero = new LinearLayout(activity);
-        hero.setOrientation(LinearLayout.HORIZONTAL);
-        hero.setGravity(Gravity.CENTER_VERTICAL);
-
-        ImageView logo = new ImageView(activity);
-        logo.setImageResource(R.drawable.htg_app_logo);
-        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        hero.addView(logo, new LinearLayout.LayoutParams(dp(activity, 46), dp(activity, 46)));
-
-        LinearLayout headings = new LinearLayout(activity);
-        headings.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        hp.leftMargin = dp(activity, 12);
-        headings.addView(text(activity, "Harley's Clan Forum • Share", 9, R.color.hcf_meta, true));
-        headings.addView(text(activity, title == null ? "Share" : title, 20, R.color.hcf_text, true));
-        TextView sub = text(activity, "Copy the link or share it with another app.", 11, R.color.hcf_muted, false);
-        sub.setPadding(0, dp(activity, 3), 0, 0);
-        headings.addView(sub);
-        hero.addView(headings, hp);
-        shell.addView(hero);
-
-        Button copy = simpleAction(activity, "Copy Link");
-        copy.setOnClickListener(v -> {
-            CharSequence value = baseIntent.getCharSequenceExtra(Intent.EXTRA_TEXT);
-            if (value == null || value.toString().trim().isEmpty()) {
-                Toast.makeText(activity, "No link is available to copy.", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            try {
-                ClipboardManager clipboard = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
-                if (clipboard != null) clipboard.setPrimaryClip(ClipData.newPlainText("Harley's Clan Forum link", value));
-                Toast.makeText(activity, "Link copied.", Toast.LENGTH_SHORT).show();
-                dialog.dismiss();
-            } catch (Throwable t) {
-                Toast.makeText(activity, "Unable to copy this link.", Toast.LENGTH_SHORT).show();
+        LinearLayout linearLayout = new LinearLayout(activity);
+        linearLayout.setOrientation(1);
+        linearLayout.setBackgroundResource(R.drawable.card_background);
+        int dp = dp(activity, 18);
+        linearLayout.setPadding(dp, dp, dp, dp);
+        LinearLayout linearLayout2 = new LinearLayout(activity);
+        linearLayout2.setOrientation(0);
+        linearLayout2.setGravity(16);
+        ImageView imageView = new ImageView(activity);
+        imageView.setImageResource(R.drawable.htg_app_logo);
+        imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        linearLayout2.addView(imageView, new LinearLayout.LayoutParams(dp(activity, 46), dp(activity, 46)));
+        LinearLayout linearLayout3 = new LinearLayout(activity);
+        linearLayout3.setOrientation(1);
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(0, -2, 1.0f);
+        layoutParams.leftMargin = dp(activity, 12);
+        linearLayout3.addView(text(activity, "Harley's Clan Forum • Share", 9, R.color.hcf_meta, true));
+        linearLayout3.addView(text(activity, str == null ? "Share" : str, 20, R.color.hcf_text, true));
+        TextView text = text(activity, "Copy the link or share it with another app.", 11, R.color.hcf_muted, false);
+        text.setPadding(0, dp(activity, 3), 0, 0);
+        linearLayout3.addView(text);
+        linearLayout2.addView(linearLayout3, layoutParams);
+        linearLayout.addView(linearLayout2);
+        Button simpleAction = simpleAction(activity, "Copy Link");
+        simpleAction.setOnClickListener(new View.OnClickListener() { // from class: com.harleytg.forum.HcfIntentChooser$$ExternalSyntheticLambda0
+            @Override // android.view.View.OnClickListener
+            public final void onClick(View view) {
+                HcfIntentChooser.lambda$showSimpleShare$0(intent, activity, dialog, view);
             }
         });
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 50));
-        ap.topMargin = dp(activity, 16);
-        shell.addView(copy, ap);
-
-        Button share = simpleAction(activity, "Share with…");
-        share.setOnClickListener(v -> {
-            try {
-                Intent chooser = Intent.createChooser(new Intent(baseIntent), title == null ? "Share" : title);
-                activity.startActivity(chooser);
-                dialog.dismiss();
-            } catch (Throwable t) {
-                Toast.makeText(activity, "No compatible sharing app is available.", Toast.LENGTH_SHORT).show();
-                AppLogger.error(activity, "system_share_chooser", t.getClass().getSimpleName());
+        LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(-1, dp(activity, 50));
+        layoutParams2.topMargin = dp(activity, 16);
+        linearLayout.addView(simpleAction, layoutParams2);
+        Button simpleAction2 = simpleAction(activity, "Share with…");
+        simpleAction2.setOnClickListener(new View.OnClickListener() { // from class: com.harleytg.forum.HcfIntentChooser$$ExternalSyntheticLambda1
+            @Override // android.view.View.OnClickListener
+            public final void onClick(View view) {
+                HcfIntentChooser.lambda$showSimpleShare$1(intent, str, activity, dialog, view);
             }
         });
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 50));
-        sp.topMargin = dp(activity, 8);
-        shell.addView(share, sp);
-
-        Button cancel = new Button(activity);
-        UiButtons.normalizeText(cancel);
-        cancel.setText("Cancel");
-        cancel.setTextColor(activity.getColor(R.color.hcf_cyan_bright));
-        cancel.setGravity(Gravity.CENTER);
-        cancel.setBackgroundResource(R.drawable.button_background);
-        cancel.setOnClickListener(v -> dialog.dismiss());
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 46));
-        cp.topMargin = dp(activity, 12);
-        shell.addView(cancel, cp);
-
-        dialog.setContentView(shell);
+        LinearLayout.LayoutParams layoutParams3 = new LinearLayout.LayoutParams(-1, dp(activity, 50));
+        layoutParams3.topMargin = dp(activity, 8);
+        linearLayout.addView(simpleAction2, layoutParams3);
+        Button button = new Button(activity);
+        UiButtons.normalizeText(button);
+        button.setText("Cancel");
+        button.setTextColor(activity.getColor(R.color.hcf_cyan_bright));
+        button.setGravity(17);
+        button.setBackgroundResource(R.drawable.button_background);
+        button.setOnClickListener(new View.OnClickListener() { // from class: com.harleytg.forum.HcfIntentChooser$$ExternalSyntheticLambda2
+            @Override // android.view.View.OnClickListener
+            public final void onClick(View view) {
+                dialog.dismiss();
+            }
+        });
+        LinearLayout.LayoutParams layoutParams4 = new LinearLayout.LayoutParams(-1, dp(activity, 46));
+        layoutParams4.topMargin = dp(activity, 12);
+        linearLayout.addView(button, layoutParams4);
+        dialog.setContentView(linearLayout);
         dialog.show();
         Window window = dialog.getWindow();
         if (window != null) {
-            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-            WindowManager.LayoutParams attrs = window.getAttributes();
-            attrs.dimAmount = 0.62f;
-            window.setAttributes(attrs);
-            int width = activity.getResources().getDisplayMetrics().widthPixels - dp(activity, 24);
-            window.setLayout(Math.max(dp(activity, 280), width), WindowManager.LayoutParams.WRAP_CONTENT);
-            window.setGravity(Gravity.CENTER);
+            window.setBackgroundDrawable(new ColorDrawable(0));
+            window.addFlags(2);
+            WindowManager.LayoutParams attributes = window.getAttributes();
+            attributes.dimAmount = 0.62f;
+            window.setAttributes(attributes);
+            window.setLayout(Math.max(dp(activity, 280), activity.getResources().getDisplayMetrics().widthPixels - dp(activity, 24)), -2);
+            window.setGravity(17);
         }
         return true;
     }
 
-    private static Button simpleAction(Activity activity, String label) {
+    static /* synthetic */ void lambda$showSimpleShare$0(Intent intent, Activity activity, Dialog dialog, View view) {
+        CharSequence charSequenceExtra = intent.getCharSequenceExtra("android.intent.extra.TEXT");
+        if (charSequenceExtra == null || charSequenceExtra.toString().trim().isEmpty()) {
+            Toast.makeText(activity, "No link is available to copy.", 0).show();
+            return;
+        }
+        try {
+            ClipboardManager clipboardManager = (ClipboardManager) activity.getSystemService("clipboard");
+            if (clipboardManager != null) {
+                clipboardManager.setPrimaryClip(ClipData.newPlainText("Harley's Clan Forum link", charSequenceExtra));
+            }
+            Toast.makeText(activity, "Link copied.", 0).show();
+            dialog.dismiss();
+        } catch (Throwable unused) {
+            Toast.makeText(activity, "Unable to copy this link.", 0).show();
+        }
+    }
+
+    static /* synthetic */ void lambda$showSimpleShare$1(Intent intent, String str, Activity activity, Dialog dialog, View view) {
+        try {
+            Intent intent2 = new Intent(intent);
+            if (str == null) {
+                str = "Share";
+            }
+            activity.startActivity(Intent.createChooser(intent2, str));
+            dialog.dismiss();
+        } catch (Throwable th) {
+            Toast.makeText(activity, "No compatible sharing app is available.", 0).show();
+            AppLogger.error(activity, "system_share_chooser", th.getClass().getSimpleName());
+        }
+    }
+
+    private static Button simpleAction(Activity activity, String str) {
         Button button = new Button(activity);
         UiButtons.normalizeText(button);
-        button.setText(label);
+        button.setText(str);
         button.setTextColor(activity.getColor(R.color.hcf_text));
-        button.setTextSize(14f);
-        button.setGravity(Gravity.CENTER);
+        button.setTextSize(14.0f);
+        button.setGravity(17);
         button.setBackgroundResource(R.drawable.quick_action_background);
         return button;
     }
 
-    private static boolean showInternal(Activity activity, Intent baseIntent, String title, String detail,
-                                        boolean excludeSelf, boolean curatedShare) {
-        if (activity == null || baseIntent == null || activity.isFinishing() || activity.isDestroyed()) return false;
-        PackageManager pm = activity.getPackageManager();
-        List<ResolveInfo> all;
+    private static boolean showInternal(final Activity activity, final Intent intent, String str, String str2, boolean z, boolean z2) {
+        List<ResolveInfo> arrayList;
+        List<ResolveInfo> normalTargets;
+        CharSequence charSequence;
+        String charSequence2;
+        if (activity == null || intent == null || activity.isFinishing() || activity.isDestroyed()) {
+            return false;
+        }
+        PackageManager packageManager = activity.getPackageManager();
         try {
-            all = pm.queryIntentActivities(baseIntent, PackageManager.MATCH_DEFAULT_ONLY);
-        } catch (Throwable t) {
-            all = new ArrayList<>();
+            arrayList = packageManager.queryIntentActivities(intent, 65536);
+        } catch (Throwable unused) {
+            arrayList = new ArrayList<>();
         }
-        List<ResolveInfo> choices = curatedShare
-                ? curatedShareTargets(activity, pm, all, excludeSelf)
-                : normalTargets(activity, all, excludeSelf);
-
-        if (choices.size() == 1) {
-            return launch(activity, baseIntent, choices.get(0));
+        if (z2) {
+            normalTargets = curatedShareTargets(activity, packageManager, arrayList, z);
+        } else {
+            normalTargets = normalTargets(activity, arrayList, z);
         }
-        if (choices.isEmpty()) {
-            if (excludeSelf) {
-                Toast.makeText(activity, "No compatible external app is available.", Toast.LENGTH_SHORT).show();
+        if (normalTargets.size() == 1) {
+            return launch(activity, intent, normalTargets.get(0));
+        }
+        if (normalTargets.isEmpty()) {
+            if (z) {
+                Toast.makeText(activity, "No compatible external app is available.", 0).show();
                 return false;
             }
             try {
-                activity.startActivity(baseIntent);
+                activity.startActivity(intent);
                 return true;
-            } catch (Throwable t) {
-                Toast.makeText(activity, "No compatible app is available.", Toast.LENGTH_SHORT).show();
+            } catch (Throwable unused2) {
+                Toast.makeText(activity, "No compatible app is available.", 0).show();
                 return false;
             }
         }
-
         final Dialog dialog = new Dialog(activity);
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.requestWindowFeature(1);
         dialog.setCancelable(true);
-
-        LinearLayout shell = new LinearLayout(activity);
-        shell.setOrientation(LinearLayout.VERTICAL);
-        shell.setBackgroundResource(R.drawable.card_background);
-        int pad = dp(activity, 18);
-        shell.setPadding(pad, pad, pad, pad);
-
-        LinearLayout hero = new LinearLayout(activity);
-        hero.setOrientation(LinearLayout.HORIZONTAL);
-        hero.setGravity(Gravity.CENTER_VERTICAL);
-
-        ImageView logo = new ImageView(activity);
-        logo.setImageResource(R.drawable.htg_app_logo);
-        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        hero.addView(logo, new LinearLayout.LayoutParams(dp(activity, 46), dp(activity, 46)));
-
-        LinearLayout headings = new LinearLayout(activity);
-        headings.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        hp.leftMargin = dp(activity, 12);
-
-        TextView eyebrow = text(activity, "Harley's Clan Forum • App Chooser", 9, R.color.hcf_meta, true);
-        headings.addView(eyebrow);
-        TextView heading = text(activity, title == null ? "Open with" : title, 20, R.color.hcf_text, true);
-        headings.addView(heading);
-        if (detail != null && !detail.trim().isEmpty()) {
-            TextView sub = text(activity, detail, 11, R.color.hcf_muted, false);
-            sub.setPadding(0, dp(activity, 3), 0, 0);
-            headings.addView(sub);
+        LinearLayout linearLayout = new LinearLayout(activity);
+        linearLayout.setOrientation(1);
+        linearLayout.setBackgroundResource(R.drawable.card_background);
+        int dp = dp(activity, 18);
+        linearLayout.setPadding(dp, dp, dp, dp);
+        LinearLayout linearLayout2 = new LinearLayout(activity);
+        linearLayout2.setOrientation(0);
+        linearLayout2.setGravity(16);
+        ImageView imageView = new ImageView(activity);
+        imageView.setImageResource(R.drawable.htg_app_logo);
+        imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        linearLayout2.addView(imageView, new LinearLayout.LayoutParams(dp(activity, 46), dp(activity, 46)));
+        LinearLayout linearLayout3 = new LinearLayout(activity);
+        linearLayout3.setOrientation(1);
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(0, -2, 1.0f);
+        layoutParams.leftMargin = dp(activity, 12);
+        linearLayout3.addView(text(activity, "Harley's Clan Forum • App Chooser", 9, R.color.hcf_meta, true));
+        String str3 = str == null ? "Open with" : str;
+        int i = R.color.hcf_text;
+        linearLayout3.addView(text(activity, str3, 20, R.color.hcf_text, true));
+        if (str2 != null && !str2.trim().isEmpty()) {
+            TextView text = text(activity, str2, 11, R.color.hcf_muted, false);
+            text.setPadding(0, dp(activity, 3), 0, 0);
+            linearLayout3.addView(text);
         }
-        hero.addView(headings, hp);
-        shell.addView(hero);
-
-        ScrollView scroll = new ScrollView(activity);
-        scroll.setFillViewport(false);
-        LinearLayout list = new LinearLayout(activity);
-        list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(0, dp(activity, 12), 0, 0);
-
-        for (ResolveInfo info : choices) {
-            CharSequence labelCs;
-            try { labelCs = info.loadLabel(pm); }
-            catch (Throwable t) { labelCs = info.activityInfo.packageName; }
-            String label = curatedShare
-                    ? applicationLabel(pm, info)
-                    : (labelCs == null ? info.activityInfo.packageName : labelCs.toString());
-
-            Button row = new Button(activity);
-            UiButtons.normalizeText(row);
-            row.setText(label);
-            row.setTextColor(activity.getColor(R.color.hcf_text));
-            row.setTextSize(14f);
-            row.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
-            row.setBackgroundResource(R.drawable.quick_action_background);
-            row.setPadding(dp(activity, 14), 0, dp(activity, 14), 0);
+        linearLayout2.addView(linearLayout3, layoutParams);
+        linearLayout.addView(linearLayout2);
+        ScrollView scrollView = new ScrollView(activity);
+        scrollView.setFillViewport(false);
+        LinearLayout linearLayout4 = new LinearLayout(activity);
+        linearLayout4.setOrientation(1);
+        linearLayout4.setPadding(0, dp(activity, 12), 0, 0);
+        for (final ResolveInfo resolveInfo : normalTargets) {
             try {
-                Drawable icon = info.loadIcon(pm);
-                if (icon != null) {
-                    icon.setBounds(0, 0, dp(activity, 28), dp(activity, 28));
-                    row.setCompoundDrawablesRelative(icon, null, null, null);
-                    row.setCompoundDrawablePadding(dp(activity, 12));
+                charSequence = resolveInfo.loadLabel(packageManager);
+            } catch (Throwable unused3) {
+                charSequence = resolveInfo.activityInfo.packageName;
+            }
+            if (z2) {
+                charSequence2 = applicationLabel(packageManager, resolveInfo);
+            } else {
+                charSequence2 = charSequence == null ? resolveInfo.activityInfo.packageName : charSequence.toString();
+            }
+            Button button = new Button(activity);
+            UiButtons.normalizeText(button);
+            button.setText(charSequence2);
+            button.setTextColor(activity.getColor(i));
+            button.setTextSize(14.0f);
+            button.setGravity(8388627);
+            button.setBackgroundResource(R.drawable.quick_action_background);
+            button.setPadding(dp(activity, 14), 0, dp(activity, 14), 0);
+            try {
+                Drawable loadIcon = resolveInfo.loadIcon(packageManager);
+                if (loadIcon != null) {
+                    loadIcon.setBounds(0, 0, dp(activity, 28), dp(activity, 28));
+                    button.setCompoundDrawablesRelative(loadIcon, null, null, null);
+                    button.setCompoundDrawablePadding(dp(activity, 12));
                 }
-            } catch (Throwable ignored) {}
-            row.setOnClickListener(v -> {
-                if (launch(activity, baseIntent, info)) dialog.dismiss();
+            } catch (Throwable unused4) {
+            }
+            button.setOnClickListener(new View.OnClickListener() { // from class: com.harleytg.forum.HcfIntentChooser$$ExternalSyntheticLambda3
+                @Override // android.view.View.OnClickListener
+                public final void onClick(View view) {
+                    HcfIntentChooser.lambda$showInternal$3(activity, intent, resolveInfo, dialog, view);
+                }
             });
-            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 54));
-            rp.bottomMargin = dp(activity, 8);
-            list.addView(row, rp);
+            LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(-1, dp(activity, 54));
+            layoutParams2.bottomMargin = dp(activity, 8);
+            linearLayout4.addView(button, layoutParams2);
+            i = R.color.hcf_text;
         }
-        scroll.addView(list, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        shell.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-
-        Button cancel = new Button(activity);
-        UiButtons.normalizeText(cancel);
-        cancel.setText("Cancel");
-        cancel.setTextColor(activity.getColor(R.color.hcf_cyan_bright));
-        cancel.setBackgroundResource(R.drawable.button_background);
-        cancel.setOnClickListener(v -> dialog.dismiss());
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 46));
-        cp.topMargin = dp(activity, 4);
-        shell.addView(cancel, cp);
-
-        dialog.setContentView(shell);
+        scrollView.addView(linearLayout4, new FrameLayout.LayoutParams(-1, -2));
+        linearLayout.addView(scrollView, new LinearLayout.LayoutParams(-1, 0, 1.0f));
+        Button button2 = new Button(activity);
+        UiButtons.normalizeText(button2);
+        button2.setText("Cancel");
+        button2.setTextColor(activity.getColor(R.color.hcf_cyan_bright));
+        button2.setBackgroundResource(R.drawable.button_background);
+        button2.setOnClickListener(new View.OnClickListener() { // from class: com.harleytg.forum.HcfIntentChooser$$ExternalSyntheticLambda4
+            @Override // android.view.View.OnClickListener
+            public final void onClick(View view) {
+                dialog.dismiss();
+            }
+        });
+        LinearLayout.LayoutParams layoutParams3 = new LinearLayout.LayoutParams(-1, dp(activity, 46));
+        layoutParams3.topMargin = dp(activity, 4);
+        linearLayout.addView(button2, layoutParams3);
+        dialog.setContentView(linearLayout);
         dialog.show();
         Window window = dialog.getWindow();
-        if (window != null) {
-            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-            WindowManager.LayoutParams attrs = window.getAttributes();
-            attrs.dimAmount = 0.62f;
-            window.setAttributes(attrs);
-            int width = activity.getResources().getDisplayMetrics().widthPixels - dp(activity, 24);
-            int maxHeight = Math.round(activity.getResources().getDisplayMetrics().heightPixels * 0.78f);
-            window.setLayout(Math.max(dp(activity, 280), width), Math.max(dp(activity, 360), maxHeight));
-            window.setGravity(Gravity.CENTER);
+        if (window == null) {
+            return true;
         }
+        window.setBackgroundDrawable(new ColorDrawable(0));
+        window.addFlags(2);
+        WindowManager.LayoutParams attributes = window.getAttributes();
+        attributes.dimAmount = 0.62f;
+        window.setAttributes(attributes);
+        window.setLayout(Math.max(dp(activity, 280), activity.getResources().getDisplayMetrics().widthPixels - dp(activity, 24)), Math.max(dp(activity, 360), Math.round(activity.getResources().getDisplayMetrics().heightPixels * 0.78f)));
+        window.setGravity(17);
         return true;
     }
 
-
-    private static List<ResolveInfo> normalTargets(Activity activity, List<ResolveInfo> all, boolean excludeSelf) {
-        List<ResolveInfo> choices = new ArrayList<>();
-        if (all == null) return choices;
-        for (ResolveInfo info : all) {
-            if (info == null || info.activityInfo == null) continue;
-            String pkg = info.activityInfo.packageName;
-            if (excludeSelf && activity.getPackageName().equals(pkg)) continue;
-            choices.add(info);
+    static /* synthetic */ void lambda$showInternal$3(Activity activity, Intent intent, ResolveInfo resolveInfo, Dialog dialog, View view) {
+        if (launch(activity, intent, resolveInfo)) {
+            dialog.dismiss();
         }
-        return choices;
     }
 
-    /**
-     * Share mode intentionally differs from a raw ACTION_SEND resolver list. Android may expose
-     * browser, Bluetooth, download/document activities and several surfaces from the same social
-     * app. For a simple forum-link share these are noisy, so show one sensible row per sharing app.
-     */
-    private static List<ResolveInfo> curatedShareTargets(Activity activity, PackageManager pm,
-                                                          List<ResolveInfo> all, boolean excludeSelf) {
-        Map<String, ResolveInfo> byPackage = new LinkedHashMap<>();
-        if (all != null) {
-            for (ResolveInfo info : all) {
-                if (info == null || info.activityInfo == null) continue;
-                String pkg = safe(info.activityInfo.packageName);
-                if (pkg.isEmpty()) continue;
-                if (excludeSelf && activity.getPackageName().equals(pkg)) continue;
-                if (isNoiseShareTarget(pm, info)) continue;
-
-                ResolveInfo existing = byPackage.get(pkg);
-                if (existing == null || targetScore(pm, info) > targetScore(pm, existing)) {
-                    byPackage.put(pkg, info);
+    private static List<ResolveInfo> normalTargets(Activity activity, List<ResolveInfo> list, boolean z) {
+        ArrayList arrayList = new ArrayList();
+        if (list == null) {
+            return arrayList;
+        }
+        for (ResolveInfo resolveInfo : list) {
+            if (resolveInfo != null && resolveInfo.activityInfo != null) {
+                String str = resolveInfo.activityInfo.packageName;
+                if (!z || !activity.getPackageName().equals(str)) {
+                    arrayList.add(resolveInfo);
                 }
             }
         }
+        return arrayList;
+    }
 
-        List<ResolveInfo> choices = new ArrayList<>(byPackage.values());
-        Collections.sort(choices, new Comparator<ResolveInfo>() {
-            @Override public int compare(ResolveInfo a, ResolveInfo b) {
-                int pa = sharePriority(pm, a);
-                int pb = sharePriority(pm, b);
-                if (pa != pb) return pa - pb;
-                return applicationLabel(pm, a).compareToIgnoreCase(applicationLabel(pm, b));
+    private static List<ResolveInfo> curatedShareTargets(Activity activity, final PackageManager packageManager, List<ResolveInfo> list, boolean z) {
+        ResolveInfo resolveInfo;
+        LinkedHashMap linkedHashMap = new LinkedHashMap();
+        if (list != null) {
+            for (ResolveInfo resolveInfo2 : list) {
+                if (resolveInfo2 != null && resolveInfo2.activityInfo != null) {
+                    String safe = safe(resolveInfo2.activityInfo.packageName);
+                    if (!safe.isEmpty() && (!z || !activity.getPackageName().equals(safe))) {
+                        if (!isNoiseShareTarget(packageManager, resolveInfo2) && ((resolveInfo = (ResolveInfo) linkedHashMap.get(safe)) == null || targetScore(packageManager, resolveInfo2) > targetScore(packageManager, resolveInfo))) {
+                            linkedHashMap.put(safe, resolveInfo2);
+                        }
+                    }
+                }
+            }
+        }
+        ArrayList arrayList = new ArrayList(linkedHashMap.values());
+        Collections.sort(arrayList, new Comparator<ResolveInfo>() { // from class: com.harleytg.forum.HcfIntentChooser.1
+            @Override // java.util.Comparator
+            public int compare(ResolveInfo resolveInfo3, ResolveInfo resolveInfo4) {
+                int sharePriority = HcfIntentChooser.sharePriority(packageManager, resolveInfo3);
+                int sharePriority2 = HcfIntentChooser.sharePriority(packageManager, resolveInfo4);
+                return sharePriority != sharePriority2 ? sharePriority - sharePriority2 : HcfIntentChooser.applicationLabel(packageManager, resolveInfo3).compareToIgnoreCase(HcfIntentChooser.applicationLabel(packageManager, resolveInfo4));
             }
         });
-        return choices;
+        return arrayList;
     }
 
-    private static boolean isNoiseShareTarget(PackageManager pm, ResolveInfo info) {
-        String pkg = safe(info.activityInfo.packageName).toLowerCase(java.util.Locale.US);
-        String activityName = safe(info.activityInfo.name).toLowerCase(java.util.Locale.US);
-        String activityLabel = resolveLabel(pm, info).toLowerCase(java.util.Locale.US);
-        String appLabel = applicationLabel(pm, info).toLowerCase(java.util.Locale.US);
-        String combined = pkg + " " + activityName + " " + activityLabel + " " + appLabel;
-
-        if (combined.contains("bluetooth")) return true;
-        if (pkg.equals("com.android.chrome") || pkg.contains("chromium") || pkg.contains("browser")) return true;
-        if (activityLabel.equals("chrome") || activityLabel.equals("browser") || activityLabel.contains("web browser")) return true;
-        if (pkg.contains("documentsui") || pkg.contains("downloads") || pkg.contains("downloadprovider")) return true;
-        if (activityLabel.equals("download") || activityLabel.equals("downloads") || activityLabel.equals("save to files")) return true;
-        if (pkg.contains("packageinstaller") || pkg.contains("permissioncontroller") || pkg.contains("systemui")) return true;
-        return false;
+    private static boolean isNoiseShareTarget(PackageManager packageManager, ResolveInfo resolveInfo) {
+        String lowerCase = safe(resolveInfo.activityInfo.packageName).toLowerCase(Locale.US);
+        String lowerCase2 = safe(resolveInfo.activityInfo.name).toLowerCase(Locale.US);
+        String lowerCase3 = resolveLabel(packageManager, resolveInfo).toLowerCase(Locale.US);
+        String lowerCase4 = applicationLabel(packageManager, resolveInfo).toLowerCase(Locale.US);
+        StringBuilder sb = new StringBuilder();
+        sb.append(lowerCase);
+        sb.append(" ");
+        sb.append(lowerCase2);
+        sb.append(" ");
+        sb.append(lowerCase3);
+        sb.append(" ");
+        sb.append(lowerCase4);
+        return sb.toString().contains("bluetooth") || lowerCase.equals("com.android.chrome") || lowerCase.contains("chromium") || lowerCase.contains("browser") || lowerCase3.equals("chrome") || lowerCase3.equals("browser") || lowerCase3.contains("web browser") || lowerCase.contains("documentsui") || lowerCase.contains("downloads") || lowerCase.contains("downloadprovider") || lowerCase3.equals("download") || lowerCase3.equals("downloads") || lowerCase3.equals("save to files") || lowerCase.contains("packageinstaller") || lowerCase.contains("permissioncontroller") || lowerCase.contains("systemui");
     }
 
-    private static int targetScore(PackageManager pm, ResolveInfo info) {
-        String activity = resolveLabel(pm, info).toLowerCase(java.util.Locale.US);
-        String app = applicationLabel(pm, info).toLowerCase(java.util.Locale.US);
-        int score = activity.equals(app) ? 100 : 0;
-        if (activity.contains("share") || activity.contains("send") || activity.contains("message")) score += 30;
-        if (activity.contains("feed") || activity.contains("post")) score += 15;
-        if (activity.contains("story") || activity.contains("group")) score -= 10;
-        return score;
+    private static int targetScore(PackageManager packageManager, ResolveInfo resolveInfo) {
+        String lowerCase = resolveLabel(packageManager, resolveInfo).toLowerCase(Locale.US);
+        int i = lowerCase.equals(applicationLabel(packageManager, resolveInfo).toLowerCase(Locale.US)) ? 100 : 0;
+        if (lowerCase.contains("share") || lowerCase.contains("send") || lowerCase.contains("message")) {
+            i += 30;
+        }
+        if (lowerCase.contains("feed") || lowerCase.contains("post")) {
+            i += 15;
+        }
+        return (lowerCase.contains("story") || lowerCase.contains("group")) ? i - 10 : i;
     }
 
-    private static int sharePriority(PackageManager pm, ResolveInfo info) {
-        String s = (safe(info.activityInfo.packageName) + " " + applicationLabel(pm, info))
-                .toLowerCase(java.util.Locale.US);
-        if (s.contains("message") || s.contains("messenger") || s.contains("whatsapp")
-                || s.contains("signal") || s.contains("telegram") || s.contains("discord")
-                || s.contains("gmail") || s.contains("mail") || s.contains("email")) return 0;
-        if (s.contains("facebook") || s.contains("instagram") || s.contains("twitter")
-                || s.contains("reddit") || s.contains("slack") || s.contains("snapchat")
-                || s.contains("tiktok")) return 1;
-        if (s.contains("nearby") || s.contains("quick share")) return 2;
-        return 3;
+    /* JADX INFO: Access modifiers changed from: private */
+    public static int sharePriority(PackageManager packageManager, ResolveInfo resolveInfo) {
+        String lowerCase = (safe(resolveInfo.activityInfo.packageName) + " " + applicationLabel(packageManager, resolveInfo)).toLowerCase(Locale.US);
+        if (lowerCase.contains("message") || lowerCase.contains("messenger") || lowerCase.contains("whatsapp") || lowerCase.contains("signal") || lowerCase.contains("telegram") || lowerCase.contains("discord") || lowerCase.contains("gmail") || lowerCase.contains("mail") || lowerCase.contains("email")) {
+            return 0;
+        }
+        if (lowerCase.contains("facebook") || lowerCase.contains("instagram") || lowerCase.contains("twitter") || lowerCase.contains("reddit") || lowerCase.contains("slack") || lowerCase.contains("snapchat") || lowerCase.contains("tiktok")) {
+            return 1;
+        }
+        return (lowerCase.contains("nearby") || lowerCase.contains("quick share")) ? 2 : 3;
     }
 
-    private static String applicationLabel(PackageManager pm, ResolveInfo info) {
-        try {
-            if (info != null && info.activityInfo != null && info.activityInfo.applicationInfo != null) {
-                CharSequence label = info.activityInfo.applicationInfo.loadLabel(pm);
-                if (label != null && !label.toString().trim().isEmpty()) return label.toString().trim();
+    /* JADX INFO: Access modifiers changed from: private */
+    public static String applicationLabel(PackageManager packageManager, ResolveInfo resolveInfo) {
+        CharSequence loadLabel;
+        if (resolveInfo != null) {
+            try {
+                if (resolveInfo.activityInfo != null && resolveInfo.activityInfo.applicationInfo != null && (loadLabel = resolveInfo.activityInfo.applicationInfo.loadLabel(packageManager)) != null && !loadLabel.toString().trim().isEmpty()) {
+                    return loadLabel.toString().trim();
+                }
+            } catch (Throwable unused) {
             }
-        } catch (Throwable ignored) {}
-        return resolveLabel(pm, info);
+        }
+        return resolveLabel(packageManager, resolveInfo);
     }
 
-    private static String resolveLabel(PackageManager pm, ResolveInfo info) {
+    private static String resolveLabel(PackageManager packageManager, ResolveInfo resolveInfo) {
+        CharSequence loadLabel;
+        if (resolveInfo == null) {
+            loadLabel = null;
+        } else {
+            try {
+                loadLabel = resolveInfo.loadLabel(packageManager);
+            } catch (Throwable unused) {
+            }
+        }
+        if (loadLabel != null && !loadLabel.toString().trim().isEmpty()) {
+            return loadLabel.toString().trim();
+        }
+        return (resolveInfo == null || resolveInfo.activityInfo == null) ? "App" : safe(resolveInfo.activityInfo.packageName);
+    }
+
+    private static String safe(String str) {
+        return str == null ? "" : str.trim();
+    }
+
+    private static boolean launch(Activity activity, Intent intent, ResolveInfo resolveInfo) {
         try {
-            CharSequence label = info == null ? null : info.loadLabel(pm);
-            if (label != null && !label.toString().trim().isEmpty()) return label.toString().trim();
-        } catch (Throwable ignored) {}
-        return info != null && info.activityInfo != null ? safe(info.activityInfo.packageName) : "App";
-    }
-
-    private static String safe(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private static boolean launch(Activity activity, Intent base, ResolveInfo info) {
-        try {
-            Intent explicit = new Intent(base);
-            explicit.setComponent(new ComponentName(info.activityInfo.packageName, info.activityInfo.name));
-            activity.startActivity(explicit);
+            Intent intent2 = new Intent(intent);
+            intent2.setComponent(new ComponentName(resolveInfo.activityInfo.packageName, resolveInfo.activityInfo.name));
+            activity.startActivity(intent2);
             return true;
-        } catch (Throwable t) {
-            Toast.makeText(activity, "That app could not open this item.", Toast.LENGTH_SHORT).show();
-            AppLogger.error(activity, "custom_intent_chooser", t.getClass().getSimpleName());
+        } catch (Throwable th) {
+            Toast.makeText(activity, "That app could not open this item.", 0).show();
+            AppLogger.error(activity, "custom_intent_chooser", th.getClass().getSimpleName());
             return false;
         }
     }
 
-    private static TextView text(Activity activity, String value, int size, int color, boolean bold) {
-        TextView t = new TextView(activity);
-        t.setText(value);
-        t.setTextSize(size);
-        t.setTextColor(activity.getColor(color));
-        if (bold) t.setTypeface(null, android.graphics.Typeface.BOLD);
-        return t;
+    private static TextView text(Activity activity, String str, int i, int i2, boolean z) {
+        TextView textView = new TextView(activity);
+        textView.setText(str);
+        textView.setTextSize(i);
+        textView.setTextColor(activity.getColor(i2));
+        if (z) {
+            textView.setTypeface(null, 1);
+        }
+        return textView;
     }
 
-    private static int dp(Activity activity, int value) {
-        return Math.round(value * activity.getResources().getDisplayMetrics().density);
+    private static int dp(Activity activity, int i) {
+        return Math.round(i * activity.getResources().getDisplayMetrics().density);
     }
 }

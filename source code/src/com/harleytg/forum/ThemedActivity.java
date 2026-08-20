@@ -5,69 +5,78 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 
-/**
- * Base Activity that applies the user-selected HCF theme before Android resolves
- * page resources and recreates native screens when the theme preference changes.
- */
+/* loaded from: classes.dex */
 abstract class ThemedActivity extends Activity implements SharedPreferences.OnSharedPreferenceChangeListener {
     private String appliedThemeSignature;
     private SharedPreferences themePrefs;
     private boolean themeRecreatePending;
 
-    @Override
-    protected void attachBaseContext(Context newBase) {
-        super.attachBaseContext(ThemeManager.wrap(newBase));
+    ThemedActivity() {
     }
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    @Override // android.app.Activity, android.view.ContextThemeWrapper, android.content.ContextWrapper
+    protected void attachBaseContext(Context context) {
+        super.attachBaseContext(ThemeManager.wrap(context));
+    }
+
+    @Override // android.app.Activity
+    protected void onCreate(Bundle bundle) {
         ThemeManager.prepare(this);
-        super.onCreate(savedInstanceState);
+        super.onCreate(bundle);
         ThemeManager.applySystemBars(this);
-        appliedThemeSignature = ThemeManager.signature(this);
-        themePrefs = getSharedPreferences("hcf_app", 0);
+        this.appliedThemeSignature = ThemeManager.signature(this);
+        this.themePrefs = getSharedPreferences("hcf_app", 0);
     }
 
-    @Override
+    @Override // android.app.Activity
     protected void onStart() {
         super.onStart();
-        if (themePrefs != null) {
-            themePrefs.registerOnSharedPreferenceChangeListener(this);
+        SharedPreferences sharedPreferences = this.themePrefs;
+        if (sharedPreferences != null) {
+            sharedPreferences.registerOnSharedPreferenceChangeListener(this);
         }
         recreateForThemeIfNeeded();
     }
 
-    @Override
+    @Override // android.app.Activity
     protected void onResume() {
         super.onResume();
         recreateForThemeIfNeeded();
     }
 
-    @Override
+    @Override // android.app.Activity
     protected void onStop() {
-        if (themePrefs != null) {
-            themePrefs.unregisterOnSharedPreferenceChangeListener(this);
+        SharedPreferences sharedPreferences = this.themePrefs;
+        if (sharedPreferences != null) {
+            sharedPreferences.unregisterOnSharedPreferenceChangeListener(this);
         }
         super.onStop();
     }
 
-    @Override
-    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-        if ("app_theme".equals(key) || "forum_auto_theme".equals(key)) {
+    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String str) {
+        if ("app_theme".equals(str) || "forum_auto_theme".equals(str)) {
             recreateForThemeIfNeeded();
         }
     }
 
     private void recreateForThemeIfNeeded() {
-        if (themeRecreatePending || isFinishing() || isDestroyed()
-                || !ThemeManager.changedSince(this, appliedThemeSignature)) {
+        if (this.themeRecreatePending || isFinishing() || isDestroyed() || !ThemeManager.changedSince(this, this.appliedThemeSignature)) {
             return;
         }
-        themeRecreatePending = true;
-        getWindow().getDecorView().postDelayed(() -> {
-            if (!isFinishing() && !isDestroyed()) {
-                recreate();
+        this.themeRecreatePending = true;
+        getWindow().getDecorView().postDelayed(new Runnable() { // from class: com.harleytg.forum.ThemedActivity$$ExternalSyntheticLambda0
+            @Override // java.lang.Runnable
+            public final void run() {
+                ThemedActivity.this.m210xc87fab7b();
             }
         }, 90L);
+    }
+
+    /* renamed from: lambda$recreateForThemeIfNeeded$0$com-harleytg-forum-dev-ThemedActivity, reason: not valid java name */
+    /* synthetic */ void m210xc87fab7b() {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+        recreate();
     }
 }

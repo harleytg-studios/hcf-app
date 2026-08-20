@@ -3,75 +3,93 @@ package com.harleytg.forum;
 import android.content.Context;
 import android.content.SharedPreferences;
 
-import java.util.List;
-
-/** Coordinates counter checks, exact alert hydration, deduplication and sync status. */
+/* loaded from: classes.dex */
 final class ForumNotificationSync {
+    private static final long STATUS_WRITE_INTERVAL_MS = 15000;
+
     static final class Outcome {
         final int count;
         final int delivered;
         final long latencyMs;
 
-        Outcome(int count, int delivered, long latencyMs) {
-            this.count = count;
-            this.delivered = delivered;
-            this.latencyMs = latencyMs;
+        Outcome(int i, int i2, long j) {
+            this.count = i;
+            this.delivered = i2;
+            this.latencyMs = j;
         }
     }
 
-    static Outcome perform(Context context, String host, String userId, String source) throws Exception {
-        long started = System.currentTimeMillis();
+    static Outcome perform(Context context, String str, String str2, String str3) throws Exception {
+        int i;
+        long currentTimeMillis = System.currentTimeMillis();
         try {
-            int count = ForumNotificationClient.fetchNewCount(context, host, userId);
-            int delta = NotificationHelper.recordForumNotificationCount(context, count, host, source);
-            int delivered = 0;
-            if (delta > 0) {
+            int fetchNewCount = ForumNotificationClient.fetchNewCount(context, str, str2);
+            int recordForumNotificationCount = NotificationHelper.recordForumNotificationCount(context, fetchNewCount, str, str3);
+            if (recordForumNotificationCount > 0) {
                 try {
-                    List<ForumNotificationClient.Alert> alerts =
-                            ForumNotificationClient.fetchLatest(context, host, Math.max(delta + 4, 8));
-                    delivered = NotificationHelper.deliverDetailedAlerts(context, alerts, delta, host, source);
-                } catch (Throwable detailError) {
-                    NotificationHelper.postGenericDelta(context, delta, host);
-                    AppLogger.warn(context, "notification_detail",
-                            detailError.getClass().getSimpleName() + " | generic-fallback");
+                    i = NotificationHelper.deliverDetailedAlerts(context, ForumNotificationClient.fetchLatest(context, str, Math.max(recordForumNotificationCount + 4, 8)), recordForumNotificationCount, str, str3);
+                } catch (Throwable th) {
+                    NotificationHelper.postGenericDelta(context, recordForumNotificationCount, str);
+                    AppLogger.warn(context, "notification_detail", th.getClass().getSimpleName() + " | generic-fallback");
                 }
+                long max = Math.max(0L, System.currentTimeMillis() - currentTimeMillis);
+                RuntimeDiagnostics.syncSucceeded(max);
+                recordStatus(context, "Live • synced", max, false);
+                return new Outcome(fetchNewCount, i, max);
             }
-            long latency = Math.max(0L, System.currentTimeMillis() - started);
-            recordStatus(context, "Live • synced", latency);
-            return new Outcome(count, delivered, latency);
-        } catch (Exception error) {
-            long latency = Math.max(0L, System.currentTimeMillis() - started);
-            recordStatus(context, "Waiting for connection", latency);
-            throw error;
+            i = 0;
+            long max2 = Math.max(0L, System.currentTimeMillis() - currentTimeMillis);
+            RuntimeDiagnostics.syncSucceeded(max2);
+            recordStatus(context, "Live • synced", max2, false);
+            return new Outcome(fetchNewCount, i, max2);
+        } catch (Exception e) {
+            long max3 = Math.max(0L, System.currentTimeMillis() - currentTimeMillis);
+            RuntimeDiagnostics.syncFailed();
+            recordStatus(context, "Waiting for connection", max3, true);
+            throw e;
         }
     }
 
-    static void deliverObservedCountAsync(Context context, String host, int delta, String source) {
-        if (context == null || delta <= 0) return;
-        Context app = context.getApplicationContext();
-        new Thread(() -> {
-            long started = System.currentTimeMillis();
-            try {
-                List<ForumNotificationClient.Alert> alerts =
-                        ForumNotificationClient.fetchLatest(app, host, Math.max(delta + 4, 8));
-                NotificationHelper.deliverDetailedAlerts(app, alerts, delta, host, source);
-                recordStatus(app, "Live • synced", System.currentTimeMillis() - started);
-            } catch (Throwable error) {
-                NotificationHelper.postGenericDelta(app, delta, host);
-                recordStatus(app, "Live • detail unavailable", System.currentTimeMillis() - started);
-                AppLogger.warn(app, "notification_detail", error.getClass().getSimpleName());
+    static void deliverObservedCountAsync(Context context, final String str, final int i, final String str2) {
+        if (context == null || i <= 0) {
+            return;
+        }
+        final Context applicationContext = context.getApplicationContext();
+        AppExecutors.network().execute(new Runnable() { // from class: com.harleytg.forum.ForumNotificationSync$$ExternalSyntheticLambda0
+            @Override // java.lang.Runnable
+            public final void run() {
+                ForumNotificationSync.lambda$deliverObservedCountAsync$0(applicationContext, str, i, str2);
             }
-        }, "hcf-notification-details").start();
+        });
     }
 
-    private static void recordStatus(Context context, String status, long latency) {
-        SharedPreferences prefs = context.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
-        prefs.edit()
-                .putLong(AppPrefs.NOTIFICATION_LAST_SYNC_AT, System.currentTimeMillis())
-                .putString(AppPrefs.NOTIFICATION_LAST_SYNC_STATUS, status)
-                .putLong(AppPrefs.NOTIFICATION_LAST_SYNC_LATENCY_MS, Math.max(0L, latency))
-                .apply();
+    static /* synthetic */ void lambda$deliverObservedCountAsync$0(Context context, String str, int i, String str2) {
+        long currentTimeMillis = System.currentTimeMillis();
+        try {
+            NotificationHelper.deliverDetailedAlerts(context, ForumNotificationClient.fetchLatest(context, str, Math.max(i + 4, 8)), i, str, str2);
+            long currentTimeMillis2 = System.currentTimeMillis() - currentTimeMillis;
+            RuntimeDiagnostics.syncSucceeded(currentTimeMillis2);
+            recordStatus(context, "Live • synced", currentTimeMillis2, false);
+        } catch (Throwable th) {
+            NotificationHelper.postGenericDelta(context, i, str);
+            long currentTimeMillis3 = System.currentTimeMillis() - currentTimeMillis;
+            RuntimeDiagnostics.syncFailed();
+            recordStatus(context, "Live • detail unavailable", currentTimeMillis3, true);
+            AppLogger.warn(context, "notification_detail", th.getClass().getSimpleName());
+        }
     }
 
-    private ForumNotificationSync() {}
+    private static void recordStatus(Context context, String str, long j, boolean z) {
+        SharedPreferences sharedPreferences = context.getSharedPreferences("hcf_app", 0);
+        long currentTimeMillis = System.currentTimeMillis();
+        String string = sharedPreferences.getString("notification_last_sync_status", "");
+        long j2 = sharedPreferences.getLong("notification_last_sync_at", 0L);
+        boolean z2 = !str.equals(string);
+        if (z || z2 || currentTimeMillis - j2 >= STATUS_WRITE_INTERVAL_MS) {
+            sharedPreferences.edit().putLong("notification_last_sync_at", currentTimeMillis).putString("notification_last_sync_status", str).putLong("notification_last_sync_latency_ms", Math.max(0L, j)).apply();
+        }
+    }
+
+    private ForumNotificationSync() {
+    }
 }

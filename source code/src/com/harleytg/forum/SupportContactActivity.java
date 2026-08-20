@@ -25,7 +25,6 @@ import android.widget.Toast;
 import com.harleytg.forum.ForumIdentity;
 
 /* loaded from: classes.dex */
-/** Stable Contact Support v2 aligned with Dev UI; Stable branding/channel remain authoritative. */
 public final class SupportContactActivity extends ThemedActivity {
     private static final String SUPPORT_EMAIL = "harleytg.hq@gmail.com";
     private Spinner categoryField;
@@ -69,7 +68,7 @@ public final class SupportContactActivity extends ThemedActivity {
         iconButton.setOnClickListener(new View.OnClickListener() { // from class: com.harleytg.forum.SupportContactActivity$$ExternalSyntheticLambda3
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                SupportContactActivity.this.m204lambda$buildUi$0$comharleytgforumSupportContactActivity(view);
+                SupportContactActivity.this.m204lambda$buildUi$0$comharleytgforumdevSupportContactActivity(view);
             }
         });
         linearLayout2.addView(iconButton, new LinearLayout.LayoutParams(dp(44), dp(44)));
@@ -97,7 +96,7 @@ public final class SupportContactActivity extends ThemedActivity {
         linearLayout4.addView(supportPanel("Support request", "Tell us what happened and what you expected", R.drawable.fa_envelope, requestBody(), false));
         linearLayout4.addView(supportPanel("Report context", "Read-only app and device information", R.drawable.fa_circle_info, contextBody(), false));
         linearLayout4.addView(supportPanel("Privacy & send", "Choose what to include, preview, then send", R.drawable.fa_shield, privacyBody(), false));
-        TextView label = label("Harley's Clan Forum • Contact Support v2 • " + BuildInfo.VERSION_TAG + " • " + BuildInfo.CHANNEL, 9, R.color.hcf_hint, false);
+        TextView label = label("Harley's Clan Forum • Contact Support v2 • v1.0", 9, R.color.hcf_hint, false);
         label.setGravity(17);
         label.setPadding(0, dp(6), 0, dp(4));
         linearLayout4.addView(label);
@@ -106,8 +105,8 @@ public final class SupportContactActivity extends ThemedActivity {
         setContentView(linearLayout);
     }
 
-    /* renamed from: lambda$buildUi$0$com-harleytg-forum-SupportContactActivity, reason: not valid java name */
-    /* synthetic */ void m204lambda$buildUi$0$comharleytgforumSupportContactActivity(View view) {
+    /* renamed from: lambda$buildUi$0$com-harleytg-forum-dev-SupportContactActivity, reason: not valid java name */
+    /* synthetic */ void m204lambda$buildUi$0$comharleytgforumdevSupportContactActivity(View view) {
         finish();
     }
 
@@ -185,7 +184,7 @@ public final class SupportContactActivity extends ThemedActivity {
         LinearLayout bodyContainer = bodyContainer();
         String activeHost = activeHost();
         String currentRoute = currentRoute();
-        addLockedRow(bodyContainer, "App", "Harley's Clan Forum " + BuildInfo.VERSION_TAG + " • " + BuildInfo.CHANNEL + " • build " + BuildInfo.VERSION_CODE);
+        addLockedRow(bodyContainer, "App", "Harley's Clan Forum v1.0 • build 10000072");
         addLockedRow(bodyContainer, "Package", getPackageName());
         addLockedRow(bodyContainer, "Android", Build.VERSION.RELEASE + " • API " + Build.VERSION.SDK_INT);
         addLockedRow(bodyContainer, "Device", Build.MANUFACTURER + " " + Build.MODEL);
@@ -242,17 +241,17 @@ public final class SupportContactActivity extends ThemedActivity {
         return bodyContainer;
     }
 
-    /* renamed from: lambda$privacyBody$1$com-harleytg-forum-SupportContactActivity, reason: not valid java name */
+    /* renamed from: lambda$privacyBody$1$com-harleytg-forum-dev-SupportContactActivity, reason: not valid java name */
     /* synthetic */ void m206x8f236721(View view) {
         previewReport();
     }
 
-    /* renamed from: lambda$privacyBody$2$com-harleytg-forum-SupportContactActivity, reason: not valid java name */
+    /* renamed from: lambda$privacyBody$2$com-harleytg-forum-dev-SupportContactActivity, reason: not valid java name */
     /* synthetic */ void m207x49d8d62(View view) {
         composeEmail();
     }
 
-    /* renamed from: lambda$privacyBody$3$com-harleytg-forum-SupportContactActivity, reason: not valid java name */
+    /* renamed from: lambda$privacyBody$3$com-harleytg-forum-dev-SupportContactActivity, reason: not valid java name */
     /* synthetic */ void m208x7a17b3a3(View view) {
         copySupportEmail();
     }
@@ -308,7 +307,7 @@ public final class SupportContactActivity extends ThemedActivity {
         return linearLayout;
     }
 
-    /* renamed from: lambda$supportPanel$5$com-harleytg-forum-SupportContactActivity, reason: not valid java name */
+    /* renamed from: lambda$supportPanel$5$com-harleytg-forum-dev-SupportContactActivity, reason: not valid java name */
     /* synthetic */ void m209xae9de76a(boolean[] zArr, TextView textView, final LinearLayout linearLayout, final LinearLayout linearLayout2, View view) {
         if (zArr[0]) {
             zArr[0] = false;
@@ -438,7 +437,7 @@ public final class SupportContactActivity extends ThemedActivity {
         }).show();
     }
 
-    /* renamed from: lambda$previewReport$6$com-harleytg-forum-SupportContactActivity, reason: not valid java name */
+    /* renamed from: lambda$previewReport$6$com-harleytg-forum-dev-SupportContactActivity, reason: not valid java name */
     /* synthetic */ void m205xc9453f78(String str, DialogInterface dialogInterface, int i) {
         openEmail(str);
     }
@@ -529,13 +528,7 @@ public final class SupportContactActivity extends ThemedActivity {
         }
         CheckBox checkBox2 = this.includeDiagnostics;
         if (checkBox2 != null && checkBox2.isChecked()) {
-            sb.append("\n--- Sanitized Diagnostics ---\nApp: Harley's Clan Forum ");
-            sb.append(BuildInfo.VERSION_TAG);
-            sb.append(" • ");
-            sb.append(BuildInfo.CHANNEL);
-            sb.append("\nVersion code: ");
-            sb.append(BuildInfo.VERSION_CODE);
-            sb.append("\nPackage: ");
+            sb.append("\n--- Sanitized Diagnostics ---\nApp: Harley's Clan Forum v1.0\nVersion code: 10000072\nPackage: ");
             sb.append(getPackageName());
             sb.append("\nAndroid: ");
             sb.append(Build.VERSION.RELEASE);
@@ -569,7 +562,7 @@ public final class SupportContactActivity extends ThemedActivity {
         if (clean.isEmpty()) {
             clean = obj;
         }
-        String str2 = "HCF Support • " + obj + " • " + BuildInfo.VERSION_TAG + " • " + BuildInfo.CHANNEL + " • " + clean;
+        String str2 = "HCF Support • " + obj + " • v1.0 • " + clean;
         try {
             String str3 = "mailto:harleytg.hq@gmail.com?subject=" + Uri.encode(str2) + "&body=" + Uri.encode(str);
             Intent intent = new Intent("android.intent.action.SENDTO");

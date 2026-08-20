@@ -4,13 +4,14 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
+/* loaded from: classes.dex */
 public final class BootReceiver extends BroadcastReceiver {
-    @Override
+    @Override // android.content.BroadcastReceiver
     public void onReceive(Context context, Intent intent) {
-        if (intent != null && Intent.ACTION_MY_PACKAGE_REPLACED.equals(intent.getAction())) {
+        if (intent != null && "android.intent.action.MY_PACKAGE_REPLACED".equals(intent.getAction())) {
             AppUpdateDownloader.cleanupAfterSuccessfulUpdate(context);
             AppUpdateDownloader.cleanupStaleUpdaterApks(context);
-            TelemetryService.sendEvent(context, "update_installed", BuildInfo.VERSION);
+            TelemetryService.sendEvent(context, "update_installed", "1.0");
         }
         NotificationSyncScheduler.apply(context);
         UpdateScheduler.apply(context);
