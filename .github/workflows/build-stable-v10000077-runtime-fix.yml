@@ -61,6 +61,7 @@ jobs:
             "$OUT" \
             'stable-repo/source code'
           python3 control/.github/scripts/stable-runtime-fixes-v10000077.py "$OUT"
+          python3 control/.github/scripts/stable-ui-cleanup-v10000077.py "$OUT"
           rm -f "$OUT/res/values/public.xml"
 
           grep -q 'package="com.harleytg.forum"' "$OUT/AndroidManifest.xml"
