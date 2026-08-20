@@ -42,9 +42,9 @@ Features explicitly designated Beta/Dev-only are **not promoted as Stable featur
 ## Release artifacts
 
 - `HCF-Stable-v10000072.apk`
-  - SHA-256: `f6c2f0022c891676c025fc833b2cbeb05ed8e854b74cbab9ec0f8d08b8ec507d`
+  - SHA-256: `6db249c8b0e53df8ac7ff3f378287ad1fe5b3f329731246e16a5d9c6ac726de5`
 - `HCF-Stable-v10000072-source.zip`
-  - SHA-256: `f7bc833918bb55c4e90a6c6ad965bddb4922d5368c7ff0b1675e063610ca8923`
+  - SHA-256: `524595ace6704433e684f39549c3b653391c5499168011e141611baf79dc9836`
 - `HCF-Stable-v10000072-VERIFICATION.txt`
 
 ## Stable signing line from v10000072
