@@ -3,14 +3,14 @@ package com.harleytg.forum;
 final class BuildInfo {
     static final String VERSION = "1.0";
     static final String VERSION_TAG = "v1.0";
-    static final int VERSION_CODE = 10000034;
-    static final int INTERNAL_BUILD = 79;
+    static final int VERSION_CODE = 10000072;
+    static final int INTERNAL_BUILD = 100;
     static final String CHANNEL = "Stable";
     static final String BRAND = "Harley's Studio's";
     static final String SESSION_CLIENT = "Harley's Clan Forum App";
-    static final String APK_FILE_NAME = "HarleysClanForum-1.0.apk";
-    static final String META_LINE = "1.0 • Stable • Build 10000034";
-    static final String VERSION_BUILD_LINE = "1.0 • Stable • Updater Fix • Build 10000034";
+    static final String APK_FILE_NAME = "HCF-Stable-v10000072.apk";
+    static final String META_LINE = "1.0 • Stable • Build 10000072";
+    static final String VERSION_BUILD_LINE = "1.0 • Stable • Build 10000072";
 
     static final String VERSION_CODE_SCHEME = "major-release-v1";
 
