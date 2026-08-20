@@ -7,12 +7,36 @@ build_tools_version="${BUILD_TOOLS_VERSION:-35.0.0}"
 platform_version="${ANDROID_PLATFORM_VERSION:-35}"
 build_tools="$sdk_root/build-tools/$build_tools_version"
 android_jar="$sdk_root/platforms/android-$platform_version/android.jar"
-keystore_path="${HCF_KEYSTORE:?Set HCF_KEYSTORE}"
-keystore_alias="${HCF_KEY_ALIAS:-hcf-release}"
+keystore_path="${HCF_KEYSTORE:?Set HCF_KEYSTORE to the private v10000072 Stable signing key}"
+keystore_alias="${HCF_KEY_ALIAS:-hcf-stable-v10000072}"
 keystore_password_file="${HCF_KEY_PASSWORD_FILE:?Set HCF_KEY_PASSWORD_FILE}"
 export HCF_APKSIGNER_PASSWORD="$(sed -n '1p' "$keystore_password_file")"
 output_dir="${HCF_OUTPUT_DIR:-$project_dir/out}"
-work_dir="$(mktemp -d "${TMPDIR:-/tmp}/hcf-build.XXXXXX")"
+work_dir="$(mktemp -d "${TMPDIR:-/tmp}/hcf-stable-build.XXXXXX")"
+trap 'rm -rf "$work_dir"' EXIT
+
+expected_package="com.harleytg.forum"
+expected_version_code="10000072"
+expected_version_name="1.0 (10000072)"
+expected_signer_sha256="9D4675EC2ACB8322AB14FD970DA5B061F59E42FA5E8E453B671557B213137805"
+output_apk="$output_dir/HCF-Stable-v10000072.apk"
+
+fail() { echo "ERROR: $*" >&2; exit 20; }
+normalize_fingerprint() { printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | tr -d ':[:space:]'; }
+
+for tool in aapt d8 zipalign apksigner; do
+  [[ -x "$build_tools/$tool" ]] || fail "Missing Android build tool: $build_tools/$tool"
+done
+[[ -f "$android_jar" ]] || fail "Missing Android platform jar: $android_jar"
+[[ -f "$project_dir/AndroidManifest.xml" ]] || fail "Missing AndroidManifest.xml"
+[[ -f "$keystore_path" ]] || fail "Missing Stable v10000072 private signing key"
+[[ -f "$keystore_password_file" ]] || fail "Missing signing-key password file"
+
+key_fingerprint="$(keytool -list -v -keystore "$keystore_path" -storepass "$HCF_APKSIGNER_PASSWORD" -alias "$keystore_alias" 2>/dev/null \
+  | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -n 1)"
+key_fingerprint="$(normalize_fingerprint "$key_fingerprint")"
+[[ "$key_fingerprint" == "$expected_signer_sha256" ]] \
+  || fail "Refusing to build Stable with a signing certificate other than the v10000072 local Stable key"
 
 mkdir -p "$work_dir/gen" "$work_dir/classes" "$work_dir/dex" "$output_dir"
 
@@ -53,7 +77,23 @@ cp "$work_dir/resources.apk" "$work_dir/unsigned.apk"
   --ks-key-alias "$keystore_alias" \
   --ks-pass env:HCF_APKSIGNER_PASSWORD \
   --key-pass env:HCF_APKSIGNER_PASSWORD \
-  --out "$output_dir/HarleysClanForum-1.0.apk" \
+  --out "$output_apk" \
   "$work_dir/aligned.apk"
 
-"$build_tools/apksigner" verify --verbose --print-certs "$output_dir/HarleysClanForum-1.0.apk"
+"$build_tools/zipalign" -c -p 4 "$output_apk"
+"$build_tools/apksigner" verify --verbose --print-certs "$output_apk"
+
+apk_fingerprint="$("$build_tools/apksigner" verify --print-certs "$output_apk" \
+  | sed -n 's/^Signer #1 certificate SHA-256 digest:[[:space:]]*//p' | head -n 1)"
+apk_fingerprint="$(normalize_fingerprint "$apk_fingerprint")"
+[[ "$apk_fingerprint" == "$expected_signer_sha256" ]] || fail "Signed APK certificate changed unexpectedly"
+
+badging="$("$build_tools/aapt" dump badging "$output_apk" | head -n 1)"
+[[ "$badging" == *"name='$expected_package'"* ]] || fail "APK package changed"
+[[ "$badging" == *"versionCode='$expected_version_code'"* ]] || fail "APK versionCode changed"
+[[ "$badging" == *"versionName='$expected_version_name'"* ]] || fail "APK versionName changed"
+
+apk_sha256="$(sha256sum "$output_apk" | awk '{print tolower($1)}')"
+printf 'Stable signing-line verification: PASS\n'
+printf 'Package: %s\nVersionCode: %s\nVersionName: %s\n' "$expected_package" "$expected_version_code" "$expected_version_name"
+printf 'Signer SHA-256: %s\nAPK SHA-256: %s\nAPK: %s\n' "$apk_fingerprint" "$apk_sha256" "$output_apk"
