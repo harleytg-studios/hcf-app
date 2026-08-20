@@ -128,6 +128,115 @@ for tf,tp,sf,sp in repairs:
 logs=extract(STROOT/'src/com/harleytg/forum/LogsActivity.java',r'^\s*private void renderLogs\(\)').replace('private void renderLogs()','public void renderLogs()',1)
 replace_method(OUT/'src/com/harleytg/forum/LogsActivity.java',r'^\s*public void renderLogs\(\)',logs)
 
+# Additional exact-Beta source repairs required by javac.
+replace_method(OUT/'src/com/harleytg/forum/LogsActivity.java',r'^\s*protected void onActivityResult\(',r'''
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != EXPORT_TEXT || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        pendingExportUri = data.getData();
+        String text = visiblePlainText == null ? "" : visiblePlainText;
+        try (OutputStream out = getContentResolver().openOutputStream(pendingExportUri, "w")) {
+            if (out == null) throw new IllegalStateException("No output stream");
+            out.write(text.getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            AppLogger.info(this, MODE_DIAGNOSTICS.equals(currentMode) ? "diagnostics_exported" : "logs_exported", "document-provider");
+            Toast.makeText(this, "Export complete.", Toast.LENGTH_SHORT).show();
+        } catch (Throwable t) {
+            AppLogger.error(this, "logs_export_failed", t.getClass().getSimpleName());
+            Toast.makeText(this, "Could not export this content.", Toast.LENGTH_LONG).show();
+        } finally {
+            pendingExportUri = null;
+        }
+    }''')
+
+p=OUT/'src/com/harleytg/forum/TelemetryService.java'; s=p.read_text(encoding='utf-8')
+s=s.replace('TelemetryService.showTextDialog(r0, "Crash report preview", TelemetryService.previewPendingReport(activity, editText.getText().toString(), r10.isChecked()));','TelemetryService.showTextDialog(activity, "Crash report preview", TelemetryService.previewPendingReport(activity, editText.getText().toString(), r10.isChecked()));')
+p.write_text(s,encoding='utf-8')
+replace_method(p,r'^\s*private static boolean postReport\(Context context, JSONObject',r'''
+    private static boolean postReport(Context context, JSONObject report) {
+        HttpsURLConnection connection = null;
+        String reportId = report == null ? "HCF-REPORT" : report.optString("reportId", "HCF-REPORT");
+        String type = report == null ? "event" : report.optString("type", "event");
+        try {
+            String endpoint = decryptWebhook(context);
+            if (endpoint == null || !endpoint.startsWith("https://discord.com/api/webhooks/")) {
+                saveResult(context, "Blocked: endpoint verification failed");
+                addHistory(context, reportId, type, "blocked");
+                return false;
+            }
+            JSONObject root = discordPayload(report);
+            byte[] body = root.toString().getBytes(StandardCharsets.UTF_8);
+            connection = (HttpsURLConnection) new URL(endpoint).openConnection();
+            connection.setConnectTimeout(8000);
+            connection.setReadTimeout(8000);
+            connection.setRequestMethod("POST");
+            connection.setDoOutput(true);
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            connection.setRequestProperty("User-Agent", "HarleysClanForumTelemetry/" + BuildInfo.VERSION);
+            connection.setFixedLengthStreamingMode(body.length);
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(body);
+                output.flush();
+            }
+            int code = connection.getResponseCode();
+            if (code >= 200 && code < 300) {
+                saveResult(context, "Last send succeeded • " + reportId);
+                addHistory(context, reportId, type, "sent");
+                AppLogger.info(context, "telemetry_sent", reportId + " | " + type);
+                return true;
+            }
+            saveResult(context, "Last send failed (HTTP " + code + ")");
+            addHistory(context, reportId, type, "HTTP " + code);
+            AppLogger.warn(context, "telemetry_http", reportId + " | " + code);
+        } catch (Throwable t) {
+            saveResult(context, "Last send failed");
+            addHistory(context, reportId, type, "failed");
+            AppLogger.warn(context, "telemetry_failed", reportId + " | " + t.getClass().getSimpleName());
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+        return false;
+    }''')
+
+replace_method(OUT/'src/com/harleytg/forum/FirebaseConfigLoader.java',r'^\s*static /\* synthetic \*/ void lambda\$refresh\$1\(',r'''
+    static /* synthetic */ void lambda$refresh$1(String urlText, SharedPreferences sharedPreferences, Context context, final Callback callback) {
+        Config result;
+        String message;
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(urlText).openConnection();
+            connection.setConnectTimeout(8000);
+            connection.setReadTimeout(8000);
+            connection.setInstanceFollowRedirects(true);
+            connection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 FirebaseConfig");
+            int code = connection.getResponseCode();
+            if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);
+            String raw = readAll(connection.getInputStream());
+            Config parsed = parse(raw, "HTTPS config");
+            if (parsed == null || !parsed.isValid()) throw new IllegalStateException("Invalid Firebase config");
+            sharedPreferences.edit().putString("firebase_config_cache", raw).putString("firebase_config_source", "HTTPS config").apply();
+            result = parsed;
+            message = "Firebase config refreshed from HTTPS.";
+        } catch (Throwable t) {
+            result = load(context);
+            message = "Remote refresh failed; kept " + (result == null ? "no config" : result.source) + ".";
+            AppLogger.error(context, "firebase_config_refresh", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+        final Config callbackConfig = result;
+        final String callbackMessage = message;
+        new Handler(Looper.getMainLooper()).post(new Runnable() {
+            @Override public void run() { callback.onResult(callbackConfig, callbackMessage); }
+        });
+    }''')
+
+p=OUT/'src/com/harleytg/forum/MainActivity.java'; s=p.read_text(encoding='utf-8')
+s=s.replace('this.drawerSwipeStartX < r0 - max','this.drawerSwipeStartX < getResources().getDisplayMetrics().widthPixels - max')
+p.write_text(s,encoding='utf-8')
+
 # Imports required by the repaired bodies.
 p=OUT/'src/com/harleytg/forum/AppUpdateDownloader.java'; s=p.read_text(encoding='utf-8')
 if 'import android.database.Cursor;' not in s: s=s.replace('import android.content.pm.ResolveInfo;\n','import android.content.pm.ResolveInfo;\nimport android.content.pm.PackageManager;\nimport android.database.Cursor;\n')
