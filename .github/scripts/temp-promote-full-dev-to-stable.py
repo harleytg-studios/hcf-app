@@ -106,7 +106,6 @@ p.write_text(s, encoding='utf-8')
 p = out/'src/com/harleytg/forum/ForumNotificationClient.java'
 s = p.read_text(encoding='utf-8')
 old = '''        if ((trim.startsWith("{") && trim.endsWith("}")) || (trim.startsWith("[") && trim.endsWith("]"))) {\n            if (trim.startsWith("{")) {\n                return firstDeepObject(new JSONObject(trim), i + 1, strArr);\n            }\n            JSONArray jSONArray2 = new JSONArray(trim);\n            while (i2 < jSONArray2.length()) {\n                String readableValue2 = readableValue(jSONArray2.opt(i2), i + 1, strArr);\n                if (!readableValue2.isEmpty()) return readableValue2;\n                i2++;\n            }\n            return "";\n        }'''
-# support exact current source form if compact branch above does not match
 if old not in s:
     old = '''        if ((trim.startsWith("{") && trim.endsWith("}")) || (trim.startsWith("[") && trim.endsWith("]"))) {\n            if (trim.startsWith("{")) {\n                return firstDeepObject(new JSONObject(trim), i + 1, strArr);\n            }\n            JSONArray jSONArray2 = new JSONArray(trim);\n            while (i2 < jSONArray2.length()) {\n                String readableValue2 = readableValue(jSONArray2.opt(i2), i + 1, strArr);\n                if (!readableValue2.isEmpty()) {\n                    return readableValue2;\n                }\n                i2++;\n            }\n            return "";\n        }'''
 new = '''        if ((trim.startsWith("{") && trim.endsWith("}")) || (trim.startsWith("[") && trim.endsWith("]"))) {\n            try {\n                if (trim.startsWith("{")) return firstDeepObject(new JSONObject(trim), i + 1, strArr);\n                JSONArray jSONArray2 = new JSONArray(trim);\n                while (i2 < jSONArray2.length()) {\n                    String readableValue2 = readableValue(jSONArray2.opt(i2), i + 1, strArr);\n                    if (!readableValue2.isEmpty()) return readableValue2;\n                    i2++;\n                }\n                return "";\n            } catch (org.json.JSONException ignored) { return clean(trim, 500); }\n        }'''
@@ -130,12 +129,24 @@ if old not in s: raise SystemExit('MediaViewerActivity safeHttps recovery block 
 s = s.replace(old, new, 1)
 p.write_text(s, encoding='utf-8')
 
-# ContentProvider.openFile declares FileNotFoundException, while the recovered helper
-# declares IOException. Convert helper validation failures to FileNotFoundException.
 p = out/'src/com/harleytg/forum/UpdateFileProvider.java'
 s = p.read_text(encoding='utf-8')
 old = '''        return ParcelFileDescriptor.open(fileForUri(context, uri), 268435456);'''
 new = '''        try {\n            return ParcelFileDescriptor.open(fileForUri(context, uri), 268435456);\n        } catch (java.io.IOException e) {\n            FileNotFoundException fnf = new FileNotFoundException(e.getMessage());\n            fnf.initCause(e);\n            throw fnf;\n        }'''
 if old not in s: raise SystemExit('UpdateFileProvider openFile return not found')
+s = s.replace(old, new, 1)
+p.write_text(s, encoding='utf-8')
+
+# Battery and memory probes tolerate missing Android services. JADX lost the null
+# initialization for the catch paths, so initialize both probe locals safely.
+p = out/'src/com/harleytg/forum/PerformanceProfile.java'
+s = p.read_text(encoding='utf-8')
+old = '''    static int batteryPercent(Context context) {\n        Intent registerReceiver;'''
+new = '''    static int batteryPercent(Context context) {\n        Intent registerReceiver = null;'''
+if old not in s: raise SystemExit('PerformanceProfile battery local not found')
+s = s.replace(old, new, 1)
+old = '''    private static MemorySnapshot memory(Context context) {\n        ActivityManager activityManager;'''
+new = '''    private static MemorySnapshot memory(Context context) {\n        ActivityManager activityManager = null;'''
+if old not in s: raise SystemExit('PerformanceProfile memory local not found')
 s = s.replace(old, new, 1)
 p.write_text(s, encoding='utf-8')
