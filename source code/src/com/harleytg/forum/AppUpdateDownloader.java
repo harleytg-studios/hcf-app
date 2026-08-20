@@ -50,6 +50,17 @@ final class AppUpdateDownloader {
         if (context == null || release == null || release.apkUrl == null || release.apkUrl.isEmpty()) {
             return -1L;
         }
+        if (release.prerelease) {
+            AppLogger.warn(context, "update_download_blocked", "Stable updater rejected a prerelease");
+            return -1L;
+        }
+        String releaseName = release.apkName == null ? "" : release.apkName.trim().toLowerCase(Locale.US);
+        boolean stableAssetName = releaseName.startsWith("hcf-stable-")
+                || releaseName.startsWith("harleysclanforum-stable-");
+        if (!stableAssetName || !releaseName.endsWith(".apk")) {
+            AppLogger.warn(context, "update_download_blocked", "Stable updater rejected a non-stable APK asset");
+            return -1L;
+        }
         if (!AppSecurity.isTrustedReleaseDownload(release.apkUrl)) {
             AppLogger.warn(context, "update_download_blocked", "untrusted release URL");
             return -1L;
@@ -83,7 +94,7 @@ final class AppUpdateDownloader {
             String safeApkName = safeApkName(release.apkName, release.tag);
             DownloadManager.Request request = new DownloadManager.Request(Uri.parse(release.apkUrl));
             request.setTitle("Harley's Clan Forum " + release.tag);
-            request.setDescription("Downloading app update");
+            request.setDescription("Downloading Stable app update");
             request.setMimeType(APK_MIME);
             request.setAllowedOverMetered(true);
             request.setAllowedOverRoaming(false);
@@ -94,8 +105,8 @@ final class AppUpdateDownloader {
             }
             request.setDestinationInExternalFilesDir(applicationContext, Environment.DIRECTORY_DOWNLOADS, safeApkName);
             long enqueue = downloadManager.enqueue(request);
-            sharedPreferences.edit().putLong("update_download_id", enqueue).putString("update_download_tag", assetKey).putString("update_download_name", safeApkName).apply();
-            AppLogger.info(applicationContext, "update_download", release.tag + " | id=" + enqueue + " | " + safeApkName);
+            sharedPreferences.edit().putLong("update_download_id", enqueue).putString("update_download_tag", assetKey).putString("update_download_name", safeApkName).putString(AppPrefs.UPDATE_CHANNEL, BuildInfo.DEFAULT_UPDATE_CHANNEL).apply();
+            AppLogger.info(applicationContext, "update_download", "stable | " + release.tag + " | id=" + enqueue + " | " + safeApkName);
             return enqueue;
         } catch (Throwable th) {
             AppLogger.error(applicationContext, "update_download", th.getClass().getSimpleName() + ": " + String.valueOf(th.getMessage()));
@@ -205,28 +216,6 @@ final class AppUpdateDownloader {
         }
     }
 
-    /* JADX WARN: Code restructure failed: missing block: B:34:0x0084, code lost:
-    
-        if (r3 != null) goto L36;
-     */
-    /* JADX WARN: Code restructure failed: missing block: B:36:0x0098, code lost:
-    
-        return new com.harleytg.forum.AppUpdateDownloader.ProgressSnapshot(0, 0, -1, 0);
-     */
-    /* JADX WARN: Code restructure failed: missing block: B:37:0x0089, code lost:
-    
-        r3.close();
-     */
-    /* JADX WARN: Code restructure failed: missing block: B:38:0x0087, code lost:
-    
-        if (r3 != null) goto L36;
-     */
-    /*
-        Code decompiled incorrectly, please refer to instructions dump.
-        To view partially-correct add '--show-bad-code' argument
-    */
-
-
     static ProgressSnapshot progress(Context context, long id) {
         if (context == null || id <= 0L) return new ProgressSnapshot(0, 0L, -1L, 0);
         DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
@@ -252,27 +241,6 @@ final class AppUpdateDownloader {
         return new ProgressSnapshot(0, 0L, -1L, 0);
     }
 
-    /* JADX WARN: Code restructure failed: missing block: B:21:0x0040, code lost:
-    
-        if (r0 != null) goto L22;
-     */
-    /* JADX WARN: Code restructure failed: missing block: B:22:0x0048, code lost:
-    
-        return 0;
-     */
-    /* JADX WARN: Code restructure failed: missing block: B:23:0x0045, code lost:
-    
-        r0.close();
-     */
-    /* JADX WARN: Code restructure failed: missing block: B:24:0x0043, code lost:
-    
-        if (r0 != null) goto L22;
-     */
-    /*
-        Code decompiled incorrectly, please refer to instructions dump.
-        To view partially-correct add '--show-bad-code' argument
-    */
-
     static int status(Context context, long id) {
         if (id <= 0L) return 0;
         DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
@@ -290,21 +258,6 @@ final class AppUpdateDownloader {
         }
         return 0;
     }
-
-    /* JADX WARN: Can't wrap try/catch for region: R(8:5|(3:45|46|(7:48|49|8|9|(3:15|(3:17|(2:24|(3:28|29|(2:31|32)(1:33)))|23)|40)|41|42))|7|8|9|(5:11|13|15|(0)|40)|41|42) */
-    /* JADX WARN: Code restructure failed: missing block: B:43:0x0085, code lost:
-    
-        r0 = move-exception;
-     */
-    /* JADX WARN: Code restructure failed: missing block: B:44:0x0086, code lost:
-    
-        com.harleytg.forum.AppLogger.warn(r10, "update_cleanup_files", r0.getClass().getSimpleName());
-     */
-    /* JADX WARN: Removed duplicated region for block: B:17:0x0056 A[Catch: all -> 0x0085, TryCatch #2 {all -> 0x0085, blocks: (B:9:0x003f, B:11:0x0047, B:13:0x004d, B:15:0x0053, B:17:0x0056, B:19:0x005a, B:24:0x0061, B:26:0x0073), top: B:8:0x003f }] */
-    /*
-        Code decompiled incorrectly, please refer to instructions dump.
-        To view partially-correct add '--show-bad-code' argument
-    */
 
     static boolean cleanupAfterSuccessfulUpdate(Context context) {
         if (context == null) return false;
@@ -324,17 +277,18 @@ final class AppUpdateDownloader {
             }
         }
 
-        // Also remove stale installer APKs from the app-owned update directory.
-        // This directory is only used by the updater, never by Android's installed package.
         try {
-            java.io.File dir = app.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+            File dir = app.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
             if (dir != null && dir.isDirectory()) {
-                java.io.File[] files = dir.listFiles();
+                File[] files = dir.listFiles();
                 if (files != null) {
-                    for (java.io.File file : files) {
+                    for (File file : files) {
                         if (file == null || !file.isFile()) continue;
-                        String name = file.getName().toLowerCase(java.util.Locale.US);
-                        if (name.endsWith(".apk") && name.startsWith("harleysclanforum-")) {
+                        String name = file.getName().toLowerCase(Locale.US);
+                        boolean updaterApk = name.startsWith("hcf-stable-")
+                                || name.startsWith("harleysclanforum-stable-")
+                                || name.startsWith("harleysclanforum-");
+                        if (name.endsWith(".apk") && updaterApk) {
                             try { if (file.delete()) removed = true; } catch (Throwable ignored) {}
                         }
                     }
@@ -350,8 +304,9 @@ final class AppUpdateDownloader {
                 .remove(AppPrefs.UPDATE_DOWNLOAD_NAME)
                 .remove(AppPrefs.UPDATE_INSTALL_PENDING)
                 .remove(AppPrefs.UPDATE_RESUME_AFTER_PERMISSION)
+                .putString(AppPrefs.UPDATE_CHANNEL, BuildInfo.DEFAULT_UPDATE_CHANNEL)
                 .apply();
-        AppLogger.info(app, "update_cleanup", "installer artifacts removed=" + removed);
+        AppLogger.info(app, "update_cleanup", "stable installer artifacts removed=" + removed);
         return removed;
     }
 
@@ -365,20 +320,12 @@ final class AppUpdateDownloader {
             if (trim.startsWith("v") || trim.startsWith("V")) {
                 trim = trim.substring(1);
             }
-            if ("1.0".equalsIgnoreCase(trim)) {
+            if (BuildInfo.VERSION.equalsIgnoreCase(trim)) {
                 cleanupAfterSuccessfulUpdate(context);
             }
         }
         cleanupStaleUpdaterApks(context);
     }
-
-    /* JADX WARN: Multi-variable type inference failed */
-    /* JADX WARN: Removed duplicated region for block: B:82:0x00d2  */
-    /* JADX WARN: Type inference failed for: r13v4 */
-    /*
-        Code decompiled incorrectly, please refer to instructions dump.
-        To view partially-correct add '--show-bad-code' argument
-    */
 
     static boolean cleanupStaleUpdaterApks(Context context) {
         if (context == null) return false;
@@ -393,15 +340,18 @@ final class AppUpdateDownloader {
         long installedVersion = installedVersionCode(app);
         if (installedVersion <= 0L) installedVersion = BuildInfo.VERSION_CODE;
         try {
-            java.io.File dir = app.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+            File dir = app.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
             if (dir == null || !dir.isDirectory()) return false;
-            java.io.File[] files = dir.listFiles();
+            File[] files = dir.listFiles();
             if (files == null) return false;
             PackageManager pm = app.getPackageManager();
-            for (java.io.File file : files) {
+            for (File file : files) {
                 if (file == null || !file.isFile()) continue;
-                String name = file.getName().toLowerCase(java.util.Locale.US);
-                if (!name.startsWith("harleysclanforum-") || !name.endsWith(".apk")) continue;
+                String name = file.getName().toLowerCase(Locale.US);
+                boolean updaterApk = name.startsWith("hcf-stable-")
+                        || name.startsWith("harleysclanforum-stable-")
+                        || name.startsWith("harleysclanforum-");
+                if (!updaterApk || !name.endsWith(".apk")) continue;
                 PackageInfo archive = pm.getPackageArchiveInfo(file.getAbsolutePath(), 0);
                 if (archive == null || archive.packageName == null || !app.getPackageName().equals(archive.packageName)) continue;
                 long archiveVersion = archiveVersionCode(archive);
@@ -413,7 +363,7 @@ final class AppUpdateDownloader {
         } catch (Throwable t) {
             AppLogger.warn(app, "update_cleanup_stale", t.getClass().getSimpleName());
         }
-        if (removed) AppLogger.info(app, "update_cleanup_stale", "old updater APKs removed");
+        if (removed) AppLogger.info(app, "update_cleanup_stale", "old Stable updater APKs removed");
         return removed;
     }
 
@@ -421,7 +371,7 @@ final class AppUpdateDownloader {
         try {
             return archiveVersionCode(context.getPackageManager().getPackageInfo(context.getPackageName(), 0));
         } catch (Throwable unused) {
-            return 10000072L;
+            return BuildInfo.VERSION_CODE;
         }
     }
 
@@ -435,10 +385,7 @@ final class AppUpdateDownloader {
     private static String safeApkName(String str, String str2) {
         String trim = str == null ? "" : str.trim();
         if (!trim.toLowerCase(Locale.US).endsWith(".apk")) {
-            StringBuilder sb = new StringBuilder("HarleysClanForum-");
-            sb.append(str2 == null ? "update" : str2.replaceAll("[^A-Za-z0-9._-]", "-"));
-            sb.append(".apk");
-            trim = sb.toString();
+            trim = "HCF-Stable-" + (str2 == null ? "update" : str2.replaceAll("[^A-Za-z0-9._-]", "-")) + ".apk";
         }
         return trim.replaceAll("[^A-Za-z0-9._-]", "-");
     }
