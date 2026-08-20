@@ -153,3 +153,14 @@ if old not in s:
     raise SystemExit('HcfIntentChooser resolveLabel recovery block not found')
 s = s.replace(old, new, 1)
 p.write_text(s, encoding='utf-8')
+
+# safeHttps() should reject malformed input. JADX lost the empty fallback assignment
+# if String.trim() unexpectedly throws, leaving the local undefined at Uri.parse().
+p = out/'src/com/harleytg/forum/MediaViewerActivity.java'
+s = p.read_text(encoding='utf-8')
+old = '''    private static String safeHttps(String str) {\n        String trim;\n        if (str == null) {\n            trim = "";\n        } else {\n            try {\n                trim = str.trim();\n            } catch (Throwable unused) {\n            }\n        }'''
+new = '''    private static String safeHttps(String str) {\n        String trim = "";\n        if (str != null) {\n            try {\n                trim = str.trim();\n            } catch (Throwable unused) {\n                trim = "";\n            }\n        }'''
+if old not in s:
+    raise SystemExit('MediaViewerActivity safeHttps recovery block not found')
+s = s.replace(old, new, 1)
+p.write_text(s, encoding='utf-8')
