@@ -1,0 +1,73 @@
+name: Apply exact HCF v10000072 source
+
+on:
+  push:
+    branches: [v10000072-source-restore-work]
+    paths:
+      - '.hcf-source-import/v10000072/**'
+      - '.github/workflows/apply-hcf-v10000072.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout restore branch
+        uses: actions/checkout@v4
+        with:
+          ref: v10000072-source-restore-work
+          fetch-depth: 0
+
+      - name: Reconstruct exact v10000072 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          TMP="$RUNNER_TEMP/hcf-v10000072"
+          rm -rf "$TMP"
+          mkdir -p "$TMP"
+
+          cat .hcf-source-import/v10000072/part-*.b64 > "$TMP/source.b64"
+          test "$(wc -c < "$TMP/source.b64" | tr -d ' ')" = "163000"
+          printf '%s  %s\n' 'b8c41bc86e312e87d137f3563af3458751a339d7e41292292746c31eeed96c87' "$TMP/source.b64" | sha256sum -c -
+
+          base64 -d "$TMP/source.b64" > "$TMP/source.tar.xz"
+          printf '%s  %s\n' '8dee1a219e60c0b980b0ba651fd697d8115464f7aa0899cc9c077ec4818529de' "$TMP/source.tar.xz" | sha256sum -c -
+
+          cp 'source code/res/drawable-nodpi/htg_app_logo.png' "$TMP/htg_app_logo.png"
+          printf '%s  %s\n' 'a8935ff09c6b5c370feda2cd18ffb06c34a6128c1273075734312ccdee35c783' "$TMP/htg_app_logo.png" | sha256sum -c -
+
+          rm -rf 'source code'
+          tar -xJf "$TMP/source.tar.xz"
+          mkdir -p 'source code/res/drawable-nodpi-v4'
+          cp "$TMP/htg_app_logo.png" 'source code/res/drawable-nodpi-v4/htg_app_logo.png'
+
+          test "$(find 'source code' -type f | wc -l | tr -d ' ')" = "136"
+          test "$(find 'source code/src/com/harleytg/forum' -maxdepth 1 -name '*.java' | wc -l | tr -d ' ')" = "46"
+          grep -q 'android:versionCode="10000072"' 'source code/AndroidManifest.xml'
+          grep -q 'android:versionName="1.0 (10000072)"' 'source code/AndroidManifest.xml'
+          grep -q 'package="com.harleytg.forum.dev"' 'source code/AndroidManifest.xml'
+          grep -q 'static final int VERSION_CODE = 10000071;' 'source code/src/com/harleytg/forum/BuildInfo.java'
+          grep -q 'static final int INTERNAL_BUILD = 100;' 'source code/src/com/harleytg/forum/BuildInfo.java'
+          printf '%s  %s\n' 'a8935ff09c6b5c370feda2cd18ffb06c34a6128c1273075734312ccdee35c783' 'source code/res/drawable-nodpi-v4/htg_app_logo.png' | sha256sum -c -
+
+          test ! -e 'source code/src/com/harleytg/forum/AppConfig.java'
+          test ! -e 'source code/src/com/harleytg/forum/AppSettings.java'
+          test ! -e 'source code/src/com/harleytg/forum/NotificationCenter.java'
+          test ! -e 'source code/src/com/harleytg/forum/SettingsActivityV2.java'
+          test ! -e 'source code/src/com/harleytg/forum/UpdateManager.java'
+          test ! -e 'source code/build-release.sh'
+          test ! -e 'source code/AndroidManifest.xml.in'
+
+      - name: Commit recovered source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- 'source code'
+          git diff --cached --stat
+          git diff --cached --quiet && { echo 'No source changes found'; exit 20; }
+          git commit -m 'Restore exact HCF Beta v10000072 source snapshot'
+          git push origin HEAD:v10000072-source-restore-work
