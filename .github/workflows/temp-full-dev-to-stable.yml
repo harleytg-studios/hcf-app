@@ -60,9 +60,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf "$RUNNER_TEMP/promoted"
+          rm -rf "$RUNNER_TEMP/promoted" "$RUNNER_TEMP/stable-source-backup"
           cp -a 'stable-repo/source code' "$RUNNER_TEMP/stable-source-backup"
 
+          # Keep the historical full-Dev promotion helper compatible with today's Stable tree.
           python3 - <<'PY'
           from pathlib import Path
           p=Path('control/.github/scripts/temp-promote-full-dev-to-stable.py')
@@ -86,10 +87,44 @@ jobs:
 
           rm -f "$RUNNER_TEMP/promoted/res/values/public.xml"
 
+          # Stable identity/wording plus repairs for four JADX-damaged methods in the exact Beta source.
           python3 - <<'PY'
           from pathlib import Path
           import re, os
           root = Path(os.environ['RUNNER_TEMP'])/'promoted'
+
+          def method_span(text, pattern):
+              m=re.search(pattern,text,re.M)
+              if not m: raise RuntimeError('method not found: '+pattern)
+              brace=text.find('{',m.end()-1)
+              depth=0; i=brace; string=False; quote=''; esc=False; line=False; block=False
+              while i < len(text):
+                  c=text[i]; n=text[i+1] if i+1<len(text) else ''
+                  if line:
+                      if c=='\n': line=False
+                  elif block:
+                      if c=='*' and n=='/': block=False; i+=1
+                  elif string:
+                      if esc: esc=False
+                      elif c=='\\': esc=True
+                      elif c==quote: string=False
+                  else:
+                      if c=='/' and n=='/': line=True; i+=1
+                      elif c=='/' and n=='*': block=True; i+=1
+                      elif c in ('\"', "'"): string=True; quote=c
+                      elif c=='{': depth+=1
+                      elif c=='}':
+                          depth-=1
+                          if depth==0: return m.start(),i+1
+                  i+=1
+              raise RuntimeError('unclosed method: '+pattern)
+
+          def replace_method(path, pattern, replacement):
+              s=path.read_text(encoding='utf-8')
+              a,b=method_span(s,pattern)
+              path.write_text(s[:a]+replacement+s[b:],encoding='utf-8')
+
+          # General Stable branding while retaining the exact Beta UI/resource structure.
           for p in root.rglob('*'):
               if not p.is_file() or p.suffix.lower() not in {'.java','.xml','.txt','.md','.json','.sh'}:
                   continue
@@ -110,6 +145,124 @@ jobs:
               s=s.replace('Harley&apos;s Clan Forum v1.0 [Stable]', 'Harley&apos;s Clan Forum v1.0')
               p.write_text(s,encoding='utf-8')
 
+          # LogsActivity: restore safe document-provider export from maintained source behavior.
+          replace_method(root/'src/com/harleytg/forum/LogsActivity.java',
+              r'^\s*protected void onActivityResult\(', r'''    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != EXPORT_TEXT || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        pendingExportUri = data.getData();
+        String text = visiblePlainText == null ? "" : visiblePlainText;
+        try (OutputStream out = getContentResolver().openOutputStream(pendingExportUri, "w")) {
+            if (out == null) throw new IllegalStateException("No output stream");
+            out.write(text.getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            AppLogger.info(this, MODE_DIAGNOSTICS.equals(currentMode) ? "diagnostics_exported" : "logs_exported", "document-provider");
+            Toast.makeText(this, "Export complete.", Toast.LENGTH_SHORT).show();
+        } catch (Throwable t) {
+            AppLogger.error(this, "logs_export_failed", t.getClass().getSimpleName());
+            Toast.makeText(this, "Could not export this content.", Toast.LENGTH_LONG).show();
+        } finally {
+            pendingExportUri = null;
+        }
+    }''')
+
+          # TelemetryService: fix the recovered Preview listener reference.
+          p=root/'src/com/harleytg/forum/TelemetryService.java'
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('TelemetryService.showTextDialog(r0, "Crash report preview", TelemetryService.previewPendingReport(activity, editText.getText().toString(), r10.isChecked()));',
+                      'TelemetryService.showTextDialog(activity, "Crash report preview", TelemetryService.previewPendingReport(activity, editText.getText().toString(), r10.isChecked()));')
+          p.write_text(s,encoding='utf-8')
+
+          # TelemetryService: replace the malformed network-send try/catch with the maintained logic.
+          replace_method(p, r'^\s*private static boolean postReport\(Context context, JSONObject', r'''    private static boolean postReport(Context context, JSONObject report) {
+        HttpsURLConnection connection = null;
+        String reportId = report == null ? "HCF-REPORT" : report.optString("reportId", "HCF-REPORT");
+        String type = report == null ? "event" : report.optString("type", "event");
+        try {
+            String endpoint = decryptWebhook(context);
+            if (endpoint == null || !endpoint.startsWith("https://discord.com/api/webhooks/")) {
+                saveResult(context, "Blocked: endpoint verification failed");
+                addHistory(context, reportId, type, "blocked");
+                return false;
+            }
+            JSONObject rootPayload = discordPayload(report);
+            byte[] body = rootPayload.toString().getBytes(StandardCharsets.UTF_8);
+            connection = (HttpsURLConnection) new URL(endpoint).openConnection();
+            connection.setConnectTimeout(8000);
+            connection.setReadTimeout(8000);
+            connection.setRequestMethod("POST");
+            connection.setDoOutput(true);
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            connection.setRequestProperty("User-Agent", "HarleysClanForumTelemetry/" + BuildInfo.VERSION);
+            connection.setFixedLengthStreamingMode(body.length);
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(body);
+                output.flush();
+            }
+            int code = connection.getResponseCode();
+            if (code >= 200 && code < 300) {
+                saveResult(context, "Last send succeeded • " + reportId);
+                addHistory(context, reportId, type, "sent");
+                AppLogger.info(context, "telemetry_sent", reportId + " | " + type);
+                return true;
+            }
+            saveResult(context, "Last send failed (HTTP " + code + ")");
+            addHistory(context, reportId, type, "HTTP " + code);
+            AppLogger.warn(context, "telemetry_http", reportId + " | " + code);
+        } catch (Throwable t) {
+            saveResult(context, "Last send failed");
+            addHistory(context, reportId, type, "failed");
+            AppLogger.warn(context, "telemetry_failed", reportId + " | " + t.getClass().getSimpleName());
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+        return false;
+    }''')
+
+          # FirebaseConfigLoader: reconstruct the remote refresh callback without decompiler artifacts.
+          replace_method(root/'src/com/harleytg/forum/FirebaseConfigLoader.java',
+              r'^\s*static /\* synthetic \*/ void lambda\$refresh\$1\(', r'''    static /* synthetic */ void lambda$refresh$1(String urlText, SharedPreferences sharedPreferences, Context context, final Callback callback) {
+        Config result;
+        String message;
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(urlText).openConnection();
+            connection.setConnectTimeout(8000);
+            connection.setReadTimeout(8000);
+            connection.setInstanceFollowRedirects(true);
+            connection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 FirebaseConfig");
+            int code = connection.getResponseCode();
+            if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);
+            String raw = readAll(connection.getInputStream());
+            Config parsed = parse(raw, "HTTPS config");
+            if (parsed == null || !parsed.isValid()) throw new IllegalStateException("Invalid Firebase config");
+            sharedPreferences.edit().putString("firebase_config_cache", raw).putString("firebase_config_source", "HTTPS config").apply();
+            result = parsed;
+            message = "Firebase config refreshed from HTTPS.";
+        } catch (Throwable t) {
+            result = load(context);
+            message = "Remote refresh failed; kept " + (result == null ? "no config" : result.source) + ".";
+            AppLogger.error(context, "firebase_config_refresh", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+        final Config callbackConfig = result;
+        final String callbackMessage = message;
+        new Handler(Looper.getMainLooper()).post(new Runnable() {
+            @Override public void run() { callback.onResult(callbackConfig, callbackMessage); }
+        });
+    }''')
+
+          # MainActivity: recovered r0 was the screen width used to detect a right-edge swipe.
+          p=root/'src/com/harleytg/forum/MainActivity.java'
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('this.drawerSwipeStartX < r0 - max',
+                      'this.drawerSwipeStartX < getResources().getDisplayMetrics().widthPixels - max')
+          p.write_text(s,encoding='utf-8')
+
+          # Runtime channel must remain Stable throughout the promoted feature surface.
           for name in ['UpdateAutomation.java','MainActivity.java','SettingsActivity.java','HcfApplication.java','BootReceiver.java','UpdateDownloadReceiver.java','TelemetryService.java']:
               p=root/'src/com/harleytg/forum'/name
               if not p.exists(): continue
