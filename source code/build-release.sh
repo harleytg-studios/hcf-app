@@ -27,6 +27,7 @@ normalize_fingerprint() { printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | tr -d 
 for tool in aapt d8 zipalign apksigner; do
   [[ -x "$build_tools/$tool" ]] || fail "Missing Android build tool: $build_tools/$tool"
 done
+command -v patch >/dev/null 2>&1 || fail "Missing patch utility"
 [[ -f "$android_jar" ]] || fail "Missing Android platform jar: $android_jar"
 [[ -f "$project_dir/AndroidManifest.xml" ]] || fail "Missing AndroidManifest.xml"
 [[ -f "$keystore_path" ]] || fail "Missing Stable V2 private signing key"
@@ -38,7 +39,18 @@ key_fingerprint="$(normalize_fingerprint "$key_fingerprint")"
 [[ "$key_fingerprint" == "$expected_signer_sha256" ]] \
   || fail "Refusing to build Stable with a signing certificate other than Stable V2"
 
-mkdir -p "$work_dir/gen" "$work_dir/classes" "$work_dir/dex" "$output_dir"
+mkdir -p "$work_dir/gen" "$work_dir/classes" "$work_dir/dex" "$work_dir/src" "$output_dir"
+cp -R "$project_dir/src/." "$work_dir/src/"
+
+# Stable v10000072 ships the foreground notification bridge without the old
+# 2.5-second cooldown. Keep that promotion as a small, reviewable patch while
+# preserving the larger maintained MainActivity source file.
+main_patch="$project_dir/patches/v10000072-mainactivity.patch"
+if [[ -f "$main_patch" ]]; then
+  patch --batch --forward -p1 -d "$work_dir/src" < "$main_patch"
+else
+  fail "Missing v10000072 MainActivity source patch"
+fi
 
 "$build_tools/aapt" package -f -m \
   -J "$work_dir/gen" \
@@ -52,7 +64,7 @@ java -m jdk.compiler/com.sun.tools.javac.Main \
   --release 8 \
   -classpath "$android_jar" \
   -d "$work_dir/classes" \
-  $(find "$work_dir/gen" "$project_dir/src" -name '*.java' -print)
+  $(find "$work_dir/gen" "$work_dir/src" -name '*.java' -print)
 
 "$build_tools/d8" \
   --lib "$android_jar" \
