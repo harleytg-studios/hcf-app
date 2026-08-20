@@ -123,5 +123,15 @@ new = '''    /* synthetic */ void m77lambda$loadIdentityAvatar$71$comharleytgfor
 if old not in s:
     raise SystemExit('MainActivity avatar connection declaration not found')
 s = s.replace(old, new, 1)
+p.write_text(s, encoding='utf-8')
 
+# JADX marks the fingerprint result final even though the recovered try/catch
+# assigns both success and fallback paths. Use a temporary then capture final.
+p = out/'src/com/harleytg/forum/LiveForumUpdater.java'
+s = p.read_text(encoding='utf-8')
+old = '''    /* synthetic */ void m20lambda$poll$1$comharleytgforumdevLiveForumUpdater(String str, final String str2) {\n        final String str3;\n        try {\n            str3 = fetchFingerprint(str);\n        } catch (Throwable th) {\n            if (this.failures == 0 || this.failures == 2) {\n                AppLogger.warn(this.app, "live_update_poll", th.getClass().getSimpleName());\n            }\n            str3 = null;\n        }\n        this.main.post(new Runnable() {'''
+new = '''    /* synthetic */ void m20lambda$poll$1$comharleytgforumdevLiveForumUpdater(String str, final String str2) {\n        String fingerprint;\n        try {\n            fingerprint = fetchFingerprint(str);\n        } catch (Throwable th) {\n            if (this.failures == 0 || this.failures == 2) {\n                AppLogger.warn(this.app, "live_update_poll", th.getClass().getSimpleName());\n            }\n            fingerprint = null;\n        }\n        final String str3 = fingerprint;\n        this.main.post(new Runnable() {'''
+if old not in s:
+    raise SystemExit('LiveForumUpdater fingerprint recovery block not found')
+s = s.replace(old, new, 1)
 p.write_text(s, encoding='utf-8')
