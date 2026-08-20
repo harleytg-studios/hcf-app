@@ -137,3 +137,5 @@ jobs:
             out/STABLE-COMMIT.txt
           if-no-files-found: error
           retention-days: 1
+
+# fresh-run: corrected public.xml handling
