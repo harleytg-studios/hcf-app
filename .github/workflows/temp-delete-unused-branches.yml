@@ -1,0 +1,44 @@
+name: TEMP Delete obsolete HCF recovery branches
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/temp-delete-unused-branches.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete obsolete recovery branches
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branches = [
+              'v10000072-backup-before-restore',
+              'v10000072-restore-safe',
+              'v10000072-source-restore-candidate',
+              'v10000072-source-restore-finalwork',
+              'v10000072-source-restore-staging',
+              'v10000072-source-restore-work',
+              'temp-v10000072-source-apply'
+            ];
+            for (const branch of branches) {
+              try {
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `heads/${branch}`
+                });
+                core.info(`Deleted ${branch}`);
+              } catch (error) {
+                if (error.status === 422 || error.status === 404) {
+                  core.info(`Already absent: ${branch}`);
+                } else {
+                  throw error;
+                }
+              }
+            }
