@@ -1,780 +1,915 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rootFrame"
+    android:background="@color/hcf_bg"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/hcf_bg">
-
+    android:layout_height="match_parent">
     <LinearLayout
+        android:orientation="vertical"
         android:id="@+id/mainShell"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical">
-
-        <!-- Native HCF app chrome. This remains visible above every forum page. -->
+        android:layout_height="match_parent">
         <LinearLayout
+            android:gravity="center_vertical"
             android:id="@+id/topAppBar"
+            android:background="@drawable/top_bar_background"
             android:layout_width="match_parent"
             android:layout_height="@dimen/app_header_height"
-            android:background="@drawable/top_bar_background"
-            android:gravity="center_vertical"
             android:paddingStart="8dp"
             android:paddingEnd="8dp">
-
             <FrameLayout
+                android:layout_gravity="center_vertical"
                 android:id="@+id/drawerButtonFrame"
                 android:layout_width="@dimen/app_header_button"
-                android:layout_height="@dimen/app_header_button"
-                android:layout_gravity="center_vertical">
-
+                android:layout_height="@dimen/app_header_button">
                 <ImageButton
+                    android:gravity="center"
+                    android:layout_gravity="center_vertical"
                     android:id="@+id/drawerButton"
+                    android:background="@drawable/nav_button_background"
+                    android:padding="0dp"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:background="@drawable/nav_button_background"
-                    android:contentDescription="@string/drawer"
                     android:src="@drawable/fa_bars"
                     android:scaleType="center"
                     android:tint="@color/hcf_cyan_bright"
-                    android:layout_gravity="center_vertical"
-                    android:gravity="center"
                     android:minWidth="0dp"
                     android:minHeight="0dp"
-                    android:padding="0dp" />
-
-                <TextView
-                    android:id="@+id/headerNotificationCountBadge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="18dp"
-                    android:layout_gravity="top|end"
-                    android:background="@drawable/notification_count_badge"
-                    android:gravity="center"
-                    android:includeFontPadding="false"
-                    android:minWidth="18dp"
-                    android:paddingStart="4dp"
-                    android:paddingEnd="4dp"
-                    android:text="2"
-                    android:textColor="@color/hcf_bg"
-                    android:textSize="9sp"
-                    android:textStyle="bold"
-                    android:visibility="gone" />
+                    android:contentDescription="@string/drawer"/>
             </FrameLayout>
-
             <ImageView
-                android:id="@+id/appHeaderLogo"
                 android:layout_gravity="center_vertical"
+                android:id="@+id/appHeaderLogo"
                 android:layout_width="@dimen/app_header_logo"
                 android:layout_height="@dimen/app_header_logo"
-                android:layout_marginStart="7dp"
-                android:contentDescription="@string/app_name"
-                android:adjustViewBounds="true"
+                android:src="@drawable/htg_app_logo"
                 android:scaleType="fitCenter"
-                android:src="@drawable/htg_app_logo" />
-
+                android:adjustViewBounds="true"
+                android:contentDescription="@string/app_name"
+                android:layout_marginStart="7dp"/>
             <LinearLayout
+                android:layout_gravity="center_vertical"
+                android:orientation="vertical"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical"
-                android:layout_marginStart="10dp"
                 android:layout_weight="1"
-                android:orientation="vertical">
-
+                android:layout_marginStart="10dp">
                 <TextView
+                    android:textSize="@dimen/app_header_title_text"
+                    android:textStyle="bold"
+                    android:textColor="@color/hcf_text"
+                    android:ellipsize="end"
                     android:id="@+id/appHeaderTitle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:text="Harley's Clan Forum [Beta]"
-                    android:textColor="@color/hcf_text"
-                    android:textSize="@dimen/app_header_title_text"
-                    android:textStyle="bold" />
-
+                    android:text="Harley&apos;s Clan Forum [Beta]"
+                    android:maxLines="1"/>
                 <TextView
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/hcf_meta"
+                    android:ellipsize="end"
                     android:id="@+id/appHeaderSubtitle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:maxLines="1"
                     android:text="Live forum • Primary"
-                    android:textColor="@color/hcf_meta"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
+                    android:maxLines="1"/>
             </LinearLayout>
-
             <TextView
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="@color/hcf_cyan_bright"
+                android:gravity="center"
                 android:id="@+id/liveStatusBadge"
-android:visibility="gone"
+                android:background="@drawable/live_badge_background"
+                android:visibility="gone"
                 android:layout_width="wrap_content"
                 android:layout_height="28dp"
-                android:layout_marginEnd="6dp"
-                android:background="@drawable/live_badge_background"
-                android:gravity="center"
                 android:minWidth="48dp"
+                android:text="Live"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:text="Live"
-                android:textColor="@color/hcf_cyan_bright"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-
-            <ImageButton
-                android:id="@+id/headerNotificationsButton"
-android:visibility="gone"
-                android:layout_width="@dimen/app_header_button"
-                android:layout_height="@dimen/app_header_button"
-                android:background="@drawable/nav_button_background"
-                android:contentDescription="Forum notifications"
-                android:src="@drawable/fa_bell"
-                android:scaleType="center"
-                android:tint="@color/hcf_cyan_bright"
+                android:layout_marginEnd="6dp"/>
+            <FrameLayout
                 android:layout_gravity="center_vertical"
-                android:gravity="center"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:padding="0dp" />
-
+                android:id="@+id/notificationButtonFrame"
+                android:layout_width="@dimen/app_header_button"
+                android:layout_height="@dimen/app_header_button">
+                <ImageButton
+                    android:gravity="center"
+                    android:id="@+id/headerNotificationsButton"
+                    android:background="@drawable/nav_button_background"
+                    android:padding="0dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:src="@drawable/fa_bell"
+                    android:scaleType="center"
+                    android:tint="@color/hcf_cyan_bright"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:contentDescription="Forum notifications"/>
+                <TextView
+                    android:textSize="9sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/hcf_bg"
+                    android:gravity="center"
+                    android:layout_gravity="end|top"
+                    android:id="@+id/headerNotificationCountBadge"
+                    android:background="@drawable/notification_count_badge"
+                    android:visibility="gone"
+                    android:layout_width="wrap_content"
+                    android:layout_height="18dp"
+                    android:minWidth="18dp"
+                    android:text="2"
+                    android:includeFontPadding="false"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"/>
+            </FrameLayout>
         </LinearLayout>
-
-        <!-- Browser-like address bar, but fully native. -->
         <LinearLayout
+            android:gravity="center_vertical"
             android:id="@+id/urlBar"
+            android:background="@color/hcf_url_bar"
+            android:paddingTop="5dp"
+            android:paddingBottom="5dp"
             android:layout_width="match_parent"
             android:layout_height="@dimen/url_bar_height"
-            android:background="@color/hcf_url_bar"
-            android:gravity="center_vertical"
             android:paddingStart="8dp"
-            android:paddingTop="5dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="5dp">
-
-            <LinearLayout
-                android:id="@+id/urlBarInner"
-                android:layout_gravity="center_vertical"
-                android:layout_width="0dp"
-                android:layout_height="@dimen/url_bar_inner_height"
-                android:layout_weight="1"
-                android:background="@drawable/address_bar_background"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/hostBadge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/status_chip_background"
-                    android:gravity="center"
-                    android:text="Primary"
-                    android:textColor="@color/hcf_cyan_bright"
-                    android:textSize="8sp"
-                    android:textStyle="bold" />
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_marginStart="8dp"
-                    android:layout_weight="1"
-                    android:gravity="center_vertical"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/secureForumLabel"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:drawableStart="@drawable/fa_lock"
-                        android:drawablePadding="4dp"
-                        android:text="Secure Forum"
-                        android:textColor="@color/hcf_muted"
-                        android:textSize="8sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/currentUrlText"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:ellipsize="middle"
-                        android:maxLines="1"
-                        android:text="https://forum.harleytg.com/"
-                        android:textColor="@color/hcf_text"
-                        android:textSize="11sp" />
-                </LinearLayout>
-
-                <ImageButton
-                    android:id="@+id/copyUrlButton"
-                    android:layout_width="@dimen/url_copy_button"
-                    android:layout_height="@dimen/url_copy_button"
-                    android:background="@drawable/nav_button_background"
-                    android:contentDescription="@string/copy_url"
-                    android:src="@drawable/fa_copy"
-                    android:scaleType="center"
-                    android:tint="@color/hcf_muted"
-                    android:layout_gravity="center_vertical"
-                android:gravity="center"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                    android:padding="0dp" />
-            </LinearLayout>
-
+            android:paddingEnd="8dp">
             <ImageButton
+                android:gravity="center"
                 android:id="@+id/reloadButton"
+                android:background="@drawable/nav_button_background"
+                android:padding="0dp"
                 android:layout_width="@dimen/url_reload_button"
                 android:layout_height="@dimen/url_reload_button"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/nav_button_background"
-                android:contentDescription="@string/reload"
                 android:src="@drawable/fa_rotate_right"
                 android:scaleType="center"
                 android:tint="@color/hcf_cyan_bright"
-                android:layout_gravity="center_vertical"
-                android:gravity="center"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:padding="0dp" />
+                android:contentDescription="@string/reload"
+                android:layout_marginEnd="6dp"/>
+            <LinearLayout
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:id="@+id/urlBarInner"
+                android:background="@drawable/address_bar_background"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/url_bar_inner_height"
+                android:layout_weight="1">
+                <TextView
+                    android:textSize="8sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/hcf_cyan_bright"
+                    android:gravity="center"
+                    android:id="@+id/hostBadge"
+                    android:background="@drawable/status_chip_background"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Primary"/>
+                <LinearLayout
+                    android:gravity="center_vertical"
+                    android:orientation="vertical"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp">
+                    <TextView
+                        android:textSize="8sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/hcf_muted"
+                        android:id="@+id/secureForumLabel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Secure Forum"
+                        android:drawablePadding="4dp"
+                        android:drawableStart="@drawable/fa_lock"/>
+                    <EditText
+                        android:textSize="11sp"
+                        android:textColor="@color/hcf_text"
+                        android:ellipsize="end"
+                        android:id="@+id/currentUrlText"
+                        android:background="@android:color/transparent"
+                        android:padding="0dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="https://forum.harleytg.com/"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:selectAllOnFocus="false"
+                        android:inputType="textNoSuggestions"
+                        android:imeOptions="actionGo"
+                        android:textCursorDrawable="@null"/>
+                </LinearLayout>
+                <ImageButton
+                    android:gravity="center"
+                    android:id="@+id/copyUrlButton"
+                    android:background="@drawable/nav_button_background"
+                    android:padding="0dp"
+                    android:layout_width="@dimen/url_copy_button"
+                    android:layout_height="@dimen/url_copy_button"
+                    android:src="@drawable/fa_copy"
+                    android:scaleType="center"
+                    android:tint="@color/hcf_muted"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:contentDescription="@string/copy_url"/>
+            </LinearLayout>
+            <ImageButton
+                android:gravity="center"
+                android:id="@+id/urlHomeButton"
+                android:background="@drawable/nav_button_background"
+                android:padding="0dp"
+                android:layout_width="@dimen/url_reload_button"
+                android:layout_height="@dimen/url_reload_button"
+                android:src="@drawable/fa_house"
+                android:scaleType="center"
+                android:tint="@color/hcf_cyan_bright"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:contentDescription="Forum home"
+                android:layout_marginStart="6dp"/>
         </LinearLayout>
-
         <TextView
-            android:id="@+id/welcomeBanner"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@color/hcf_welcome_bg"
-            android:gravity="center_vertical"
-            android:paddingStart="14dp"
-            android:paddingTop="@dimen/welcome_vertical_padding"
-            android:paddingEnd="14dp"
-            android:paddingBottom="@dimen/welcome_vertical_padding"
-            android:text="Welcome back • Guest protocol"
-            android:textColor="@color/hcf_cyan_bright"
             android:textSize="12sp"
             android:textStyle="bold"
-            android:visibility="gone" />
-
+            android:textColor="@color/hcf_cyan_bright"
+            android:gravity="center_vertical"
+            android:id="@+id/welcomeBanner"
+            android:background="@color/hcf_welcome_bg"
+            android:paddingTop="@dimen/welcome_vertical_padding"
+            android:paddingBottom="@dimen/welcome_vertical_padding"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Welcome back • Guest protocol"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"/>
         <FrameLayout
             android:id="@+id/contentFrame"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1">
-
             <WebView
                 android:id="@+id/webView"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-
+                android:layout_height="match_parent"/>
             <ProgressBar
+                android:layout_gravity="top"
                 android:id="@+id/pageProgress"
-                style="?android:attr/progressBarStyleHorizontal"
+                android:visibility="gone"
                 android:layout_width="match_parent"
                 android:layout_height="3dp"
-                android:layout_gravity="top"
                 android:max="100"
                 android:progressTint="@color/hcf_cyan"
-                android:visibility="gone" />
-
-            <!-- Simple startup / connection state. -->
-            <!-- ErrorSys/startup overlay lives only inside contentFrame, so native app chrome
-                 remains usable while the WebView area is replaced by recovery UI. -->
+                style="?android:attr/progressBarStyleHorizontal"/>
             <FrameLayout
                 android:id="@+id/statusOverlay"
+                android:background="@color/hcf_bg"
+                android:focusable="true"
+                android:clickable="true"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="@color/hcf_bg"
-                android:clickable="true"
-                android:focusable="true"
-                android:elevation="2dp"
-                android:padding="24dp">
-
+                android:elevation="3dp">
                 <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="18dp">
-
+                    android:id="@+id/startupStateContainer"
+                    android:padding="24dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent">
                     <ImageView
                         android:layout_width="@dimen/startup_logo_size"
                         android:layout_height="@dimen/startup_logo_size"
-                        android:contentDescription="@string/app_name"
-                        android:adjustViewBounds="true"
+                        android:src="@drawable/htg_app_logo"
                         android:scaleType="fitCenter"
-                        android:src="@drawable/htg_app_logo" />
-
+                        android:adjustViewBounds="true"
+                        android:contentDescription="@string/app_name"/>
                     <TextView
+                        android:textSize="17sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/hcf_text"
+                        android:gravity="center"
                         android:id="@+id/statusTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="18dp"
-                        android:gravity="center"
-                        android:text="Connecting to forum…"
-                        android:textColor="@color/hcf_text"
-                        android:textSize="17sp"
-                        android:textStyle="bold" />
-
+                        android:text="Connecting to Harley&apos;s Clan Forum…"/>
                     <TextView
+                        android:textSize="11sp"
+                        android:textColor="@color/hcf_muted"
+                        android:gravity="center"
                         android:id="@+id/statusSubtitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
-                        android:gravity="center"
-                        android:text="forum.harleytg.com"
-                        android:textColor="@color/hcf_muted"
-                        android:textSize="11sp" />
-
-                    <TextView
-                        android:id="@+id/errorCodeText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:background="@drawable/status_chip_background"
-                        android:gravity="center"
-                        android:paddingStart="10dp"
-                        android:paddingTop="4dp"
-                        android:paddingEnd="10dp"
-                        android:paddingBottom="4dp"
-                        android:text="HCF-NET-002"
-                        android:textColor="@color/hcf_cyan_bright"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        android:visibility="gone" />
-
+                        android:text="forum.harleytg.com"/>
                     <ProgressBar
                         android:id="@+id/startupProgress"
-                        style="?android:attr/progressBarStyleHorizontal"
-                        android:layout_width="240dp"
-                        android:layout_height="4dp"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
                         android:layout_marginTop="18dp"
                         android:indeterminate="true"
-                        android:indeterminateTint="@color/hcf_cyan" />
-
-                    <LinearLayout
-                        android:id="@+id/errorActions"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="18dp"
-                        android:gravity="center"
-                        android:orientation="horizontal"
-                        android:visibility="gone">
-
-                        <Button
-                            android:id="@+id/retryButton"
-                            android:gravity="center"
-                            android:includeFontPadding="false"
-                            android:minWidth="0dp"
-                            android:minHeight="0dp"
-                            android:layout_width="0dp"
-                            android:layout_height="48dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/button_background"
-                            android:text="@string/retry"
-                            android:textAllCaps="false"
-                            android:textColor="@color/hcf_text" />
-
-                        <Button
-                            android:id="@+id/alternateButton"
-                            android:gravity="center"
-                            android:includeFontPadding="false"
-                            android:minWidth="0dp"
-                            android:minHeight="0dp"
-                            android:layout_width="0dp"
-                            android:layout_height="48dp"
-                            android:layout_marginStart="10dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/button_background"
-                            android:text="@string/use_backup"
-                            android:textAllCaps="false"
-                            android:textColor="@color/hcf_cyan_bright" />
-                    </LinearLayout>
-
-                    <Button
-                        android:id="@+id/errorDetailsButton"
-                        android:gravity="center"
-                        android:includeFontPadding="false"
-                        android:minWidth="0dp"
-                        android:minHeight="0dp"
-                        android:layout_width="wrap_content"
-                        android:layout_height="44dp"
-                        android:layout_marginTop="10dp"
-                        android:background="@drawable/button_background"
-                        android:paddingStart="18dp"
-                        android:paddingEnd="18dp"
-                        android:text="Technical details"
-                        android:textAllCaps="false"
-                        android:textColor="@color/hcf_muted"
-                        android:visibility="gone" />
+                        android:indeterminateTint="@color/hcf_cyan"
+                        style="?android:attr/progressBarStyleLarge"/>
                 </LinearLayout>
+                <ScrollView
+                    android:id="@+id/errorStateScroll"
+                    android:visibility="gone"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:fillViewport="true">
+                    <LinearLayout
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <LinearLayout
+                            android:orientation="vertical"
+                            android:id="@+id/errorShell"
+                            android:background="@drawable/error_shell_background"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                            <LinearLayout
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:padding="16dp"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <ImageView
+                                    android:layout_width="48dp"
+                                    android:layout_height="48dp"
+                                    android:src="@drawable/htg_app_logo"
+                                    android:scaleType="fitCenter"
+                                    android:contentDescription="@string/app_name"/>
+                                <LinearLayout
+                                    android:orientation="vertical"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp">
+                                    <TextView
+                                        android:textSize="19sp"
+                                        android:textStyle="bold"
+                                        android:textColor="@color/hcf_cyan_bright"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Harley&apos;s Clan Forum"/>
+                                    <TextView
+                                        android:textSize="9sp"
+                                        android:textStyle="bold"
+                                        android:textColor="@color/hcf_muted"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginTop="2dp"
+                                        android:text="APP NETWORK // ERROR HANDLER"
+                                        android:fontFamily="monospace"/>
+                                </LinearLayout>
+                            </LinearLayout>
+                            <View
+                                android:background="@color/hcf_divider"
+                                android:layout_width="match_parent"
+                                android:layout_height="1dp"/>
+                            <LinearLayout
+                                android:gravity="center_horizontal"
+                                android:orientation="vertical"
+                                android:paddingTop="28dp"
+                                android:paddingBottom="24dp"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:paddingStart="20dp"
+                                android:paddingEnd="20dp">
+                                <TextView
+                                    android:textSize="10sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/hcf_cyan_bright"
+                                    android:id="@+id/errorStatusText"
+                                    android:background="@drawable/error_pill_background"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="●  CONNECTION UNAVAILABLE"
+                                    android:fontFamily="monospace"/>
+                                <TextView
+                                    android:textSize="50sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/hcf_cyan_bright"
+                                    android:gravity="center"
+                                    android:id="@+id/errorHeroText"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="18dp"
+                                    android:text="OFFLINE"/>
+                                <TextView
+                                    android:textSize="24sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/hcf_text"
+                                    android:gravity="center"
+                                    android:id="@+id/errorTitleText"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="14dp"
+                                    android:text="You&apos;re offline"/>
+                                <TextView
+                                    android:textSize="14sp"
+                                    android:textColor="@color/hcf_muted"
+                                    android:gravity="center"
+                                    android:id="@+id/errorMessageText"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="10dp"
+                                    android:text="Waiting for an internet connection. The forum will retry automatically."
+                                    android:lineSpacingExtra="3dp"/>
+                                <LinearLayout
+                                    android:orientation="vertical"
+                                    android:background="@drawable/error_technical_background"
+                                    android:padding="14dp"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="22dp">
+                                    <TextView
+                                        android:textSize="11sp"
+                                        android:textStyle="bold"
+                                        android:textColor="@color/hcf_cyan_bright"
+                                        android:id="@+id/errorCodeText"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="HCF-NET-001"
+                                        android:fontFamily="monospace"/>
+                                    <TextView
+                                        android:textSize="11sp"
+                                        android:textColor="@color/hcf_text"
+                                        android:id="@+id/errorTechnicalText"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginTop="7dp"
+                                        android:text="No validated network connection is currently available."
+                                        android:fontFamily="monospace"/>
+                                </LinearLayout>
+                                <LinearLayout
+                                    android:orientation="horizontal"
+                                    android:id="@+id/errorActions"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="20dp">
+                                    <Button
+                                        android:textStyle="bold"
+                                        android:textColor="@color/hcf_on_accent"
+                                        android:gravity="center"
+                                        android:id="@+id/retryButton"
+                                        android:background="@drawable/error_primary_button_background"
+                                        android:layout_width="0dp"
+                                        android:layout_height="54dp"
+                                        android:minWidth="0dp"
+                                        android:minHeight="0dp"
+                                        android:text="Retry"
+                                        android:layout_weight="1"
+                                        android:textAllCaps="false"/>
+                                    <Button
+                                        android:textStyle="bold"
+                                        android:textColor="@color/hcf_cyan_bright"
+                                        android:gravity="center"
+                                        android:id="@+id/alternateButton"
+                                        android:background="@drawable/error_secondary_button_background"
+                                        android:layout_width="0dp"
+                                        android:layout_height="54dp"
+                                        android:minWidth="0dp"
+                                        android:minHeight="0dp"
+                                        android:text="Use backup"
+                                        android:layout_weight="1"
+                                        android:textAllCaps="false"
+                                        android:layout_marginStart="10dp"/>
+                                </LinearLayout>
+                                <LinearLayout
+                                    android:orientation="horizontal"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="10dp">
+                                    <Button
+                                        android:textStyle="bold"
+                                        android:textColor="@color/hcf_cyan_bright"
+                                        android:gravity="center"
+                                        android:id="@+id/errorDetailsButton"
+                                        android:background="@drawable/error_secondary_button_background"
+                                        android:layout_width="0dp"
+                                        android:layout_height="54dp"
+                                        android:minWidth="0dp"
+                                        android:minHeight="0dp"
+                                        android:text="Technical details"
+                                        android:layout_weight="1"
+                                        android:textAllCaps="false"/>
+                                    <Button
+                                        android:textStyle="bold"
+                                        android:textColor="@color/hcf_cyan_bright"
+                                        android:gravity="center"
+                                        android:id="@+id/errorSupportButton"
+                                        android:background="@drawable/error_secondary_button_background"
+                                        android:layout_width="0dp"
+                                        android:layout_height="54dp"
+                                        android:minWidth="0dp"
+                                        android:minHeight="0dp"
+                                        android:text="Get Support"
+                                        android:layout_weight="1"
+                                        android:textAllCaps="false"
+                                        android:layout_marginStart="10dp"/>
+                                </LinearLayout>
+                            </LinearLayout>
+                            <LinearLayout
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:padding="14dp"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    android:textSize="9sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/hcf_muted"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:text="HCF APP // ERRORSYS"
+                                    android:layout_weight="1"
+                                    android:fontFamily="monospace"/>
+                                <TextView
+                                    android:textSize="9sp"
+                                    android:textColor="@color/hcf_cyan_bright"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="forum.harleytg.com"
+                                    android:fontFamily="monospace"/>
+                            </LinearLayout>
+                        </LinearLayout>
+                    </LinearLayout>
+                </ScrollView>
             </FrameLayout>
         </FrameLayout>
-
         <LinearLayout
-            android:id="@+id/bottomNav"
-android:visibility="gone"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/bottom_nav_height"
-            android:background="@drawable/bottom_bar_background"
-            android:elevation="18dp"
             android:gravity="center"
             android:orientation="horizontal"
-            android:paddingStart="5dp"
+            android:id="@+id/bottomNav"
+            android:background="@drawable/bottom_bar_background"
             android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/bottom_nav_height"
+            android:paddingStart="5dp"
             android:paddingEnd="5dp"
-            android:paddingBottom="4dp">
-
+            android:elevation="18dp">
             <TextView
                 android:id="@+id/bottomHome"
-                style="@style/HcfBottomNavItem"
-                android:contentDescription="Forum home"
+                android:text="Home"
                 android:drawableTop="@drawable/fa_house"
                 android:drawablePadding="2dp"
-                android:text="Home" />
-
+                android:contentDescription="Forum home"
+                style="@style/HcfBottomNavItem"/>
             <TextView
                 android:id="@+id/bottomBrowse"
-                style="@style/HcfBottomNavItem"
-                android:contentDescription="Browse discussions"
+                android:text="Browse"
                 android:drawableTop="@drawable/fa_list"
                 android:drawablePadding="2dp"
-                android:text="Browse" />
-
+                android:contentDescription="Browse discussions"
+                style="@style/HcfBottomNavItem"/>
             <TextView
+                android:textStyle="bold"
+                android:textColor="@color/hcf_bg"
                 android:id="@+id/bottomCreate"
-                style="@style/HcfBottomNavItem"
-                android:layout_marginStart="4dp"
-                android:layout_marginEnd="4dp"
                 android:background="@drawable/bottom_nav_action_background"
-                android:contentDescription="Start a discussion"
+                android:text="Post"
                 android:drawableTop="@drawable/fa_plus"
                 android:drawablePadding="2dp"
-                android:text="Post"
-                android:textColor="@color/hcf_bg"
-                android:textStyle="bold" />
-
+                android:contentDescription="Start a discussion"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                style="@style/HcfBottomNavItem"/>
             <TextView
                 android:id="@+id/bottomAlerts"
-                style="@style/HcfBottomNavItem"
-                android:contentDescription="Forum alerts"
+                android:text="Alerts"
                 android:drawableTop="@drawable/fa_bell"
                 android:drawablePadding="2dp"
-                android:text="Alerts" />
-
+                android:contentDescription="Forum alerts"
+                style="@style/HcfBottomNavItem"/>
             <TextView
                 android:id="@+id/bottomProfile"
-                style="@style/HcfBottomNavItem"
-                android:contentDescription="My forum profile"
+                android:text="Me"
                 android:drawableTop="@drawable/fa_user"
                 android:drawablePadding="2dp"
-                android:text="Me" />
+                android:contentDescription="My forum profile"
+                style="@style/HcfBottomNavItem"/>
         </LinearLayout>
     </LinearLayout>
-
     <View
         android:id="@+id/drawerScrim"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
         android:background="@color/hcf_scrim"
-        android:clickable="true"
         android:focusable="true"
-        android:visibility="gone" />
-
+        android:visibility="gone"
+        android:clickable="true"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
     <LinearLayout
+        android:layout_gravity="start"
+        android:orientation="vertical"
         android:id="@+id/drawerPanel"
+        android:background="@drawable/drawer_background"
+        android:padding="@dimen/drawer_padding"
+        android:visibility="gone"
         android:layout_width="@dimen/drawer_width"
         android:layout_height="match_parent"
-        android:layout_gravity="start"
-        android:background="@drawable/drawer_background"
-        android:elevation="30dp"
-        android:orientation="vertical"
-        android:padding="@dimen/drawer_padding"
-        android:visibility="gone">
-
+        android:elevation="30dp">
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:padding="6dp">
-
+            android:padding="6dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
             <ImageView
                 android:layout_width="@dimen/drawer_logo"
                 android:layout_height="@dimen/drawer_logo"
-                android:contentDescription="@string/app_name"
-                android:adjustViewBounds="true"
+                android:src="@drawable/htg_app_logo"
                 android:scaleType="fitCenter"
-                android:src="@drawable/htg_app_logo" />
-
+                android:adjustViewBounds="true"
+                android:contentDescription="@string/app_name"/>
             <LinearLayout
+                android:orientation="vertical"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
                 android:layout_weight="1"
-                android:orientation="vertical">
-
+                android:layout_marginStart="10dp">
                 <TextView
+                    android:textSize="@dimen/app_header_title_text"
+                    android:textStyle="bold"
+                    android:textColor="@color/hcf_text"
+                    android:ellipsize="end"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:text="Harley's Clan Forum [Beta]"
-                    android:textColor="@color/hcf_text"
-                    android:textSize="@dimen/app_header_title_text"
-                    android:textStyle="bold" />
-
+                    android:text="Harley&apos;s Clan Forum [Beta]"
+                    android:maxLines="1"/>
                 <TextView
+                    android:textSize="10sp"
+                    android:textColor="@color/hcf_cyan"
+                    android:ellipsize="end"
                     android:id="@+id/drawerHostText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="3dp"
-                    android:ellipsize="end"
-                    android:maxLines="1"
                     android:text="Primary • forum.harleytg.com"
-                    android:textColor="@color/hcf_cyan"
-                    android:textSize="10sp" />
+                    android:maxLines="1"/>
             </LinearLayout>
         </LinearLayout>
-
         <View
+            android:background="@color/hcf_divider"
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:layout_marginTop="7dp"
-            android:layout_marginBottom="10dp"
-            android:background="@color/hcf_divider" />
-
+            android:layout_marginBottom="10dp"/>
         <LinearLayout
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
             android:id="@+id/drawerIdentityCard"
+            android:background="@drawable/identity_card_background"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:focusable="true"
+            android:clickable="true"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="6dp"
-            android:background="@drawable/identity_card_background"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center_vertical"
             android:minHeight="@dimen/identity_card_min_height"
-            android:orientation="horizontal"
             android:paddingStart="8dp"
-            android:paddingTop="6dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="6dp">
-
+            android:paddingEnd="8dp">
             <ImageView
+                android:layout_gravity="center_vertical"
                 android:id="@+id/drawerIdentityAvatar"
+                android:background="@drawable/identity_avatar_background"
+                android:padding="6dp"
                 android:layout_width="@dimen/identity_avatar_size"
                 android:layout_height="@dimen/identity_avatar_size"
-                android:layout_gravity="center_vertical"
-                android:adjustViewBounds="false"
-                android:background="@drawable/identity_avatar_background"
-                android:contentDescription="Current forum identity avatar"
-                android:cropToPadding="false"
-                android:padding="6dp"
+                android:src="@drawable/htg_app_logo"
                 android:scaleType="fitCenter"
-                android:src="@drawable/htg_app_logo" />
-
+                android:adjustViewBounds="false"
+                android:cropToPadding="false"
+                android:contentDescription="Current forum identity avatar"/>
             <LinearLayout
+                android:orientation="vertical"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="11dp"
                 android:layout_weight="1"
-                android:orientation="vertical">
-
+                android:layout_marginStart="11dp">
                 <TextView
+                    android:textSize="9sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/hcf_meta"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Forum Identity"
-                    android:textColor="@color/hcf_meta"
-                    android:textSize="9sp"
-                    android:textStyle="bold" />
-
+                    android:text="Forum Identity"/>
                 <TextView
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/hcf_text"
+                    android:ellipsize="end"
                     android:id="@+id/drawerIdentityText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:ellipsize="end"
-                    android:maxLines="1"
                     android:text="Guest_Protocol"
-                    android:textColor="@color/hcf_text"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-
+                    android:maxLines="1"/>
                 <TextView
+                    android:textSize="11sp"
+                    android:textColor="@color/hcf_cyan"
+                    android:ellipsize="end"
                     android:id="@+id/drawerIdentityUsername"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="1dp"
-                    android:ellipsize="end"
-                    android:maxLines="1"
                     android:text="Guest session"
-                    android:textColor="@color/hcf_cyan"
-                    android:textSize="11sp" />
-
+                    android:maxLines="1"/>
                 <TextView
+                    android:textSize="9sp"
+                    android:textColor="@color/hcf_muted"
+                    android:ellipsize="end"
                     android:id="@+id/drawerIdentityMeta"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:ellipsize="end"
-                    android:maxLines="1"
                     android:text="Guest forum identity"
-                    android:textColor="@color/hcf_muted"
-                    android:textSize="9sp" />
-
+                    android:maxLines="1"/>
                 <HorizontalScrollView
                     android:id="@+id/drawerLinkedAccounts"
+                    android:visibility="visible"
+                    android:scrollbars="none"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="5dp"
-                    android:fillViewport="false"
-                    android:scrollbars="none"
-                    android:visibility="visible">
-
+                    android:fillViewport="false">
                     <LinearLayout
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
                         android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
+                        android:orientation="horizontal"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content">
                         <TextView
+                            android:textSize="9sp"
+                            android:textColor="@color/hcf_text"
+                            android:gravity="center_vertical"
                             android:id="@+id/drawerProviderEmail"
+                            android:background="@drawable/provider_chip_background"
+                            android:paddingTop="4dp"
+                            android:paddingBottom="4dp"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginEnd="5dp"
-                            android:background="@drawable/provider_chip_background"
-                            android:drawableStart="@drawable/ic_provider_email"
-                            android:drawablePadding="4dp"
-                            android:gravity="center_vertical"
-                            android:paddingStart="7dp"
-                            android:paddingTop="4dp"
-                            android:paddingEnd="7dp"
-                            android:paddingBottom="4dp"
                             android:text="Email"
-                            android:textColor="@color/hcf_text"
-                            android:textSize="9sp" />
-
+                            android:drawablePadding="4dp"
+                            android:drawableStart="@drawable/ic_provider_email"
+                            android:paddingStart="7dp"
+                            android:paddingEnd="7dp"
+                            android:layout_marginEnd="5dp"/>
                         <TextView
+                            android:textSize="9sp"
+                            android:textColor="@color/hcf_text"
+                            android:gravity="center_vertical"
                             android:id="@+id/drawerProviderDiscord"
+                            android:background="@drawable/provider_chip_background"
+                            android:paddingTop="4dp"
+                            android:paddingBottom="4dp"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:background="@drawable/provider_chip_background"
-                            android:drawableStart="@drawable/ic_provider_discord"
-                            android:drawablePadding="4dp"
-                            android:gravity="center_vertical"
-                            android:paddingStart="7dp"
-                            android:paddingTop="4dp"
-                            android:paddingEnd="7dp"
-                            android:paddingBottom="4dp"
                             android:text="Discord"
-                            android:textColor="@color/hcf_text"
-                            android:textSize="9sp" />
+                            android:drawablePadding="4dp"
+                            android:drawableStart="@drawable/ic_provider_discord"
+                            android:paddingStart="7dp"
+                            android:paddingEnd="7dp"/>
                     </LinearLayout>
                 </HorizontalScrollView>
             </LinearLayout>
+            <ImageButton
+                android:layout_gravity="top"
+                android:id="@+id/drawerSecurity"
+                android:background="@drawable/nav_button_background"
+                android:padding="7dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:src="@drawable/fa_shield"
+                android:scaleType="centerInside"
+                android:contentDescription="Account Security"
+                android:layout_marginStart="6dp"/>
         </LinearLayout>
-
-        <Button
-            android:id="@+id/drawerSecurity"
-            style="@style/HcfDrawerItem"
-            android:layout_marginTop="6dp"
-            android:layout_marginBottom="0dp"
-            android:drawableStart="@drawable/fa_shield"
-            android:text="Account Security" />
-
         <View
+            android:background="@color/hcf_divider"
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:layout_marginTop="10dp"
-            android:layout_marginBottom="10dp"
-            android:background="@color/hcf_divider" />
-
+            android:layout_marginBottom="10dp"/>
         <ScrollView
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:fillViewport="true">
-
+            android:fillViewport="true"
+            android:layout_weight="1">
             <LinearLayout
+                android:orientation="vertical"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
+                android:layout_height="wrap_content">
                 <TextView
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/hcf_muted"
+                    android:paddingBottom="6dp"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingStart="6dp"
-                    android:paddingBottom="6dp"
-                    android:text="Forum"
-                    android:textColor="@color/hcf_muted"
-                    android:textSize="10sp"
-                    android:textStyle="bold" />
-
-                <Button android:id="@+id/drawerHome" style="@style/HcfDrawerItem" android:drawableStart="@drawable/fa_house" android:text="Forum Home" />
-                <Button android:id="@+id/drawerSwitchHost" style="@style/HcfDrawerItem" android:drawableStart="@drawable/fa_right_left" android:text="Switch to Backup Forum" />
-                <Button android:id="@+id/drawerOpenExternal" style="@style/HcfDrawerItem" android:drawableStart="@drawable/fa_arrow_up_right_from_square" android:text="Open in Browser" />
-                <Button android:id="@+id/drawerShare" style="@style/HcfDrawerItem" android:drawableStart="@drawable/fa_share_nodes" android:text="Share Current Page" />
-
-                <TextView
+                    android:text="Forum controls"
+                    android:paddingStart="6dp"/>
+                <LinearLayout
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:paddingStart="6dp"
-                    android:paddingBottom="6dp"
-                    android:text="App"
-                    android:textColor="@color/hcf_muted"
-                    android:textSize="10sp"
-                    android:textStyle="bold" />
-
-                <FrameLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="@dimen/drawer_item_height"
-                    android:layout_marginBottom="5dp">
-
+                    android:layout_height="48dp">
                     <Button
-                        android:id="@+id/drawerNotifications"
-                        style="@style/HcfDrawerItem"
+                        android:textSize="11sp"
+                        android:id="@+id/drawerSwitchHost"
+                        android:layout_width="0dp"
                         android:layout_height="match_parent"
                         android:layout_marginBottom="0dp"
-                        android:drawableStart="@drawable/fa_bell"
-                        android:paddingEnd="58dp"
-                        android:text="Notifications" />
-
-                    <TextView
-                        android:id="@+id/drawerNotificationCountBadge"
-                        android:layout_width="wrap_content"
-                        android:layout_height="22dp"
-                        android:layout_gravity="end|center_vertical"
-                        android:layout_marginEnd="12dp"
-                        android:background="@drawable/notification_count_badge"
-                        android:gravity="center"
-                        android:includeFontPadding="false"
-                        android:minWidth="22dp"
-                        android:paddingStart="5dp"
-                        android:paddingEnd="5dp"
-                        android:text="2"
-                        android:textColor="@color/hcf_bg"
-                        android:textSize="10sp"
-                        android:textStyle="bold"
-                        android:visibility="gone" />
-                </FrameLayout>
-                <Button android:id="@+id/drawerSettings" style="@style/HcfDrawerItem" android:drawableStart="@drawable/fa_gear" android:text="App Settings" />
-                <Button android:id="@+id/drawerLogs" style="@style/HcfDrawerItem" android:drawableStart="@drawable/fa_list" android:text="Diagnostics &amp; Logs" />
-                <Button android:id="@+id/drawerSupport" style="@style/HcfDrawerItem" android:drawableStart="@drawable/fa_envelope" android:text="Contact Support" />
-
+                        android:text="Primary server"
+                        android:maxLines="1"
+                        android:layout_weight="1"
+                        android:drawableStart="@drawable/fa_right_left"
+                        android:layout_marginEnd="5dp"
+                        style="@style/HcfDrawerItem"/>
+                    <Button
+                        android:textSize="11sp"
+                        android:id="@+id/drawerOpenExternal"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_marginBottom="0dp"
+                        android:text="Page actions"
+                        android:maxLines="1"
+                        android:layout_weight="1"
+                        android:drawableStart="@drawable/fa_arrow_up_right_from_square"
+                        android:layout_marginStart="5dp"
+                        style="@style/HcfDrawerItem"/>
+                </LinearLayout>
+                <Button
+                    android:id="@+id/drawerHome"
+                    android:visibility="gone"
+                    android:text="Forum Home"
+                    style="@style/HcfDrawerItem"/>
+                <Button
+                    android:id="@+id/drawerShare"
+                    android:visibility="gone"
+                    android:text="Share Current Page"
+                    style="@style/HcfDrawerItem"/>
+                <Button
+                    android:id="@+id/drawerNotifications"
+                    android:visibility="gone"
+                    android:text="Notifications"
+                    style="@style/HcfDrawerItem"/>
                 <TextView
+                    android:id="@+id/drawerNotificationCountBadge"
+                    android:visibility="gone"
+                    android:layout_width="1dp"
+                    android:layout_height="1dp"/>
+                <Button
+                    android:id="@+id/drawerLogs"
+                    android:visibility="gone"
+                    android:text="Diagnostics &amp; Logs"
+                    style="@style/HcfDrawerItem"/>
+                <TextView
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/hcf_muted"
+                    android:paddingBottom="6dp"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingStart="6dp"
-                    android:paddingTop="8dp"
-                    android:text="Tap outside the menu or press Back to close."
+                    android:layout_marginTop="12dp"
+                    android:text="App"
+                    android:paddingStart="6dp"/>
+                <Button
+                    android:id="@+id/drawerSettings"
+                    android:text="App Settings"
+                    android:drawableStart="@drawable/fa_gear"
+                    style="@style/HcfDrawerItem"/>
+                <Button
+                    android:id="@+id/drawerSupport"
+                    android:text="Contact Support"
+                    android:drawableStart="@drawable/fa_envelope"
+                    style="@style/HcfDrawerItem"/>
+                <TextView
+                    android:textSize="9sp"
                     android:textColor="@color/hcf_hint"
-                    android:textSize="9sp" />
+                    android:paddingTop="8dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Tap outside the menu or press Back to close."
+                    android:paddingStart="6dp"/>
             </LinearLayout>
         </ScrollView>
-
         <TextView
-            android:id="@+id/drawerVersionText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:textSize="9sp"
+            android:textColor="@color/hcf_hint"
             android:gravity="center"
+            android:id="@+id/drawerVersionText"
             android:paddingTop="6dp"
             android:paddingBottom="2dp"
-            android:text="Harley's Clan Forum v1.0 [Development Build / Beta]"
-            android:textColor="@color/hcf_hint"
-            android:textSize="9sp" />
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Harley&apos;s Clan Forum v1.0 [Development Build / Beta]"/>
     </LinearLayout>
 </FrameLayout>

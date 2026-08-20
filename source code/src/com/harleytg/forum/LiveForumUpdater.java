@@ -6,10 +6,6 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.webkit.CookieManager;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -18,301 +14,368 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
-/** Lightweight, foreground-only freshness watcher for supported Flarum routes. */
+/* loaded from: classes.dex */
 final class LiveForumUpdater {
+    private static final int CONNECT_TIMEOUT_MS = 4500;
+    private static final long FIRST_POLL_MS = 250;
+    private static final long IDLE_ROUTE_POLL_MS = 5000;
+    private static final int MAX_BODY_CHARS = 180000;
+    private static final int READ_TIMEOUT_MS = 4500;
+    private final Context app;
+    private String baselineFingerprint;
+    private String baselineKey;
+    private int failures;
+    private boolean inFlight;
+    private final Listener listener;
+    private final SharedPreferences prefs;
+    private boolean running;
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final Map<String, CacheEntry> cache = new HashMap();
+    private String lastState = "";
+    private final Runnable tick = new Runnable() { // from class: com.harleytg.forum.dev.LiveForumUpdater$$ExternalSyntheticLambda1
+        @Override // java.lang.Runnable
+        public final void run() {
+            LiveForumUpdater.this.poll();
+        }
+    };
+
     interface Listener {
         String currentUrl();
-        void onChangeCandidate(String key, String fingerprint);
-        void onStateChanged(String state);
+
+        void onChangeCandidate(String str, String str2);
+
+        void onStateChanged(String str);
     }
 
-    private static final long FIRST_POLL_MS = 250L;
-    private static final long IDLE_ROUTE_POLL_MS = 5000L;
-    private static final int CONNECT_TIMEOUT_MS = 4500;
-    private static final int READ_TIMEOUT_MS = 4500;
-    private static final int MAX_BODY_CHARS = 180000;
-
-    private final Context app;
-    private final Listener listener;
-    private final Handler main = new Handler(Looper.getMainLooper());
-    private final SharedPreferences prefs;
-    private final Map<String, CacheEntry> cache = new HashMap<>();
-
-    private boolean running;
-    private boolean inFlight;
-    private int failures;
-    private String baselineKey;
-    private String baselineFingerprint;
-    private String lastState = "";
-
     LiveForumUpdater(Context context, Listener listener) {
-        this.app = context.getApplicationContext();
+        Context applicationContext = context.getApplicationContext();
+        this.app = applicationContext;
         this.listener = listener;
-        this.prefs = app.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
+        this.prefs = applicationContext.getSharedPreferences("hcf_app", 0);
     }
 
     void start() {
-        if (running) return;
-        running = true;
-        failures = 0;
+        if (this.running) {
+            return;
+        }
+        this.running = true;
+        this.failures = 0;
         state("SYNCING");
         schedule(FIRST_POLL_MS);
     }
 
     void stop() {
-        running = false;
-        main.removeCallbacks(tick);
+        this.running = false;
+        this.main.removeCallbacks(this.tick);
         state("PAUSED");
     }
 
-    void destroy() { stop(); }
+    void destroy() {
+        stop();
+    }
 
     void reset() {
-        baselineKey = null;
-        baselineFingerprint = null;
+        this.baselineKey = null;
+        this.baselineFingerprint = null;
     }
 
     void poke() {
-        if (!running) return;
-        schedule(0L);
+        if (this.running) {
+            schedule(0L);
+        }
     }
 
     void noteUserInteraction() {
         RuntimeState.noteUserInteraction();
-        if (running) schedule(Math.min(250L, PerformanceProfile.livePollInterval(app, prefs)));
+        if (this.running) {
+            schedule(Math.min(FIRST_POLL_MS, PerformanceProfile.livePollInterval(this.app, this.prefs)));
+        }
     }
 
-    void acknowledge(String key, String fingerprint) {
-        if (key == null || fingerprint == null) return;
-        baselineKey = key;
-        baselineFingerprint = fingerprint;
+    void acknowledge(String str, String str2) {
+        if (str == null || str2 == null) {
+            return;
+        }
+        this.baselineKey = str;
+        this.baselineFingerprint = str2;
     }
 
-    private final Runnable tick = this::poll;
-
-    private void schedule(long delay) {
-        if (!running) return;
-        long safe = Math.max(0L, delay);
-        RuntimeDiagnostics.livePoll(safe);
-        main.removeCallbacks(tick);
-        main.postDelayed(tick, safe);
+    private void schedule(long j) {
+        if (this.running) {
+            long max = Math.max(0L, j);
+            RuntimeDiagnostics.livePoll(max);
+            this.main.removeCallbacks(this.tick);
+            this.main.postDelayed(this.tick, max);
+        }
     }
 
-    private void poll() {
-        if (!running) return;
-        if (inFlight) {
-            schedule(250L);
-            return;
-        }
-        if (!RuntimeState.networkAvailable(app)) {
-            state("OFFLINE");
-            schedule(IDLE_ROUTE_POLL_MS);
-            return;
-        }
-
-        final Uri page;
-        try { page = Uri.parse(listener.currentUrl()); }
-        catch (Throwable ignored) {
-            schedule(IDLE_ROUTE_POLL_MS);
-            return;
-        }
-        if (!ForumUrlRouter.isForumUrl(page)) {
-            state("PAUSED");
-            schedule(IDLE_ROUTE_POLL_MS);
-            return;
-        }
-
-        final String endpoint = endpointFor(page);
-        final String key = pageKey(page, endpoint);
-        if (key == null || endpoint == null) {
-            state("LIVE");
-            schedule(IDLE_ROUTE_POLL_MS);
-            return;
-        }
-
-        inFlight = true;
-        AppExecutors.network().execute(() -> {
-            String fingerprint = null;
-            try {
-                fingerprint = fetchFingerprint(endpoint);
-            } catch (Throwable t) {
-                if (failures == 0 || failures == 2) {
-                    AppLogger.warn(app, "live_update_poll", t.getClass().getSimpleName());
-                }
+    /* JADX INFO: Access modifiers changed from: private */
+    public void poll() {
+        if (this.running) {
+            if (this.inFlight) {
+                schedule(FIRST_POLL_MS);
+                return;
             }
-            final String result = fingerprint;
-            main.post(() -> handleResult(key, result));
+            if (!RuntimeState.networkAvailable(this.app)) {
+                state("OFFLINE");
+                schedule(IDLE_ROUTE_POLL_MS);
+                return;
+            }
+            try {
+                Uri parse = Uri.parse(this.listener.currentUrl());
+                if (!ForumUrlRouter.isForumUrl(parse)) {
+                    state("PAUSED");
+                    schedule(IDLE_ROUTE_POLL_MS);
+                    return;
+                }
+                final String endpointFor = endpointFor(parse);
+                final String pageKey = pageKey(parse, endpointFor);
+                if (pageKey == null || endpointFor == null) {
+                    state("LIVE");
+                    schedule(IDLE_ROUTE_POLL_MS);
+                } else {
+                    this.inFlight = true;
+                    AppExecutors.network().execute(new Runnable() { // from class: com.harleytg.forum.dev.LiveForumUpdater$$ExternalSyntheticLambda0
+                        @Override // java.lang.Runnable
+                        public final void run() {
+                            LiveForumUpdater.this.m20lambda$poll$1$comharleytgforumdevLiveForumUpdater(endpointFor, pageKey);
+                        }
+                    });
+                }
+            } catch (Throwable unused) {
+                schedule(IDLE_ROUTE_POLL_MS);
+            }
+        }
+    }
+
+    /* renamed from: lambda$poll$1$com-harleytg-forum-dev-LiveForumUpdater, reason: not valid java name */
+    /* synthetic */ void m20lambda$poll$1$comharleytgforumdevLiveForumUpdater(String str, final String str2) {
+        final String str3;
+        try {
+            str3 = fetchFingerprint(str);
+        } catch (Throwable th) {
+            if (this.failures == 0 || this.failures == 2) {
+                AppLogger.warn(this.app, "live_update_poll", th.getClass().getSimpleName());
+            }
+            str3 = null;
+        }
+        this.main.post(new Runnable() { // from class: com.harleytg.forum.dev.LiveForumUpdater$$ExternalSyntheticLambda2
+            @Override // java.lang.Runnable
+            public final void run() {
+                LiveForumUpdater.this.m19lambda$poll$0$comharleytgforumdevLiveForumUpdater(str2, str3);
+            }
         });
     }
 
-    private void handleResult(String key, String result) {
-        inFlight = false;
-        if (!running) return;
-        if (result == null || result.isEmpty()) {
-            failures = Math.min(failures + 1, 5);
-            state(RuntimeState.networkAvailable(app) ? "WAITING" : "OFFLINE");
-            schedule(Math.min(15000L, 2000L << Math.min(Math.max(0, failures - 1), 3)));
+    /* JADX INFO: Access modifiers changed from: private */
+    /* renamed from: handleResult, reason: merged with bridge method [inline-methods] */
+    public void m19lambda$poll$0$comharleytgforumdevLiveForumUpdater(String str, String str2) {
+        String str3;
+        this.inFlight = false;
+        if (this.running) {
+            if (str2 == null || str2.isEmpty()) {
+                this.failures = Math.min(this.failures + 1, 5);
+                state(RuntimeState.networkAvailable(this.app) ? "WAITING" : "OFFLINE");
+                schedule(Math.min(15000L, 2000 << Math.min(Math.max(0, this.failures - 1), 3)));
+                return;
+            }
+            this.failures = 0;
+            state("LIVE");
+            if (!str.equals(this.baselineKey) || (str3 = this.baselineFingerprint) == null) {
+                this.baselineKey = str;
+                this.baselineFingerprint = str2;
+            } else if (!str2.equals(str3)) {
+                this.listener.onChangeCandidate(str, str2);
+            }
+            schedule(PerformanceProfile.livePollInterval(this.app, this.prefs));
+        }
+    }
+
+    private void state(String str) {
+        if (str.equals(this.lastState)) {
             return;
         }
+        this.lastState = str;
+        this.listener.onStateChanged(str);
+    }
 
-        failures = 0;
-        state("LIVE");
-        if (!key.equals(baselineKey) || baselineFingerprint == null) {
-            baselineKey = key;
-            baselineFingerprint = result;
-        } else if (!result.equals(baselineFingerprint)) {
-            listener.onChangeCandidate(key, result);
+    private String endpointFor(Uri uri) {
+        String host = uri.getHost();
+        if (host == null) {
+            return null;
         }
-        schedule(PerformanceProfile.livePollInterval(app, prefs));
-    }
-
-    private void state(String value) {
-        if (value.equals(lastState)) return;
-        lastState = value;
-        listener.onStateChanged(value);
-    }
-
-    private String endpointFor(Uri page) {
-        String host = page.getHost();
-        if (host == null) return null;
-        String path = page.getPath() == null ? "/" : page.getPath();
-        String lower = path.toLowerCase(Locale.US);
-        String base = "https://" + host;
-
-        if (lower.startsWith("/d/")) {
-            String tail = path.substring(3);
-            int slash = tail.indexOf('/');
-            if (slash >= 0) tail = tail.substring(0, slash);
-            int dash = tail.indexOf('-');
-            String id = dash >= 0 ? tail.substring(0, dash) : tail;
-            if (id.matches("[0-9]+")) {
-                return base + "/api/discussions/" + id
-                        + "?fields%5Bdiscussions%5D=lastPostedAt%2ClastPostNumber%2CcommentCount";
+        String path = uri.getPath() == null ? "/" : uri.getPath();
+        String lowerCase = path.toLowerCase(Locale.US);
+        String str = "https://" + host;
+        if (lowerCase.startsWith("/d/")) {
+            String substring = path.substring(3);
+            int indexOf = substring.indexOf(47);
+            if (indexOf >= 0) {
+                substring = substring.substring(0, indexOf);
+            }
+            int indexOf2 = substring.indexOf(45);
+            if (indexOf2 >= 0) {
+                substring = substring.substring(0, indexOf2);
+            }
+            if (substring.matches("[0-9]+")) {
+                return str + "/api/discussions/" + substring + "?fields%5Bdiscussions%5D=lastPostedAt%2ClastPostNumber%2CcommentCount";
             }
         }
-        if ("/".equals(lower) || lower.startsWith("/all") || lower.startsWith("/following")
-                || lower.startsWith("/tags") || lower.startsWith("/t/")) {
-            return base + "/api/discussions?sort=-lastPostedAt&page%5Blimit%5D=1"
-                    + "&fields%5Bdiscussions%5D=lastPostedAt%2ClastPostNumber%2CcommentCount";
+        if ("/".equals(lowerCase) || lowerCase.startsWith("/all") || lowerCase.startsWith("/following") || lowerCase.startsWith("/tags") || lowerCase.startsWith("/t/")) {
+            return str + "/api/discussions?sort=-lastPostedAt&page%5Blimit%5D=1&fields%5Bdiscussions%5D=lastPostedAt%2ClastPostNumber%2CcommentCount";
         }
-        if (lower.startsWith("/notifications")) {
-            return base + "/api/notifications?page%5Blimit%5D=1";
+        if (!lowerCase.startsWith("/notifications")) {
+            return null;
         }
-        return null;
+        return str + "/api/notifications?page%5Blimit%5D=1";
     }
 
-    private String pageKey(Uri page, String endpoint) {
-        if (endpoint == null) return null;
-        String path = page.getPath() == null ? "/" : page.getPath();
-        return (page.getHost() == null ? "" : page.getHost()) + "|" + path + "|" + endpoint;
+    private String pageKey(Uri uri, String str) {
+        if (str == null) {
+            return null;
+        }
+        String path = uri.getPath() == null ? "/" : uri.getPath();
+        StringBuilder sb = new StringBuilder();
+        sb.append(uri.getHost() == null ? "" : uri.getHost());
+        sb.append("|");
+        sb.append(path);
+        sb.append("|");
+        sb.append(str);
+        return sb.toString();
     }
 
-    private String fetchFingerprint(String endpoint) throws Exception {
-        CacheEntry previous = cache.get(endpoint);
-        URL url = new URL(endpoint);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+    private String fetchFingerprint(String str) throws Exception {
+        CacheEntry cacheEntry = this.cache.get(str);
+        URL url = new URL(str);
+        HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
         try {
-            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            connection.setReadTimeout(READ_TIMEOUT_MS);
-            connection.setUseCaches(true);
-            connection.setInstanceFollowRedirects(false);
-            connection.setRequestProperty("Accept", "application/vnd.api+json, application/json");
-            connection.setRequestProperty("Cache-Control", "no-cache, max-age=0");
-            connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " LiveUpdate");
-            if (previous != null) {
-                if (!previous.etag.isEmpty()) connection.setRequestProperty("If-None-Match", previous.etag);
-                if (previous.lastModified > 0L) connection.setIfModifiedSince(previous.lastModified);
-            }
-
-            String origin = url.getProtocol() + "://" + url.getHost() + "/";
-            String cookies = CookieManager.getInstance().getCookie(origin);
-            if (cookies != null && !cookies.trim().isEmpty()) connection.setRequestProperty("Cookie", cookies);
-
-            int code = connection.getResponseCode();
-            if (code == HttpURLConnection.HTTP_NOT_MODIFIED && previous != null) return previous.signature;
-            if (code < 200 || code >= 300) return null;
-
-            String body = readLimited(connection.getInputStream());
-            String signature = compactSignature(body);
-            if (signature == null || signature.isEmpty()) return null;
-
-            CacheEntry next = new CacheEntry();
-            String etag = connection.getHeaderField("ETag");
-            next.etag = etag == null ? "" : etag;
-            next.lastModified = connection.getLastModified();
-            next.signature = signature;
-            cache.put(endpoint, next);
-            return signature;
-        } finally {
-            connection.disconnect();
-        }
-    }
-
-    private String compactSignature(String body) {
-        if (body == null || body.trim().isEmpty()) return null;
-        try {
-            JSONObject root = new JSONObject(body);
-            Object data = root.opt("data");
-            StringBuilder out = new StringBuilder(160);
-            if (data instanceof JSONObject) {
-                appendResourceSignature(out, (JSONObject) data);
-            } else if (data instanceof JSONArray) {
-                JSONArray array = (JSONArray) data;
-                for (int i = 0; i < array.length() && i < 2; i++) {
-                    JSONObject item = array.optJSONObject(i);
-                    if (item != null) appendResourceSignature(out, item);
+            httpURLConnection.setConnectTimeout(4500);
+            httpURLConnection.setReadTimeout(4500);
+            httpURLConnection.setUseCaches(true);
+            httpURLConnection.setInstanceFollowRedirects(false);
+            httpURLConnection.setRequestProperty("Accept", "application/vnd.api+json, application/json");
+            httpURLConnection.setRequestProperty("Cache-Control", "no-cache, max-age=0");
+            httpURLConnection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 LiveUpdate");
+            if (cacheEntry != null) {
+                if (!cacheEntry.etag.isEmpty()) {
+                    httpURLConnection.setRequestProperty("If-None-Match", cacheEntry.etag);
+                }
+                if (cacheEntry.lastModified > 0) {
+                    httpURLConnection.setIfModifiedSince(cacheEntry.lastModified);
                 }
             }
-            if (out.length() > 0) return out.toString();
-        } catch (Throwable ignored) {}
-
-        // Small bounded fallback only; v10000033 no longer SHA-256 hashes a huge response.
-        int length = Math.min(body.length(), 32768);
-        String sample = body.substring(0, length);
-        return "fallback|" + body.length() + "|" + Integer.toHexString(sample.hashCode());
-    }
-
-    private void appendResourceSignature(StringBuilder out, JSONObject resource) {
-        out.append(resource.optString("type", "")).append(':')
-                .append(resource.optString("id", ""));
-        JSONObject attrs = resource.optJSONObject("attributes");
-        if (attrs != null) {
-            appendAttr(out, attrs, "lastPostNumber");
-            appendAttr(out, attrs, "lastPostedAt");
-            appendAttr(out, attrs, "commentCount");
-            appendAttr(out, attrs, "newNotificationCount");
-            appendAttr(out, attrs, "unreadNotificationCount");
-            appendAttr(out, attrs, "time");
-            appendAttr(out, attrs, "createdAt");
-            appendAttr(out, attrs, "isRead");
-            appendAttr(out, attrs, "type");
+            String cookie = CookieManager.getInstance().getCookie(url.getProtocol() + "://" + url.getHost() + "/");
+            if (cookie != null && !cookie.trim().isEmpty()) {
+                httpURLConnection.setRequestProperty("Cookie", cookie);
+            }
+            int responseCode = httpURLConnection.getResponseCode();
+            if (responseCode == 304 && cacheEntry != null) {
+                return cacheEntry.signature;
+            }
+            if (responseCode < 200 || responseCode >= 300) {
+                return null;
+            }
+            String compactSignature = compactSignature(readLimited(httpURLConnection.getInputStream()));
+            if (compactSignature != null && !compactSignature.isEmpty()) {
+                CacheEntry cacheEntry2 = new CacheEntry();
+                String headerField = httpURLConnection.getHeaderField("ETag");
+                if (headerField == null) {
+                    headerField = "";
+                }
+                cacheEntry2.etag = headerField;
+                cacheEntry2.lastModified = httpURLConnection.getLastModified();
+                cacheEntry2.signature = compactSignature;
+                this.cache.put(str, cacheEntry2);
+                return compactSignature;
+            }
+            return null;
+        } finally {
+            httpURLConnection.disconnect();
         }
-        out.append('|');
     }
 
-    private void appendAttr(StringBuilder out, JSONObject attrs, String name) {
-        if (!attrs.has(name)) return;
-        Object value = attrs.opt(name);
-        if (value == null || value == JSONObject.NULL) return;
-        out.append(';').append(name).append('=').append(String.valueOf(value));
-    }
-
-    private String readLimited(InputStream stream) throws Exception {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(stream, "UTF-8"));
-        StringBuilder body = new StringBuilder();
-        char[] buffer = new char[4096];
-        int read;
-        while ((read = reader.read(buffer)) != -1 && body.length() < MAX_BODY_CHARS) {
-            body.append(buffer, 0, Math.min(read, MAX_BODY_CHARS - body.length()));
+    private String compactSignature(String str) {
+        if (str == null || str.trim().isEmpty()) {
+            return null;
         }
-        reader.close();
-        return body.toString();
+        try {
+            Object opt = new JSONObject(str).opt("data");
+            StringBuilder sb = new StringBuilder(160);
+            if (opt instanceof JSONObject) {
+                appendResourceSignature(sb, (JSONObject) opt);
+            } else if (opt instanceof JSONArray) {
+                JSONArray jSONArray = (JSONArray) opt;
+                for (int i = 0; i < jSONArray.length() && i < 2; i++) {
+                    JSONObject optJSONObject = jSONArray.optJSONObject(i);
+                    if (optJSONObject != null) {
+                        appendResourceSignature(sb, optJSONObject);
+                    }
+                }
+            }
+            if (sb.length() > 0) {
+                return sb.toString();
+            }
+        } catch (Throwable unused) {
+        }
+        return "fallback|" + str.length() + "|" + Integer.toHexString(str.substring(0, Math.min(str.length(), 32768)).hashCode());
+    }
+
+    private void appendResourceSignature(StringBuilder sb, JSONObject jSONObject) {
+        sb.append(jSONObject.optString("type", ""));
+        sb.append(':');
+        sb.append(jSONObject.optString("id", ""));
+        JSONObject optJSONObject = jSONObject.optJSONObject("attributes");
+        if (optJSONObject != null) {
+            appendAttr(sb, optJSONObject, "lastPostNumber");
+            appendAttr(sb, optJSONObject, "lastPostedAt");
+            appendAttr(sb, optJSONObject, "commentCount");
+            appendAttr(sb, optJSONObject, "newNotificationCount");
+            appendAttr(sb, optJSONObject, "unreadNotificationCount");
+            appendAttr(sb, optJSONObject, "time");
+            appendAttr(sb, optJSONObject, "createdAt");
+            appendAttr(sb, optJSONObject, "isRead");
+            appendAttr(sb, optJSONObject, "type");
+        }
+        sb.append('|');
+    }
+
+    private void appendAttr(StringBuilder sb, JSONObject jSONObject, String str) {
+        Object opt;
+        if (!jSONObject.has(str) || (opt = jSONObject.opt(str)) == null || opt == JSONObject.NULL) {
+            return;
+        }
+        sb.append(';');
+        sb.append(str);
+        sb.append('=');
+        sb.append(String.valueOf(opt));
+    }
+
+    private String readLimited(InputStream inputStream) throws Exception {
+        BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
+        StringBuilder sb = new StringBuilder();
+        char[] cArr = new char[4096];
+        while (true) {
+            int read = bufferedReader.read(cArr);
+            if (read == -1 || sb.length() >= MAX_BODY_CHARS) {
+                break;
+            }
+            sb.append(cArr, 0, Math.min(read, MAX_BODY_CHARS - sb.length()));
+        }
+        bufferedReader.close();
+        return sb.toString();
     }
 
     private static final class CacheEntry {
-        String etag = "";
+        String etag;
         long lastModified;
-        String signature = "";
+        String signature;
+
+        private CacheEntry() {
+            this.etag = "";
+            this.signature = "";
+        }
     }
 }

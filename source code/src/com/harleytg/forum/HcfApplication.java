@@ -2,56 +2,93 @@ package com.harleytg.forum.dev;
 
 import android.app.Application;
 import android.os.Build;
+import java.lang.Thread;
 
+/* loaded from: classes.dex */
 public final class HcfApplication extends Application {
-    @Override
+    @Override // android.app.Application
     public void onCreate() {
         super.onCreate();
-
-        // Generated MAIN configuration is required for secure routing and Firebase
-        // client setup. A release APK without it is considered invalid rather than
-        // silently falling back to a hardcoded hostname or stale config.
-        AppConfig.initialize(this);
         RuntimeState.install(this);
-
-        final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
-        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
-            try { TelemetryService.captureCrash(HcfApplication.this, thread, throwable); }
-            catch (Throwable ignored) {}
-            try { AppLogger.crash(HcfApplication.this, throwable); }
-            catch (Throwable ignored) {}
-            if (previous != null) previous.uncaughtException(thread, throwable);
+        final Thread.UncaughtExceptionHandler defaultUncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() { // from class: com.harleytg.forum.dev.HcfApplication$$ExternalSyntheticLambda2
+            @Override // java.lang.Thread.UncaughtExceptionHandler
+            public final void uncaughtException(Thread thread, Throwable th) {
+                HcfApplication.this.m6lambda$onCreate$0$comharleytgforumdevHcfApplication(defaultUncaughtExceptionHandler, thread, th);
+            }
         });
-
-        try { UiPreferences.migrate(this); }
-        catch (Throwable ignored) {}
-
         try {
-            AppLogger.info(this, "app_start",
-                    BuildInfo.VERSION + " | SDK " + Build.VERSION.SDK_INT + " | " + Build.MANUFACTURER + " " + Build.MODEL);
-        } catch (Throwable ignored) {}
-
-        AppExecutors.main().postDelayed(() -> {
-            AppExecutors.disk().execute(() -> {
-                try { AppUpdateDownloader.cleanupIfCurrentVersionWasDownloaded(HcfApplication.this); }
-                catch (Throwable ignored) {}
-            });
-            AppExecutors.network().execute(() -> {
-                try { TelemetryService.heartbeat(HcfApplication.this); }
-                catch (Throwable ignored) {}
-            });
+            UiPreferences.migrate(this);
+        } catch (Throwable unused) {
+        }
+        try {
+            AppLogger.info(this, "app_start", "1.0 | SDK " + Build.VERSION.SDK_INT + " | " + Build.MANUFACTURER + " " + Build.MODEL);
+        } catch (Throwable unused2) {
+        }
+        AppExecutors.main().postDelayed(new Runnable() { // from class: com.harleytg.forum.dev.HcfApplication$$ExternalSyntheticLambda3
+            @Override // java.lang.Runnable
+            public final void run() {
+                HcfApplication.this.m9lambda$onCreate$3$comharleytgforumdevHcfApplication();
+            }
         }, 3500L);
     }
 
-    @Override
-    public void onTrimMemory(int level) {
-        super.onTrimMemory(level);
-        RuntimeState.noteTrimMemory(level);
+    /* renamed from: lambda$onCreate$0$com-harleytg-forum-dev-HcfApplication, reason: not valid java name */
+    /* synthetic */ void m6lambda$onCreate$0$comharleytgforumdevHcfApplication(Thread.UncaughtExceptionHandler uncaughtExceptionHandler, Thread thread, Throwable th) {
+        try {
+            TelemetryService.captureCrash(this, thread, th);
+        } catch (Throwable unused) {
+        }
+        try {
+            AppLogger.crash(this, th);
+        } catch (Throwable unused2) {
+        }
+        if (uncaughtExceptionHandler != null) {
+            uncaughtExceptionHandler.uncaughtException(thread, th);
+        }
     }
 
-    @Override
+    /* renamed from: lambda$onCreate$3$com-harleytg-forum-dev-HcfApplication, reason: not valid java name */
+    /* synthetic */ void m9lambda$onCreate$3$comharleytgforumdevHcfApplication() {
+        AppExecutors.disk().execute(new Runnable() { // from class: com.harleytg.forum.dev.HcfApplication$$ExternalSyntheticLambda0
+            @Override // java.lang.Runnable
+            public final void run() {
+                HcfApplication.this.m7lambda$onCreate$1$comharleytgforumdevHcfApplication();
+            }
+        });
+        AppExecutors.network().execute(new Runnable() { // from class: com.harleytg.forum.dev.HcfApplication$$ExternalSyntheticLambda1
+            @Override // java.lang.Runnable
+            public final void run() {
+                HcfApplication.this.m8lambda$onCreate$2$comharleytgforumdevHcfApplication();
+            }
+        });
+    }
+
+    /* renamed from: lambda$onCreate$1$com-harleytg-forum-dev-HcfApplication, reason: not valid java name */
+    /* synthetic */ void m7lambda$onCreate$1$comharleytgforumdevHcfApplication() {
+        try {
+            AppUpdateDownloader.cleanupIfCurrentVersionWasDownloaded(this);
+        } catch (Throwable unused) {
+        }
+    }
+
+    /* renamed from: lambda$onCreate$2$com-harleytg-forum-dev-HcfApplication, reason: not valid java name */
+    /* synthetic */ void m8lambda$onCreate$2$comharleytgforumdevHcfApplication() {
+        try {
+            TelemetryService.heartbeat(this);
+        } catch (Throwable unused) {
+        }
+    }
+
+    @Override // android.app.Application, android.content.ComponentCallbacks2
+    public void onTrimMemory(int i) {
+        super.onTrimMemory(i);
+        RuntimeState.noteTrimMemory(i);
+    }
+
+    @Override // android.app.Application, android.content.ComponentCallbacks
     public void onLowMemory() {
         super.onLowMemory();
-        RuntimeState.noteTrimMemory(android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE);
+        RuntimeState.noteTrimMemory(80);
     }
 }

@@ -1,11 +1,8 @@
 package com.harleytg.forum.dev;
 
 import android.content.Context;
+import android.net.Uri;
 import android.webkit.CookieManager;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -18,361 +15,390 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
-/** Small authenticated JSON:API client used only for native alert delivery. */
+/* loaded from: classes.dex */
 final class ForumNotificationClient {
     private static final int CONNECT_TIMEOUT_MS = 4500;
-    private static final int READ_TIMEOUT_MS = 4500;
     private static final int MAX_BODY_CHARS = 700000;
+    private static final int READ_TIMEOUT_MS = 4500;
 
     static final class Alert {
+        final String body;
         final String id;
         final String title;
-        final String body;
         final String url;
 
-        Alert(String id, String title, String body, String url) {
-            this.id = clean(id, 120);
-            this.title = clean(title, 120);
-            this.body = clean(body, 500);
-            this.url = url == null ? "" : url;
+        Alert(String str, String str2, String str3, String str4) {
+            this.id = ForumNotificationClient.clean(str, 120);
+            this.title = ForumNotificationClient.clean(str2, 120);
+            this.body = ForumNotificationClient.clean(str3, 500);
+            this.url = str4 == null ? "" : str4;
         }
     }
 
-    static int fetchNewCount(Context context, String host, String userId) throws Exception {
-        String base = trustedBase(host);
-        String body = get(context, base, "api/users/" + userId
-                + "?fields%5Busers%5D=unreadNotificationCount%2CnewNotificationCount", "Count");
-        JSONObject attrs = new JSONObject(body).getJSONObject("data").getJSONObject("attributes");
-        // The native badge is an unread-notification badge. Flarum may report
-        // unreadNotificationCount and newNotificationCount differently after
-        // the notification list has been viewed, so keep the larger value.
-        int unread = Math.max(0, attrs.optInt("unreadNotificationCount", 0));
-        int fresh = Math.max(0, attrs.optInt("newNotificationCount", 0));
-        return Math.max(unread, fresh);
+    static int fetchNewCount(Context context, String str, String str2) throws Exception {
+        JSONObject jSONObject = new JSONObject(get(context, trustedBase(str), "api/users/" + str2 + "?fields%5Busers%5D=unreadNotificationCount%2CnewNotificationCount", "Count")).getJSONObject("data").getJSONObject("attributes");
+        return Math.max(Math.max(0, jSONObject.optInt("unreadNotificationCount", 0)), Math.max(0, jSONObject.optInt("newNotificationCount", 0)));
     }
 
-    static List<Alert> fetchLatest(Context context, String host, int limit) throws Exception {
-        String base = trustedBase(host);
-        int safeLimit = Math.max(1, Math.min(20, limit));
-        String path = "api/notifications?include=fromUser,subject&page%5Blimit%5D=" + safeLimit;
-        String body;
+    static List<Alert> fetchLatest(Context context, String str, int i) throws Exception {
+        String str2;
+        String trustedBase = trustedBase(str);
+        int max = Math.max(1, Math.min(20, i));
         try {
-            body = get(context, base, path, "Details");
-        } catch (Throwable first) {
-            // Some Flarum extensions reject an include they do not expose. The
-            // core notification collection still provides a useful fallback.
-            body = get(context, base,
-                    "api/notifications?page%5Blimit%5D=" + safeLimit,
-                    "DetailsFallback");
+            str2 = get(context, trustedBase, "api/notifications?include=fromUser,subject&page%5Blimit%5D=" + max, "Details");
+        } catch (Throwable unused) {
+            str2 = get(context, trustedBase, "api/notifications?page%5Blimit%5D=" + max, "DetailsFallback");
         }
-        return parseAlerts(new JSONObject(body), base, safeLimit);
+        return parseAlerts(new JSONObject(str2), trustedBase, max);
     }
 
-    private static List<Alert> parseAlerts(JSONObject root, String base, int limit) {
-        JSONArray data = root.optJSONArray("data");
-        if (data == null || data.length() == 0) return Collections.emptyList();
-
-        Map<String, JSONObject> included = new HashMap<>();
-        JSONArray sideLoaded = root.optJSONArray("included");
-        if (sideLoaded != null) {
-            for (int i = 0; i < sideLoaded.length(); i++) {
-                JSONObject item = sideLoaded.optJSONObject(i);
-                if (item == null) continue;
-                included.put(key(item.optString("type"), item.optString("id")), item);
+    private static List<Alert> parseAlerts(JSONObject jSONObject, String str, int i) {
+        Alert parseAlert;
+        JSONArray optJSONArray = jSONObject.optJSONArray("data");
+        if (optJSONArray == null || optJSONArray.length() == 0) {
+            return Collections.emptyList();
+        }
+        HashMap hashMap = new HashMap();
+        JSONArray optJSONArray2 = jSONObject.optJSONArray("included");
+        if (optJSONArray2 != null) {
+            for (int i2 = 0; i2 < optJSONArray2.length(); i2++) {
+                JSONObject optJSONObject = optJSONArray2.optJSONObject(i2);
+                if (optJSONObject != null) {
+                    hashMap.put(key(optJSONObject.optString("type"), optJSONObject.optString("id")), optJSONObject);
+                }
             }
         }
-
-        List<Alert> alerts = new ArrayList<>();
-        for (int i = 0; i < data.length() && alerts.size() < limit; i++) {
-            JSONObject notification = data.optJSONObject(i);
-            if (notification == null) continue;
-            Alert alert = parseAlert(notification, included, base);
-            if (alert != null && !alert.id.isEmpty()) alerts.add(alert);
+        ArrayList arrayList = new ArrayList();
+        for (int i3 = 0; i3 < optJSONArray.length() && arrayList.size() < i; i3++) {
+            JSONObject optJSONObject2 = optJSONArray.optJSONObject(i3);
+            if (optJSONObject2 != null && (parseAlert = parseAlert(optJSONObject2, hashMap, str)) != null && !parseAlert.id.isEmpty()) {
+                arrayList.add(parseAlert);
+            }
         }
-        return alerts;
+        return arrayList;
     }
 
-    private static Alert parseAlert(JSONObject notification, Map<String, JSONObject> included, String base) {
-        String id = notification.optString("id", "");
-        JSONObject attrs = notification.optJSONObject("attributes");
-        if (attrs == null) attrs = new JSONObject();
-        String type = attrs.optString("type", "notification");
-
-        JSONObject relationships = notification.optJSONObject("relationships");
-        JSONObject fromRef = relationData(relationships, "fromUser");
-        JSONObject subjectRef = relationData(relationships, "subject");
-        JSONObject fromUser = fromRef == null ? null
-                : included.get(key(fromRef.optString("type"), fromRef.optString("id")));
-        JSONObject subject = subjectRef == null ? null
-                : included.get(key(subjectRef.optString("type"), subjectRef.optString("id")));
-
-        JSONObject content = contentObject(attrs.opt("content"));
-        String sender = userLabel(fromUser);
-        if (sender.isEmpty()) sender = firstDeep(content, "displayName", "display_name", "username", "user_name", "senderName", "sender_name");
-        if (sender.isEmpty()) sender = "Someone";
-
-        String conversationId = firstDeep(content, "conversationId", "conversation_id");
-        String discussionId = firstDeep(content, "discussionId", "discussion_id");
-        String discussionTitle = firstDeep(content, "discussionTitle", "discussion_title", "title");
-        String postNumber = firstDeep(content, "postNumber", "post_number", "number");
-        String profileSlug = firstDeep(content, "userSlug", "user_slug", "slug", "username");
-        String senderSlug = prefer(attribute(fromUser, "slug"), attribute(fromUser, "username"));
-        String subjectType = subjectRef == null ? "" : subjectRef.optString("type", "");
-        if ("discussions".equals(subjectType)) {
-            discussionId = subjectRef.optString("id", discussionId);
-            discussionTitle = prefer(discussionTitle, attribute(subject, "title"));
-        } else if ("posts".equals(subjectType)) {
-            JSONObject postRelationships = subject == null ? null : subject.optJSONObject("relationships");
-            JSONObject discussionRef = relationData(postRelationships, "discussion");
-            if (discussionRef != null) discussionId = discussionRef.optString("id", discussionId);
-            postNumber = prefer(postNumber, attribute(subject, "number"));
-        } else if ("users".equals(subjectType)) {
-            profileSlug = prefer(attribute(subject, "slug"), attribute(subject, "username"));
+    private static Alert parseAlert(JSONObject jSONObject, Map<String, JSONObject> map, String str) {
+        String str2;
+        String str3;
+        String readableType;
+        String optString = jSONObject.optString("id", "");
+        JSONObject optJSONObject = jSONObject.optJSONObject("attributes");
+        if (optJSONObject == null) {
+            optJSONObject = new JSONObject();
         }
-
-        String normalized = type.toLowerCase(Locale.US);
-        boolean conversationAlert = !conversationId.isEmpty()
-                || normalized.contains("privatediscussion")
-                || normalized.contains("private_message")
-                || normalized.contains("privatemessage")
-                || normalized.contains("conversationmessage")
-                || normalized.contains("conversation_message")
-                || normalized.contains("messenger");
-
-        String title;
-        if (conversationAlert) {
-            title = "New message from " + sender;
-        } else if (normalized.contains("postmentioned") || normalized.contains("usermentioned")) {
-            title = sender + " mentioned you";
-        } else if (normalized.contains("liked") || normalized.contains("postliked")) {
-            title = sender + " liked your post";
-        } else if (normalized.contains("newpost") || normalized.contains("reply")) {
-            title = "New reply from " + sender;
-        } else if (normalized.contains("follow")) {
-            title = sender + " followed you";
+        String optString2 = optJSONObject.optString("type", "notification");
+        JSONObject optJSONObject2 = jSONObject.optJSONObject("relationships");
+        JSONObject relationData = relationData(optJSONObject2, "fromUser");
+        JSONObject relationData2 = relationData(optJSONObject2, "subject");
+        JSONObject jSONObject2 = relationData == null ? null : map.get(key(relationData.optString("type"), relationData.optString("id")));
+        JSONObject jSONObject3 = relationData2 == null ? null : map.get(key(relationData2.optString("type"), relationData2.optString("id")));
+        JSONObject contentObject = contentObject(optJSONObject.opt("content"));
+        String userLabel = userLabel(jSONObject2);
+        if (userLabel.isEmpty()) {
+            userLabel = firstDeep(contentObject, "displayName", "display_name", "username", "user_name", "senderName", "sender_name");
+        }
+        if (userLabel.isEmpty()) {
+            userLabel = "Someone";
+        }
+        String firstDeep = firstDeep(contentObject, "conversationId", "conversation_id");
+        String firstDeep2 = firstDeep(contentObject, "discussionId", "discussion_id");
+        String firstDeep3 = firstDeep(contentObject, "discussionTitle", "discussion_title", "title");
+        String str4 = userLabel;
+        String firstDeep4 = firstDeep(contentObject, "postNumber", "post_number", "number");
+        String firstDeep5 = firstDeep(contentObject, "userSlug", "user_slug", "slug", "username");
+        String prefer = prefer(attribute(jSONObject2, "slug"), attribute(jSONObject2, "username"));
+        String optString3 = relationData2 != null ? relationData2.optString("type", "") : "";
+        if ("discussions".equals(optString3)) {
+            firstDeep2 = relationData2.optString("id", firstDeep2);
+            firstDeep3 = prefer(firstDeep3, attribute(jSONObject3, "title"));
+            str2 = firstDeep4;
+        } else if ("posts".equals(optString3)) {
+            JSONObject relationData3 = relationData(jSONObject3 == null ? null : jSONObject3.optJSONObject("relationships"), "discussion");
+            if (relationData3 != null) {
+                firstDeep2 = relationData3.optString("id", firstDeep2);
+            }
+            str2 = prefer(firstDeep4, attribute(jSONObject3, "number"));
         } else {
-            title = "New forum alert from " + sender;
+            if ("users".equals(optString3)) {
+                firstDeep5 = prefer(attribute(jSONObject3, "slug"), attribute(jSONObject3, "username"));
+            }
+            str2 = firstDeep4;
         }
-
-        String excerpt = firstDeep(content, "message", "body", "text", "excerpt", "preview", "content");
-        String body = conversationAlert ? excerpt : (!discussionTitle.isEmpty() ? discussionTitle : excerpt);
-        body = cleanNotificationBody(body, conversationAlert);
-        if (body.isEmpty()) body = conversationAlert
-                ? "You have a new private message."
-                : readableType(type);
-
-        String destination = base + "notifications";
-        if (conversationAlert && !conversationId.isEmpty() && conversationId.matches("[0-9]+")) {
-            destination = base + "conversations/" + conversationId;
-        } else if (normalized.contains("follow") && !senderSlug.isEmpty()) {
-            destination = base + "u/" + android.net.Uri.encode(senderSlug);
-        } else if (!profileSlug.isEmpty() && "users".equals(subjectType)) {
-            destination = base + "u/" + android.net.Uri.encode(profileSlug);
-        } else if (!discussionId.isEmpty() && discussionId.matches("[0-9]+")) {
-            destination = base + "d/" + discussionId;
-            if (!postNumber.isEmpty() && postNumber.matches("[0-9]+")) destination += "/" + postNumber;
+        String lowerCase = optString2.toLowerCase(Locale.US);
+        boolean z = !firstDeep.isEmpty() || lowerCase.contains("privatediscussion") || lowerCase.contains("private_message") || lowerCase.contains("privatemessage") || lowerCase.contains("conversationmessage") || lowerCase.contains("conversation_message") || lowerCase.contains("messenger");
+        if (z) {
+            str3 = "New message from " + str4;
+        } else if (lowerCase.contains("postmentioned") || lowerCase.contains("usermentioned")) {
+            str3 = str4 + " mentioned you";
+        } else if (lowerCase.contains("liked") || lowerCase.contains("postliked")) {
+            str3 = str4 + " liked your post";
+        } else if (lowerCase.contains("newpost") || lowerCase.contains("reply")) {
+            str3 = "New reply from " + str4;
+        } else if (lowerCase.contains("follow")) {
+            str3 = str4 + " followed you";
+        } else {
+            str3 = "New forum alert from " + str4;
         }
-        return new Alert(id, title, body, destination);
+        String firstDeep6 = firstDeep(contentObject, "message", "body", "text", "excerpt", "preview", "content");
+        if (z || firstDeep3.isEmpty()) {
+            firstDeep3 = firstDeep6;
+        }
+        String cleanNotificationBody = cleanNotificationBody(firstDeep3, z);
+        if (cleanNotificationBody.isEmpty()) {
+            if (z) {
+                readableType = "You have a new private message.";
+            } else {
+                readableType = readableType(optString2);
+            }
+            cleanNotificationBody = readableType;
+        }
+        String str5 = str + "notifications";
+        if (z && !firstDeep.isEmpty() && firstDeep.matches("[0-9]+")) {
+            str5 = str + "conversations/" + firstDeep;
+        } else if (lowerCase.contains("follow") && !prefer.isEmpty()) {
+            str5 = str + "u/" + Uri.encode(prefer);
+        } else if (!firstDeep5.isEmpty() && "users".equals(optString3)) {
+            str5 = str + "u/" + Uri.encode(firstDeep5);
+        } else if (!firstDeep2.isEmpty() && firstDeep2.matches("[0-9]+")) {
+            str5 = str + "d/" + firstDeep2;
+            if (!str2.isEmpty() && str2.matches("[0-9]+")) {
+                str5 = str5 + "/" + str2;
+            }
+        }
+        return new Alert(optString, str3, cleanNotificationBody, str5);
     }
 
-    private static JSONObject relationData(JSONObject relationships, String name) {
-        if (relationships == null) return null;
-        JSONObject relationship = relationships.optJSONObject(name);
-        if (relationship == null) return null;
-        Object data = relationship.opt("data");
-        return data instanceof JSONObject ? (JSONObject) data : null;
+    private static JSONObject relationData(JSONObject jSONObject, String str) {
+        JSONObject optJSONObject;
+        if (jSONObject == null || (optJSONObject = jSONObject.optJSONObject(str)) == null) {
+            return null;
+        }
+        Object opt = optJSONObject.opt("data");
+        if (opt instanceof JSONObject) {
+            return (JSONObject) opt;
+        }
+        return null;
     }
 
-    private static JSONObject contentObject(Object value) {
-        if (value instanceof JSONObject) return (JSONObject) value;
-        if (value instanceof String) {
-            String raw = ((String) value).trim();
-            if (raw.startsWith("{") && raw.endsWith("}")) {
-                try { return new JSONObject(raw); } catch (Throwable ignored) {}
+    private static JSONObject contentObject(Object obj) {
+        if (obj instanceof JSONObject) {
+            return (JSONObject) obj;
+        }
+        if (obj instanceof String) {
+            String trim = ((String) obj).trim();
+            if (trim.startsWith("{") && trim.endsWith("}")) {
+                try {
+                    return new JSONObject(trim);
+                } catch (Throwable unused) {
+                }
             }
         }
         return new JSONObject();
     }
 
-    private static String userLabel(JSONObject user) {
-        if (user == null) return "";
-        JSONObject attrs = user.optJSONObject("attributes");
-        if (attrs == null) return "";
-        String display = clean(attrs.optString("displayName", ""), 80);
-        if (!display.isEmpty()) return display;
-        return clean(attrs.optString("username", ""), 80);
-    }
-
-    private static String attribute(JSONObject resource, String name) {
-        if (resource == null) return "";
-        JSONObject attrs = resource.optJSONObject("attributes");
-        return attrs == null ? "" : clean(attrs.optString(name, ""), 300);
-    }
-
-    /**
-     * Finds a user-visible scalar without ever converting a JSONObject/JSONArray
-     * directly to text. Messenger/private-message extensions frequently nest the
-     * real message inside content -> body -> message (or similar), and calling
-     * String.valueOf() on that container is what caused raw API JSON to appear in
-     * Android notifications.
-     */
-    private static String firstDeep(JSONObject object, String... names) {
-        return firstDeepObject(object, 0, names);
-    }
-
-    private static String firstDeepObject(JSONObject object, int depth, String... names) {
-        if (object == null || depth > 5) return "";
-
-        // Prefer explicitly requested keys at the current level first.
-        for (String name : names) {
-            if (!object.has(name)) continue;
-            String text = readableValue(object.opt(name), depth + 1, names);
-            if (!text.isEmpty()) return text;
+    private static String userLabel(JSONObject jSONObject) {
+        JSONObject optJSONObject;
+        if (jSONObject != null && (optJSONObject = jSONObject.optJSONObject("attributes")) != null) {
+            String clean = clean(optJSONObject.optString("displayName", ""), 80);
+            return !clean.isEmpty() ? clean : clean(optJSONObject.optString("username", ""), 80);
         }
+        return "";
+    }
 
-        // Then inspect nested containers. This supports extension-specific wrappers
-        // such as {"body":{"message":"Hello", "conversation_id":23}}.
-        JSONArray keys = object.names();
-        if (keys != null) {
-            for (int i = 0; i < keys.length(); i++) {
-                String key = keys.optString(i, "");
-                Object value = object.opt(key);
-                if (!(value instanceof JSONObject) && !(value instanceof JSONArray)) continue;
-                String text = readableValue(value, depth + 1, names);
-                if (!text.isEmpty()) return text;
+    private static String attribute(JSONObject jSONObject, String str) {
+        JSONObject optJSONObject;
+        if (jSONObject == null || (optJSONObject = jSONObject.optJSONObject("attributes")) == null) {
+            return "";
+        }
+        return clean(optJSONObject.optString(str, ""), 300);
+    }
+
+    private static String firstDeep(JSONObject jSONObject, String... strArr) {
+        return firstDeepObject(jSONObject, 0, strArr);
+    }
+
+    private static String firstDeepObject(JSONObject jSONObject, int i, String... strArr) {
+        if (jSONObject != null && i <= 5) {
+            for (String str : strArr) {
+                if (jSONObject.has(str)) {
+                    String readableValue = readableValue(jSONObject.opt(str), i + 1, strArr);
+                    if (!readableValue.isEmpty()) {
+                        return readableValue;
+                    }
+                }
+            }
+            JSONArray names = jSONObject.names();
+            if (names != null) {
+                for (int i2 = 0; i2 < names.length(); i2++) {
+                    Object opt = jSONObject.opt(names.optString(i2, ""));
+                    if ((opt instanceof JSONObject) || (opt instanceof JSONArray)) {
+                        String readableValue2 = readableValue(opt, i + 1, strArr);
+                        if (!readableValue2.isEmpty()) {
+                            return readableValue2;
+                        }
+                    }
+                }
             }
         }
         return "";
     }
 
-    private static String readableValue(Object value, int depth, String... names) {
-        if (value == null || value == JSONObject.NULL || depth > 6) return "";
-        if (value instanceof JSONObject) return firstDeepObject((JSONObject) value, depth, names);
-        if (value instanceof JSONArray) {
-            JSONArray array = (JSONArray) value;
-            for (int i = 0; i < array.length(); i++) {
-                String text = readableValue(array.opt(i), depth + 1, names);
-                if (!text.isEmpty()) return text;
+    private static String readableValue(Object obj, int i, String... strArr) {
+        if (obj == null || obj == JSONObject.NULL || i > 6) {
+            return "";
+        }
+        if (obj instanceof JSONObject) {
+            return firstDeepObject((JSONObject) obj, i, strArr);
+        }
+        int i2 = 0;
+        if (obj instanceof JSONArray) {
+            JSONArray jSONArray = (JSONArray) obj;
+            while (i2 < jSONArray.length()) {
+                String readableValue = readableValue(jSONArray.opt(i2), i + 1, strArr);
+                if (!readableValue.isEmpty()) {
+                    return readableValue;
+                }
+                i2++;
             }
             return "";
         }
-
-        String raw = clean(String.valueOf(value), 2000);
-        if (raw.isEmpty()) return "";
-        String trimmed = raw.trim();
-        if ((trimmed.startsWith("{") && trimmed.endsWith("}"))
-                || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
-            try {
-                if (trimmed.startsWith("{")) return firstDeepObject(new JSONObject(trimmed), depth + 1, names);
-                JSONArray array = new JSONArray(trimmed);
-                for (int i = 0; i < array.length(); i++) {
-                    String text = readableValue(array.opt(i), depth + 1, names);
-                    if (!text.isEmpty()) return text;
-                }
-                return "";
-            } catch (Throwable ignored) {
-                // If it merely looks like JSON but cannot be parsed, do not surface
-                // the API blob to the user.
-                return "";
-            }
+        String clean = clean(String.valueOf(obj), 2000);
+        if (clean.isEmpty()) {
+            return "";
         }
-        return clean(trimmed, 500);
+        String trim = clean.trim();
+        if ((trim.startsWith("{") && trim.endsWith("}")) || (trim.startsWith("[") && trim.endsWith("]"))) {
+            if (trim.startsWith("{")) {
+                return firstDeepObject(new JSONObject(trim), i + 1, strArr);
+            }
+            JSONArray jSONArray2 = new JSONArray(trim);
+            while (i2 < jSONArray2.length()) {
+                String readableValue2 = readableValue(jSONArray2.opt(i2), i + 1, strArr);
+                if (!readableValue2.isEmpty()) {
+                    return readableValue2;
+                }
+                i2++;
+            }
+            return "";
+        }
+        return clean(trim, 500);
     }
 
-    private static String cleanNotificationBody(String value, boolean conversationAlert) {
-        String text = stripMarkup(value);
-        if (text.isEmpty()) return "";
-        String trimmed = text.trim();
-        if ((trimmed.startsWith("{") && trimmed.endsWith("}"))
-                || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+    private static String cleanNotificationBody(String str, boolean z) {
+        String readableValue;
+        String stripMarkup = stripMarkup(str);
+        if (stripMarkup.isEmpty()) {
+            return "";
+        }
+        String trim = stripMarkup.trim();
+        if ((trim.startsWith("{") && trim.endsWith("}")) || (trim.startsWith("[") && trim.endsWith("]"))) {
             try {
-                String extracted;
-                if (trimmed.startsWith("{")) {
-                    extracted = firstDeepObject(new JSONObject(trimmed), 0,
-                            "message", "body", "text", "excerpt", "preview", "content");
+                if (trim.startsWith("{")) {
+                    readableValue = firstDeepObject(new JSONObject(trim), 0, "message", "body", "text", "excerpt", "preview", "content");
                 } else {
-                    extracted = readableValue(new JSONArray(trimmed), 0,
-                            "message", "body", "text", "excerpt", "preview", "content");
+                    readableValue = readableValue(new JSONArray(trim), 0, "message", "body", "text", "excerpt", "preview", "content");
                 }
-                text = stripMarkup(extracted);
-            } catch (Throwable ignored) {
+                stripMarkup = stripMarkup(readableValue);
+            } catch (Throwable unused) {
                 return "";
             }
         }
-        if (text.isEmpty() && conversationAlert) return "You have a new private message.";
-        return clean(text, 500);
+        return (stripMarkup.isEmpty() && z) ? "You have a new private message." : clean(stripMarkup, 500);
     }
 
-    private static String prefer(String first, String second) {
-        return first == null || first.trim().isEmpty() ? clean(second, 500) : first;
+    private static String prefer(String str, String str2) {
+        return (str == null || str.trim().isEmpty()) ? clean(str2, 500) : str;
     }
 
-    private static String readableType(String type) {
-        String value = type == null ? "Notification" : type;
-        value = value.replace('_', ' ').replace('-', ' ')
-                .replaceAll("([a-z])([A-Z])", "$1 $2").trim();
-        return value.isEmpty() ? "You have a new forum notification." : value;
+    private static String readableType(String str) {
+        if (str == null) {
+            str = "Notification";
+        }
+        String trim = str.replace('_', ' ').replace('-', ' ').replaceAll("([a-z])([A-Z])", "$1 $2").trim();
+        return trim.isEmpty() ? "You have a new forum notification." : trim;
     }
 
-    private static String stripMarkup(String value) {
-        if (value == null) return "";
-        return clean(value.replaceAll("<[^>]+>", " ")
-                .replace("&amp;", "&")
-                .replace("&lt;", "<")
-                .replace("&gt;", ">")
-                .replaceAll("\\s+", " "), 500);
+    private static String stripMarkup(String str) {
+        if (str == null) {
+            return "";
+        }
+        return clean(str.replaceAll("<[^>]+>", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replaceAll("\\s+", " "), 500);
     }
 
-    private static String trustedBase(String host) {
-        String safeHost = ForumUrlRouter.isForumHost(host) ? host : ForumConfig.PRIMARY_HOST;
-        return ForumUrlRouter.home(safeHost);
+    private static String trustedBase(String str) {
+        if (!ForumUrlRouter.isForumHost(str)) {
+            str = "forum.harleytg.com";
+        }
+        return ForumUrlRouter.home(str);
     }
 
-    private static String get(Context context, String base, String path, String client) throws Exception {
-        URL url = new URL(base + path);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+    private static String get(Context context, String str, String str2, String str3) throws Exception {
+        HttpURLConnection httpURLConnection = (HttpURLConnection) new URL(str + str2).openConnection();
         try {
-            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            connection.setReadTimeout(READ_TIMEOUT_MS);
-            connection.setUseCaches(true);
-            connection.setInstanceFollowRedirects(false);
-            connection.setRequestMethod("GET");
-            connection.setRequestProperty("Accept", "application/vnd.api+json, application/json");
-            connection.setRequestProperty("Cache-Control", "no-cache, max-age=0");
-            connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " Notification" + client);
-            String cookies = CookieManager.getInstance().getCookie(base);
-            if (cookies != null && !cookies.trim().isEmpty()) connection.setRequestProperty("Cookie", cookies);
-
-            int code = connection.getResponseCode();
-            if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);
-            return read(connection.getInputStream());
+            httpURLConnection.setConnectTimeout(4500);
+            httpURLConnection.setReadTimeout(4500);
+            httpURLConnection.setUseCaches(true);
+            httpURLConnection.setInstanceFollowRedirects(false);
+            httpURLConnection.setRequestMethod("GET");
+            httpURLConnection.setRequestProperty("Accept", "application/vnd.api+json, application/json");
+            httpURLConnection.setRequestProperty("Cache-Control", "no-cache, max-age=0");
+            httpURLConnection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 Notification" + str3);
+            String cookie = CookieManager.getInstance().getCookie(str);
+            if (cookie != null && !cookie.trim().isEmpty()) {
+                httpURLConnection.setRequestProperty("Cookie", cookie);
+            }
+            int responseCode = httpURLConnection.getResponseCode();
+            if (responseCode < 200 || responseCode >= 300) {
+                throw new IllegalStateException("HTTP " + responseCode);
+            }
+            return read(httpURLConnection.getInputStream());
         } finally {
-            connection.disconnect();
+            httpURLConnection.disconnect();
         }
     }
 
-    private static String read(InputStream stream) throws Exception {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
-        StringBuilder out = new StringBuilder();
-        char[] buffer = new char[8192];
-        int read;
-        while ((read = reader.read(buffer)) != -1 && out.length() < MAX_BODY_CHARS) {
-            out.append(buffer, 0, Math.min(read, MAX_BODY_CHARS - out.length()));
+    private static String read(InputStream inputStream) throws Exception {
+        BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+        StringBuilder sb = new StringBuilder();
+        char[] cArr = new char[8192];
+        while (true) {
+            int read = bufferedReader.read(cArr);
+            if (read == -1 || sb.length() >= MAX_BODY_CHARS) {
+                break;
+            }
+            sb.append(cArr, 0, Math.min(read, MAX_BODY_CHARS - sb.length()));
         }
-        reader.close();
-        return out.toString();
+        bufferedReader.close();
+        return sb.toString();
     }
 
-    private static String clean(String value, int max) {
-        String text = value == null ? "" : value.trim();
-        if (text.length() > max) text = text.substring(0, max) + "…";
-        return text;
+    /* JADX INFO: Access modifiers changed from: private */
+    public static String clean(String str, int i) {
+        String trim = str == null ? "" : str.trim();
+        if (trim.length() <= i) {
+            return trim;
+        }
+        return trim.substring(0, i) + "…";
     }
 
-    private static String key(String type, String id) {
-        return (type == null ? "" : type) + ":" + (id == null ? "" : id);
+    private static String key(String str, String str2) {
+        StringBuilder sb = new StringBuilder();
+        if (str == null) {
+            str = "";
+        }
+        sb.append(str);
+        sb.append(":");
+        if (str2 == null) {
+            str2 = "";
+        }
+        sb.append(str2);
+        return sb.toString();
     }
 
-    private ForumNotificationClient() {}
+    private ForumNotificationClient() {
+    }
 }

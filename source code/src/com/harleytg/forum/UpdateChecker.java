@@ -3,14 +3,9 @@ package com.harleytg.forum.dev;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -19,261 +14,346 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Locale;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
+/* loaded from: classes.dex */
 final class UpdateChecker {
-    static final String CHANNEL_STABLE = "stable";
-    static final String CHANNEL_DEV = "dev";
-
+    private static final String API_BASE = "https://api.github.com/repos/markhitchk/hcf-app";
     private static final String CACHE_ASSET_ID = "update_checked_asset_id";
     private static final String CACHE_ASSET_UPDATED = "update_checked_asset_updated";
     private static final String CACHE_VERSION_CODE = "update_checked_asset_version_code";
-    private static final long MAX_CHECK_APK_BYTES = 100L * 1024L * 1024L;
+    static final String CHANNEL_DEV = "dev";
+    static final String CHANNEL_STABLE = "stable";
+    private static final long MAX_CHECK_APK_BYTES = 104857600;
 
     interface Callback {
-        void onResult(Release release, boolean updateAvailable);
-        void onError(String message);
+        void onError(String str);
+
+        void onResult(Release release, boolean z);
     }
 
     static final class Release {
-        final String tag;
-        final String name;
-        final String publishedAt;
-        final String releaseUrl;
-        final String apkUrl;
         final String apkName;
-        final boolean prerelease;
+        final String apkUrl;
         final long assetId;
         final String assetUpdatedAt;
+        final String name;
+        final boolean prerelease;
+        final String publishedAt;
+        final String releaseUrl;
+        final String tag;
         long versionCode;
 
-        Release(String tag, String name, String publishedAt, String releaseUrl,
-                String apkUrl, String apkName, boolean prerelease,
-                long assetId, String assetUpdatedAt) {
-            this.tag = tag;
-            this.name = name;
-            this.publishedAt = publishedAt;
-            this.releaseUrl = releaseUrl;
-            this.apkUrl = apkUrl;
-            this.apkName = apkName;
-            this.prerelease = prerelease;
-            this.assetId = assetId;
-            this.assetUpdatedAt = assetUpdatedAt == null ? "" : assetUpdatedAt;
+        Release(String str, String str2, String str3, String str4, String str5, String str6, boolean z, long j, String str7) {
+            this.tag = str;
+            this.name = str2;
+            this.publishedAt = str3;
+            this.releaseUrl = str4;
+            this.apkUrl = str5;
+            this.apkName = str6;
+            this.prerelease = z;
+            this.assetId = j;
+            this.assetUpdatedAt = str7 == null ? "" : str7;
             this.versionCode = -1L;
         }
 
         String assetKey() {
-            if (assetId > 0L) return tag + "#" + assetId;
-            if (!assetUpdatedAt.isEmpty()) return tag + "#" + assetUpdatedAt;
-            return tag + "#" + apkUrl;
+            if (this.assetId > 0) {
+                return this.tag + "#" + this.assetId;
+            }
+            if (this.assetUpdatedAt.isEmpty()) {
+                return this.tag + "#" + this.apkUrl;
+            }
+            return this.tag + "#" + this.assetUpdatedAt;
         }
     }
 
-    private static final String API_BASE = "https://api.github.com/repos/" + BuildInfo.UPDATE_REPOSITORY;
-
-    static void check(Context context, String channel, Callback callback) {
-        final Context app = context == null ? null : context.getApplicationContext();
-        final String normalized = CHANNEL_DEV; // DEV/Beta package never consumes the stable feed.
-        AppExecutors.network().execute(() -> {
-            try {
-                Release release = CHANNEL_STABLE.equals(normalized) ? fetchStable() : fetchDev();
-                if (release == null) throw new IllegalStateException("No " + normalized + " release is published yet.");
-                long remoteCode = resolveApkVersionCode(app, release);
-                release.versionCode = remoteCode;
-                boolean newer = remoteCode > 0L
-                        ? remoteCode > BuildInfo.VERSION_CODE
-                        : compareVersions(release.tag, BuildInfo.VERSION) > 0;
-                post(() -> callback.onResult(release, newer));
-            } catch (Throwable t) {
-                String msg = t.getMessage();
-                if (msg == null || msg.trim().isEmpty()) msg = t.getClass().getSimpleName();
-                final String out = msg;
-                post(() -> callback.onError(out));
+    static void check(Context context, String str, final Callback callback) {
+        final Context applicationContext = context == null ? null : context.getApplicationContext();
+        AppExecutors.network().execute(new Runnable() { // from class: com.harleytg.forum.dev.UpdateChecker$$ExternalSyntheticLambda0
+            @Override // java.lang.Runnable
+            public final void run() {
+                UpdateChecker.lambda$check$2(applicationContext, callback);
             }
         });
     }
 
+    /* JADX WARN: Code restructure failed: missing block: B:14:0x0026, code lost:
+    
+        if (compareVersions(r0.tag, "1.0") > 0) goto L12;
+     */
+    /*
+        Code decompiled incorrectly, please refer to instructions dump.
+        To view partially-correct add '--show-bad-code' argument
+    */
+    static /* synthetic */ void lambda$check$2(android.content.Context r7, final com.harleytg.forum.dev.UpdateChecker.Callback r8) {
+        /*
+            com.harleytg.forum.dev.UpdateChecker$Release r0 = fetchDev()     // Catch: java.lang.Throwable -> L39
+            if (r0 == 0) goto L31
+            long r1 = resolveApkVersionCode(r7, r0)     // Catch: java.lang.Throwable -> L39
+            r0.versionCode = r1     // Catch: java.lang.Throwable -> L39
+            r3 = 0
+            int r7 = (r1 > r3 ? 1 : (r1 == r3 ? 0 : -1))
+            r3 = 1
+            r4 = 0
+            if (r7 <= 0) goto L1e
+            r5 = 10000071(0x9896c7, double:4.9406915E-317)
+            int r7 = (r1 > r5 ? 1 : (r1 == r5 ? 0 : -1))
+            if (r7 <= 0) goto L1c
+            goto L28
+        L1c:
+            r3 = r4
+            goto L28
+        L1e:
+            java.lang.String r7 = r0.tag     // Catch: java.lang.Throwable -> L39
+            java.lang.String r1 = "1.0"
+            int r7 = compareVersions(r7, r1)     // Catch: java.lang.Throwable -> L39
+            if (r7 <= 0) goto L1c
+        L28:
+            com.harleytg.forum.dev.UpdateChecker$$ExternalSyntheticLambda1 r7 = new com.harleytg.forum.dev.UpdateChecker$$ExternalSyntheticLambda1     // Catch: java.lang.Throwable -> L39
+            r7.<init>()     // Catch: java.lang.Throwable -> L39
+            post(r7)     // Catch: java.lang.Throwable -> L39
+            goto L5a
+        L31:
+            java.lang.IllegalStateException r7 = new java.lang.IllegalStateException     // Catch: java.lang.Throwable -> L39
+            java.lang.String r0 = "No dev release is published yet."
+            r7.<init>(r0)     // Catch: java.lang.Throwable -> L39
+            throw r7     // Catch: java.lang.Throwable -> L39
+        L39:
+            r7 = move-exception
+            java.lang.String r0 = r7.getMessage()
+            if (r0 == 0) goto L4a
+            java.lang.String r1 = r0.trim()
+            boolean r1 = r1.isEmpty()
+            if (r1 == 0) goto L52
+        L4a:
+            java.lang.Class r7 = r7.getClass()
+            java.lang.String r0 = r7.getSimpleName()
+        L52:
+            com.harleytg.forum.dev.UpdateChecker$$ExternalSyntheticLambda2 r7 = new com.harleytg.forum.dev.UpdateChecker$$ExternalSyntheticLambda2
+            r7.<init>()
+            post(r7)
+        L5a:
+            return
+        */
+        throw new UnsupportedOperationException("Method not decompiled: com.harleytg.forum.dev.UpdateChecker.lambda$check$2(android.content.Context, com.harleytg.forum.dev.UpdateChecker$Callback):void");
+    }
+
     static int compareReleaseToInstalled(Release release) {
-        if (release == null) return 0;
-        if (release.versionCode > 0L) {
-            if (release.versionCode == BuildInfo.VERSION_CODE) return 0;
-            return release.versionCode < BuildInfo.VERSION_CODE ? -1 : 1;
+        if (release == null) {
+            return 0;
         }
-        return compareVersions(release.tag, BuildInfo.VERSION);
+        if (release.versionCode <= 0) {
+            return compareVersions(release.tag, "1.0");
+        }
+        if (release.versionCode == 10000071) {
+            return 0;
+        }
+        return release.versionCode < 10000071 ? -1 : 1;
     }
 
     static String displayVersion(Release release) {
-        if (release == null) return "Unknown";
-        String shown = release.tag == null ? "" : release.tag.trim();
-        if (shown.startsWith("v") || shown.startsWith("V")) shown = shown.substring(1);
-        int dash = shown.indexOf('-');
-        if (dash > 0) shown = shown.substring(0, dash);
-        if (shown.isEmpty()) shown = BuildInfo.VERSION;
-        return shown;
+        if (release == null) {
+            return "Unknown";
+        }
+        String trim = release.tag == null ? "" : release.tag.trim();
+        if (trim.startsWith("v") || trim.startsWith("V")) {
+            trim = trim.substring(1);
+        }
+        int indexOf = trim.indexOf(45);
+        if (indexOf > 0) {
+            trim = trim.substring(0, indexOf);
+        }
+        return trim.isEmpty() ? "1.0" : trim;
     }
 
     private static Release fetchStable() throws Exception {
-        JSONArray arr = new JSONArray(get(API_BASE + "/releases?per_page=30"));
-        Release best = null;
-        for (int i = 0; i < arr.length(); i++) {
-            JSONObject item = arr.optJSONObject(i);
-            if (item == null) continue;
-            if (item.optBoolean("draft", false) || item.optBoolean("prerelease", false)) continue;
-            Release candidate = parseRelease(item);
-            if (candidate.tag == null || candidate.tag.trim().isEmpty()) continue;
-            if (best == null || compareVersions(candidate.tag, best.tag) > 0) best = candidate;
+        JSONArray jSONArray = new JSONArray(get("https://api.github.com/repos/markhitchk/hcf-app/releases?per_page=30"));
+        Release release = null;
+        for (int i = 0; i < jSONArray.length(); i++) {
+            JSONObject optJSONObject = jSONArray.optJSONObject(i);
+            if (optJSONObject != null && !optJSONObject.optBoolean("draft", false) && !optJSONObject.optBoolean("prerelease", false)) {
+                Release parseRelease = parseRelease(optJSONObject);
+                if (parseRelease.tag != null && !parseRelease.tag.trim().isEmpty() && (release == null || compareVersions(parseRelease.tag, release.tag) > 0)) {
+                    release = parseRelease;
+                }
+            }
         }
-        if (best != null) return best;
+        if (release != null) {
+            return release;
+        }
         throw new IllegalStateException("No stable app release is published yet.");
     }
 
     private static Release fetchDev() throws Exception {
-        JSONArray arr = new JSONArray(get(API_BASE + "/releases?per_page=30"));
-        for (int i = 0; i < arr.length(); i++) {
-            JSONObject item = arr.optJSONObject(i);
-            if (item == null) continue;
-            if (item.optBoolean("draft", false)) continue;
-            if (!item.optBoolean("prerelease", false)) continue;
-            return parseRelease(item);
+        JSONArray jSONArray = new JSONArray(get("https://api.github.com/repos/markhitchk/hcf-app/releases?per_page=30"));
+        for (int i = 0; i < jSONArray.length(); i++) {
+            JSONObject optJSONObject = jSONArray.optJSONObject(i);
+            if (optJSONObject != null && !optJSONObject.optBoolean("draft", false) && optJSONObject.optBoolean("prerelease", false)) {
+                return parseRelease(optJSONObject);
+            }
         }
         throw new IllegalStateException("No preview app release is published for the dev channel yet.");
     }
 
-    private static Release parseRelease(JSONObject json) {
-        String tag = json.optString("tag_name", "").trim();
-        String name = json.optString("name", tag).trim();
-        String published = json.optString("published_at", "").trim();
-        String releaseUrl = json.optString("html_url", "").trim();
-        boolean prerelease = json.optBoolean("prerelease", false);
-
-        String apkUrl = "";
-        String apkName = "";
-        long assetId = -1L;
-        String assetUpdated = "";
-        JSONArray assets = json.optJSONArray("assets");
-        if (assets != null) {
-            for (int i = 0; i < assets.length(); i++) {
-                JSONObject asset = assets.optJSONObject(i);
-                if (asset == null) continue;
-                String candidateName = asset.optString("name", "").trim();
-                String candidateUrl = asset.optString("browser_download_url", "").trim();
-                if (candidateName.toLowerCase(Locale.US).endsWith(".apk")
-                        && AppSecurity.isTrustedReleaseDownload(candidateUrl)) {
-                    apkName = candidateName;
-                    apkUrl = candidateUrl;
-                    assetId = asset.optLong("id", -1L);
-                    assetUpdated = asset.optString("updated_at", "").trim();
-                    break;
+    private static Release parseRelease(JSONObject jSONObject) {
+        String str;
+        String str2;
+        String str3;
+        String trim = jSONObject.optString("tag_name", "").trim();
+        String trim2 = jSONObject.optString("name", trim).trim();
+        String trim3 = jSONObject.optString("published_at", "").trim();
+        String trim4 = jSONObject.optString("html_url", "").trim();
+        boolean optBoolean = jSONObject.optBoolean("prerelease", false);
+        JSONArray optJSONArray = jSONObject.optJSONArray("assets");
+        long j = -1;
+        if (optJSONArray != null) {
+            for (int i = 0; i < optJSONArray.length(); i++) {
+                JSONObject optJSONObject = optJSONArray.optJSONObject(i);
+                if (optJSONObject != null) {
+                    str2 = optJSONObject.optString("name", "").trim();
+                    String trim5 = optJSONObject.optString("browser_download_url", "").trim();
+                    if (str2.toLowerCase(Locale.US).endsWith(".apk") && AppSecurity.isTrustedReleaseDownload(trim5)) {
+                        j = optJSONObject.optLong("id", -1L);
+                        str = trim5;
+                        str3 = optJSONObject.optString("updated_at", "").trim();
+                        break;
+                    }
                 }
             }
         }
-        return new Release(tag, name, published, releaseUrl, apkUrl, apkName,
-                prerelease, assetId, assetUpdated);
+        str = "";
+        str2 = str;
+        str3 = str2;
+        return new Release(trim, trim2, trim3, trim4, str, str2, optBoolean, j, str3);
     }
 
     private static long resolveApkVersionCode(Context context, Release release) throws Exception {
-        if (context == null || release == null || release.apkUrl == null || release.apkUrl.trim().isEmpty()) return -1L;
-        SharedPreferences prefs = context.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
-        long cachedId = prefs.getLong(CACHE_ASSET_ID, -1L);
-        String cachedUpdated = prefs.getString(CACHE_ASSET_UPDATED, "");
-        long cachedCode = prefs.getLong(CACHE_VERSION_CODE, -1L);
-        boolean sameAsset = release.assetId > 0L && cachedId == release.assetId
-                && release.assetUpdatedAt.equals(cachedUpdated);
-        if (sameAsset && cachedCode > 0L) return cachedCode;
-
-        File apk = new File(context.getCacheDir(), "hcf-update-check-" + Math.max(0L, release.assetId) + ".apk");
+        if (context == null || release == null || release.apkUrl == null || release.apkUrl.trim().isEmpty()) {
+            return -1L;
+        }
+        SharedPreferences sharedPreferences = context.getSharedPreferences("hcf_app", 0);
+        long j = sharedPreferences.getLong(CACHE_ASSET_ID, -1L);
+        String string = sharedPreferences.getString(CACHE_ASSET_UPDATED, "");
+        long j2 = sharedPreferences.getLong(CACHE_VERSION_CODE, -1L);
+        if (release.assetId > 0 && j == release.assetId && release.assetUpdatedAt.equals(string) && j2 > 0) {
+            return j2;
+        }
+        File file = new File(context.getCacheDir(), "hcf-update-check-" + Math.max(0L, release.assetId) + ".apk");
         try {
-            downloadForInspection(release.apkUrl, apk);
-            PackageManager pm = context.getPackageManager();
-            PackageInfo info = pm.getPackageArchiveInfo(apk.getAbsolutePath(), 0);
-            if (info == null) throw new IllegalStateException("The published Beta APK could not be read by Android.");
-            if (!context.getPackageName().equals(info.packageName)) {
+            downloadForInspection(release.apkUrl, file);
+            PackageInfo packageArchiveInfo = context.getPackageManager().getPackageArchiveInfo(file.getAbsolutePath(), 0);
+            if (packageArchiveInfo == null) {
+                throw new IllegalStateException("The published Beta APK could not be read by Android.");
+            }
+            if (!context.getPackageName().equals(packageArchiveInfo.packageName)) {
                 throw new IllegalStateException("The published Beta APK uses the wrong Android package.");
             }
-            long code = Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
-            if (code <= 0L) throw new IllegalStateException("The published Beta APK has an invalid versionCode.");
-            prefs.edit()
-                    .putLong(CACHE_ASSET_ID, release.assetId)
-                    .putString(CACHE_ASSET_UPDATED, release.assetUpdatedAt)
-                    .putLong(CACHE_VERSION_CODE, code)
-                    .apply();
-            return code;
+            long longVersionCode = Build.VERSION.SDK_INT >= 28 ? packageArchiveInfo.getLongVersionCode() : packageArchiveInfo.versionCode;
+            if (longVersionCode <= 0) {
+                throw new IllegalStateException("The published Beta APK has an invalid versionCode.");
+            }
+            sharedPreferences.edit().putLong(CACHE_ASSET_ID, release.assetId).putString(CACHE_ASSET_UPDATED, release.assetUpdatedAt).putLong(CACHE_VERSION_CODE, longVersionCode).apply();
+            return longVersionCode;
         } finally {
-            try { if (apk.isFile()) apk.delete(); } catch (Throwable ignored) {}
+            try {
+                if (file.isFile()) {
+                    file.delete();
+                }
+            } catch (Throwable unused) {
+            }
         }
     }
 
-    private static void downloadForInspection(String urlString, File output) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(urlString).openConnection();
-        c.setRequestMethod("GET");
-        c.setConnectTimeout(12000);
-        c.setReadTimeout(20000);
-        c.setInstanceFollowRedirects(true);
-        c.setRequestProperty("Accept", "application/vnd.android.package-archive,application/octet-stream,*/*");
-        c.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER);
-        int code = c.getResponseCode();
-        if (code < 200 || code >= 300) {
-            c.disconnect();
-            throw new IllegalStateException("Beta APK metadata check failed (HTTP " + code + ").");
+    private static void downloadForInspection(String str, File file) throws Exception {
+        HttpURLConnection httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
+        httpURLConnection.setRequestMethod("GET");
+        httpURLConnection.setConnectTimeout(12000);
+        httpURLConnection.setReadTimeout(20000);
+        httpURLConnection.setInstanceFollowRedirects(true);
+        httpURLConnection.setRequestProperty("Accept", "application/vnd.android.package-archive,application/octet-stream,*/*");
+        httpURLConnection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0");
+        int responseCode = httpURLConnection.getResponseCode();
+        if (responseCode < 200 || responseCode >= 300) {
+            httpURLConnection.disconnect();
+            throw new IllegalStateException("Beta APK metadata check failed (HTTP " + responseCode + ").");
         }
-        long declared = c.getContentLengthLong();
-        if (declared > MAX_CHECK_APK_BYTES) {
-            c.disconnect();
+        if (httpURLConnection.getContentLengthLong() > MAX_CHECK_APK_BYTES) {
+            httpURLConnection.disconnect();
             throw new IllegalStateException("The published Beta APK is unexpectedly large.");
         }
-        InputStream in = c.getInputStream();
-        FileOutputStream out = new FileOutputStream(output, false);
-        byte[] buffer = new byte[32768];
-        long total = 0L;
-        try {
-            int n;
-            while ((n = in.read(buffer)) >= 0) {
-                if (n == 0) continue;
-                total += n;
-                if (total > MAX_CHECK_APK_BYTES) throw new IllegalStateException("The published Beta APK is unexpectedly large.");
-                out.write(buffer, 0, n);
+        InputStream inputStream = httpURLConnection.getInputStream();
+        FileOutputStream fileOutputStream = new FileOutputStream(file, false);
+        byte[] bArr = new byte[32768];
+        long j = 0;
+        while (true) {
+            try {
+                int read = inputStream.read(bArr);
+                if (read < 0) {
+                    fileOutputStream.flush();
+                    return;
+                } else if (read != 0) {
+                    j += read;
+                    if (j > MAX_CHECK_APK_BYTES) {
+                        throw new IllegalStateException("The published Beta APK is unexpectedly large.");
+                    }
+                    fileOutputStream.write(bArr, 0, read);
+                }
+            } finally {
+                try {
+                    fileOutputStream.close();
+                } catch (Throwable unused) {
+                }
+                try {
+                    inputStream.close();
+                } catch (Throwable unused2) {
+                }
+                httpURLConnection.disconnect();
             }
-            out.flush();
-        } finally {
-            try { out.close(); } catch (Throwable ignored) {}
-            try { in.close(); } catch (Throwable ignored) {}
-            c.disconnect();
         }
     }
 
-    private static String get(String urlString) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(urlString).openConnection();
-        c.setRequestMethod("GET");
-        c.setConnectTimeout(8000);
-        c.setReadTimeout(8000);
-        c.setInstanceFollowRedirects(true);
-        c.setRequestProperty("Accept", "application/vnd.github+json");
-        c.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
-        c.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER);
-        int code = c.getResponseCode();
-        InputStream in = code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream();
-        String body = read(in);
-        c.disconnect();
-        if (code < 200 || code >= 300) {
-            if (code == 404) throw new IllegalStateException("No release is published for this channel yet.");
-            throw new IllegalStateException("Update service check failed (HTTP " + code + ").");
+    private static String get(String str) throws Exception {
+        HttpURLConnection httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
+        httpURLConnection.setRequestMethod("GET");
+        httpURLConnection.setConnectTimeout(8000);
+        httpURLConnection.setReadTimeout(8000);
+        httpURLConnection.setInstanceFollowRedirects(true);
+        httpURLConnection.setRequestProperty("Accept", "application/vnd.github+json");
+        httpURLConnection.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
+        httpURLConnection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0");
+        int responseCode = httpURLConnection.getResponseCode();
+        String read = read((responseCode < 200 || responseCode >= 300) ? httpURLConnection.getErrorStream() : httpURLConnection.getInputStream());
+        httpURLConnection.disconnect();
+        if (responseCode >= 200 && responseCode < 300) {
+            return read;
         }
-        return body;
+        if (responseCode == 404) {
+            throw new IllegalStateException("No release is published for this channel yet.");
+        }
+        throw new IllegalStateException("Update service check failed (HTTP " + responseCode + ").");
     }
 
-    private static String read(InputStream in) throws Exception {
-        if (in == null) return "";
-        BufferedReader r = new BufferedReader(new InputStreamReader(in, "UTF-8"));
-        StringBuilder b = new StringBuilder();
-        String line;
-        while ((line = r.readLine()) != null) b.append(line).append('\n');
-        r.close();
-        return b.toString();
+    private static String read(InputStream inputStream) throws Exception {
+        if (inputStream == null) {
+            return "";
+        }
+        BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
+        StringBuilder sb = new StringBuilder();
+        while (true) {
+            String readLine = bufferedReader.readLine();
+            if (readLine == null) {
+                bufferedReader.close();
+                return sb.toString();
+            }
+            sb.append(readLine);
+            sb.append('\n');
+        }
     }
 
-    static int compareVersions(String left, String right) {
-        SemVer a = SemVer.parse(left);
-        SemVer b = SemVer.parse(right);
-        return a.compareTo(b);
+    static int compareVersions(String str, String str2) {
+        return SemVer.parse(str).compareTo(SemVer.parse(str2));
     }
 
     private static final class SemVer implements Comparable<SemVer> {
@@ -282,73 +362,111 @@ final class UpdateChecker {
         final int patch;
         final String[] pre;
 
-        SemVer(int major, int minor, int patch, String[] pre) {
-            this.major = major;
-            this.minor = minor;
-            this.patch = patch;
-            this.pre = pre;
+        SemVer(int i, int i2, int i3, String[] strArr) {
+            this.major = i;
+            this.minor = i2;
+            this.patch = i3;
+            this.pre = strArr;
         }
 
-        static SemVer parse(String raw) {
-            String v = raw == null ? "" : raw.trim();
-            if (v.startsWith("v") || v.startsWith("V")) v = v.substring(1);
-            v = v.replace("/dev", "-dev.0");
-            int plus = v.indexOf('+');
-            if (plus >= 0) v = v.substring(0, plus);
-            String core = v;
-            String preText = "";
-            int dash = v.indexOf('-');
-            if (dash >= 0) {
-                core = v.substring(0, dash);
-                preText = v.substring(dash + 1);
+        static SemVer parse(String str) {
+            String str2 = "";
+            String trim = str == null ? "" : str.trim();
+            if (trim.startsWith("v") || trim.startsWith("V")) {
+                trim = trim.substring(1);
             }
-            String[] nums = core.split("\\.");
-            int major = numberAt(nums, 0);
-            int minor = numberAt(nums, 1);
-            int patch = numberAt(nums, 2);
-            String[] pre = preText.trim().isEmpty() ? new String[0] : preText.split("\\.");
-            return new SemVer(major, minor, patch, pre);
+            String replace = trim.replace("/dev", "-dev.0");
+            int indexOf = replace.indexOf(43);
+            if (indexOf >= 0) {
+                replace = replace.substring(0, indexOf);
+            }
+            int indexOf2 = replace.indexOf(45);
+            if (indexOf2 >= 0) {
+                String substring = replace.substring(0, indexOf2);
+                str2 = replace.substring(indexOf2 + 1);
+                replace = substring;
+            }
+            String[] split = replace.split("\\.");
+            return new SemVer(numberAt(split, 0), numberAt(split, 1), numberAt(split, 2), str2.trim().isEmpty() ? new String[0] : str2.split("\\."));
         }
 
-        private static int numberAt(String[] nums, int index) {
-            if (nums == null || index >= nums.length) return 0;
-            try { return Integer.parseInt(nums[index].replaceAll("[^0-9]", "")); }
-            catch (Throwable ignored) { return 0; }
-        }
-
-        @Override
-        public int compareTo(SemVer other) {
-            if (major != other.major) return major < other.major ? -1 : 1;
-            if (minor != other.minor) return minor < other.minor ? -1 : 1;
-            if (patch != other.patch) return patch < other.patch ? -1 : 1;
-            if (pre.length == 0 && other.pre.length == 0) return 0;
-            if (pre.length == 0) return 1;
-            if (other.pre.length == 0) return -1;
-            int len = Math.max(pre.length, other.pre.length);
-            for (int i = 0; i < len; i++) {
-                if (i >= pre.length) return -1;
-                if (i >= other.pre.length) return 1;
-                String a = pre[i];
-                String b = other.pre[i];
-                boolean an = a.matches("\\d+");
-                boolean bn = b.matches("\\d+");
-                if (an && bn) {
-                    long av = safeLong(a);
-                    long bv = safeLong(b);
-                    if (av != bv) return av < bv ? -1 : 1;
-                } else if (an != bn) {
-                    return an ? -1 : 1;
-                } else {
-                    int c = a.compareToIgnoreCase(b);
-                    if (c != 0) return c < 0 ? -1 : 1;
+        private static int numberAt(String[] strArr, int i) {
+            if (strArr != null && i < strArr.length) {
+                try {
+                    return Integer.parseInt(strArr[i].replaceAll("[^0-9]", ""));
+                } catch (Throwable unused) {
                 }
             }
             return 0;
         }
 
-        private static long safeLong(String value) {
-            try { return Long.parseLong(value); }
-            catch (Throwable ignored) { return 0L; }
+        @Override // java.lang.Comparable
+        public int compareTo(SemVer semVer) {
+            int i = this.major;
+            int i2 = semVer.major;
+            if (i != i2) {
+                return i < i2 ? -1 : 1;
+            }
+            int i3 = this.minor;
+            int i4 = semVer.minor;
+            if (i3 != i4) {
+                return i3 < i4 ? -1 : 1;
+            }
+            int i5 = this.patch;
+            int i6 = semVer.patch;
+            if (i5 != i6) {
+                return i5 < i6 ? -1 : 1;
+            }
+            String[] strArr = this.pre;
+            if (strArr.length == 0 && semVer.pre.length == 0) {
+                return 0;
+            }
+            if (strArr.length == 0) {
+                return 1;
+            }
+            String[] strArr2 = semVer.pre;
+            if (strArr2.length == 0) {
+                return -1;
+            }
+            int max = Math.max(strArr.length, strArr2.length);
+            for (int i7 = 0; i7 < max; i7++) {
+                String[] strArr3 = this.pre;
+                if (i7 >= strArr3.length) {
+                    return -1;
+                }
+                String[] strArr4 = semVer.pre;
+                if (i7 >= strArr4.length) {
+                    return 1;
+                }
+                String str = strArr3[i7];
+                String str2 = strArr4[i7];
+                boolean matches = str.matches("\\d+");
+                boolean matches2 = str2.matches("\\d+");
+                if (matches && matches2) {
+                    long safeLong = safeLong(str);
+                    long safeLong2 = safeLong(str2);
+                    if (safeLong != safeLong2) {
+                        return safeLong < safeLong2 ? -1 : 1;
+                    }
+                } else {
+                    if (matches != matches2) {
+                        return matches ? -1 : 1;
+                    }
+                    int compareToIgnoreCase = str.compareToIgnoreCase(str2);
+                    if (compareToIgnoreCase != 0) {
+                        return compareToIgnoreCase < 0 ? -1 : 1;
+                    }
+                }
+            }
+            return 0;
+        }
+
+        private static long safeLong(String str) {
+            try {
+                return Long.parseLong(str);
+            } catch (Throwable unused) {
+                return 0L;
+            }
         }
     }
 
@@ -356,5 +474,6 @@ final class UpdateChecker {
         new Handler(Looper.getMainLooper()).post(runnable);
     }
 
-    private UpdateChecker() {}
+    private UpdateChecker() {
+    }
 }

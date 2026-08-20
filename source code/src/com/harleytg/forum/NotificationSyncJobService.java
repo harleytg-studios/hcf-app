@@ -4,41 +4,45 @@ import android.app.job.JobParameters;
 import android.app.job.JobService;
 import android.content.SharedPreferences;
 
-/** Conservative periodic fallback if an OEM stops the low-latency service. */
+/* loaded from: classes.dex */
 public final class NotificationSyncJobService extends JobService {
-    @Override
-    public boolean onStartJob(JobParameters params) {
-        AppExecutors.network().execute(() -> {
-            try {
-                syncNow();
-            } catch (Throwable t) {
-                AppLogger.error(this, "background_notification_sync",
-                        t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));
-            } finally {
-                jobFinished(params, false);
+    @Override // android.app.job.JobService
+    public boolean onStopJob(JobParameters jobParameters) {
+        return true;
+    }
+
+    @Override // android.app.job.JobService
+    public boolean onStartJob(final JobParameters jobParameters) {
+        AppExecutors.network().execute(new Runnable() { // from class: com.harleytg.forum.dev.NotificationSyncJobService$$ExternalSyntheticLambda0
+            @Override // java.lang.Runnable
+            public final void run() {
+                NotificationSyncJobService.this.m128x38509368(jobParameters);
             }
         });
         return true;
     }
 
-    @Override
-    public boolean onStopJob(JobParameters params) {
-        return true;
+    /* renamed from: lambda$onStartJob$0$com-harleytg-forum-dev-NotificationSyncJobService, reason: not valid java name */
+    /* synthetic */ void m128x38509368(JobParameters jobParameters) {
+        try {
+            syncNow();
+        } finally {
+            try {
+            } finally {
+            }
+        }
     }
 
     private void syncNow() throws Exception {
-        SharedPreferences prefs = getSharedPreferences(AppPrefs.FILE, MODE_PRIVATE);
-        if (!prefs.getBoolean(AppPrefs.NOTIFICATIONS_ENABLED, true)
-                || !prefs.getBoolean(AppPrefs.BACKGROUND_NOTIFICATION_SYNC, true)) return;
-
-        String userId = prefs.getString(AppPrefs.SESSION_USER_ID, "");
-        if (userId == null || userId.trim().isEmpty()) {
-            AppLogger.info(this, "background_notification_sync", "no-session");
-            return;
+        SharedPreferences sharedPreferences = getSharedPreferences("hcf_app", 0);
+        if (sharedPreferences.getBoolean("background_notification_sync", true)) {
+            String string = sharedPreferences.getString("session_user_id", "");
+            if (string == null || string.trim().isEmpty()) {
+                AppLogger.info(this, "background_notification_sync", "no-session");
+            } else {
+                String string2 = sharedPreferences.getString("active_host", "forum.harleytg.com");
+                ForumNotificationSync.perform(this, ForumUrlRouter.isForumHost(string2) ? string2 : "forum.harleytg.com", string.trim(), "fallback-job");
+            }
         }
-
-        String host = prefs.getString(AppPrefs.ACTIVE_HOST, ForumConfig.PRIMARY_HOST);
-        if (!ForumUrlRouter.isForumHost(host)) host = ForumConfig.PRIMARY_HOST;
-        ForumNotificationSync.perform(this, host, userId.trim(), "fallback-job");
     }
 }

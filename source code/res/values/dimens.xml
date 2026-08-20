@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <dimen name="app_header_height">56dp</dimen>
     <dimen name="app_header_button">44dp</dimen>

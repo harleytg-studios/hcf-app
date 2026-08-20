@@ -1,54 +1,60 @@
 package com.harleytg.forum.dev;
 
-import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import com.harleytg.forum.dev.AppSecurity;
 
+/* loaded from: classes.dex */
 public final class UpdateDownloadReceiver extends BroadcastReceiver {
-    @Override
+    @Override // android.content.BroadcastReceiver
     public void onReceive(Context context, Intent intent) {
-        if (context == null || intent == null || !DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction())) return;
-        long completed = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L);
-        SharedPreferences prefs = context.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
-        long expected = prefs.getLong(AppPrefs.UPDATE_DOWNLOAD_ID, -1L);
-        if (completed <= 0L || completed != expected) return;
-        int status = AppUpdateDownloader.status(context, completed);
-        String tag = prefs.getString(AppPrefs.UPDATE_DOWNLOAD_TAG, "update");
-        if (status == DownloadManager.STATUS_SUCCESSFUL) {
-            AppSecurity.ApkVerification verification = AppSecurity.verifyDownloadedUpdate(context, completed);
-            if (verification.ok) {
-                boolean autoInstall = prefs.getBoolean(AppPrefs.UPDATE_AUTO_INSTALL, true);
-                boolean installerOpened = false;
-                if (autoInstall) {
+        if (context == null || intent == null || !"android.intent.action.DOWNLOAD_COMPLETE".equals(intent.getAction())) {
+            return;
+        }
+        long longExtra = intent.getLongExtra("extra_download_id", -1L);
+        boolean z = false;
+        SharedPreferences sharedPreferences = context.getSharedPreferences("hcf_app", 0);
+        long j = sharedPreferences.getLong("update_download_id", -1L);
+        if (longExtra <= 0 || longExtra != j) {
+            return;
+        }
+        int status = AppUpdateDownloader.status(context, longExtra);
+        String string = sharedPreferences.getString("update_download_tag", "update");
+        if (status == 8) {
+            AppSecurity.ApkVerification verifyDownloadedUpdate = AppSecurity.verifyDownloadedUpdate(context, longExtra);
+            if (verifyDownloadedUpdate.ok) {
+                if (sharedPreferences.getBoolean("update_auto_install", true)) {
                     try {
-                        if (android.os.Build.VERSION.SDK_INT < 26 || AppSecurity.canInstallUpdates(context)) {
-                            installerOpened = AppUpdateDownloader.openInstaller(context, completed);
+                        if (AppSecurity.canInstallUpdates(context)) {
+                            z = AppUpdateDownloader.openInstaller(context, longExtra);
                         } else {
-                            Intent installFlow = new Intent(context, SettingsActivity.class);
-                            installFlow.setAction("com.harleytg.forum.dev.INSTALL_UPDATE");
-                            installFlow.putExtra("download_id", completed);
-                            installFlow.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                            context.startActivity(installFlow);
-                            installerOpened = true;
+                            Intent intent2 = new Intent(context, (Class<?>) SettingsActivity.class);
+                            intent2.setAction("com.harleytg.forum.dev.INSTALL_UPDATE");
+                            intent2.putExtra("download_id", longExtra);
+                            intent2.addFlags(335544320);
+                            context.startActivity(intent2);
+                            z = true;
                         }
-                    } catch (Throwable t) {
-                        AppLogger.warn(context, "update_auto_install", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));
+                    } catch (Throwable th) {
+                        AppLogger.warn(context, "update_auto_install", th.getClass().getSimpleName() + ": " + String.valueOf(th.getMessage()));
                     }
                 }
-                if (!installerOpened) {
-                    NotificationHelper.postUpdateReady(context, tag, completed);
+                if (!z) {
+                    NotificationHelper.postUpdateReady(context, string, longExtra);
                 }
-                AppLogger.info(context, "update_download_complete", tag + " | verified | id=" + completed + " | autoInstaller=" + installerOpened);
-            } else {
-                AppLogger.warn(context, "update_download_blocked", tag + " | " + verification.message);
-                TelemetryService.sendDiagnosticEvent(context, "update_verification_blocked", verification.message);
-                AppUpdateDownloader.cleanupAfterSuccessfulUpdate(context);
+                AppLogger.info(context, "update_download_complete", string + " | verified | id=" + longExtra + " | autoInstaller=" + z);
+                return;
             }
-        } else {
-            AppLogger.warn(context, "update_download_complete", tag + " | status=" + status);
-            TelemetryService.sendDiagnosticEvent(context, "update_download_failed", "DownloadManager status " + status);
+            AppLogger.warn(context, "update_download_blocked", string + " | " + verifyDownloadedUpdate.message);
+            TelemetryService.sendDiagnosticEvent(context, "update_verification_blocked", verifyDownloadedUpdate.message);
+            AppUpdateDownloader.cleanupAfterSuccessfulUpdate(context);
+            return;
         }
+        AppLogger.warn(context, "update_download_complete", string + " | status=" + status);
+        StringBuilder sb = new StringBuilder("DownloadManager status ");
+        sb.append(status);
+        TelemetryService.sendDiagnosticEvent(context, "update_download_failed", sb.toString());
     }
 }
