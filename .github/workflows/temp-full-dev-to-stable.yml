@@ -63,7 +63,6 @@ jobs:
           rm -rf "$RUNNER_TEMP/promoted"
           cp -a 'stable-repo/source code' "$RUNNER_TEMP/stable-source-backup"
 
-          # Make the old promotion helper compatible with the current Stable source layout.
           python3 - <<'PY'
           from pathlib import Path
           p=Path('control/.github/scripts/temp-promote-full-dev-to-stable.py')
@@ -148,6 +147,9 @@ jobs:
           grep -q 'ENABLE_DEV_TEST_MENU = false' "$RUNNER_TEMP/promoted/src/com/harleytg/forum/BuildInfo.java"
           ! grep -RInE 'Harley.s Clan Forum \[Beta\]|Development Build / Beta|Beta test alerts|Preview Releases|development build is ready' \
             "$RUNNER_TEMP/promoted/res" "$RUNNER_TEMP/promoted/src" || exit 31
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Install Android SDK build tools
         shell: bash
