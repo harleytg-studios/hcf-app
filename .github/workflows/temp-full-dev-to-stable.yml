@@ -13,6 +13,24 @@ jobs:
   build-parity-test:
     runs-on: ubuntu-latest
     steps:
+      - name: Record parity build run ID
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const path = 'build-output/TEMP-UI-PARITY-RUN.txt';
+            let sha;
+            try {
+              const existing = await github.rest.repos.getContent({owner, repo, path, ref: 'main'});
+              if (!Array.isArray(existing.data)) sha = existing.data.sha;
+            } catch (e) { if (e.status !== 404) throw e; }
+            await github.rest.repos.createOrUpdateFileContents({
+              owner, repo, path, branch: 'main', sha,
+              message: '[skip ci] Record Stable UI parity build run',
+              content: Buffer.from(String(context.runId) + '\n').toString('base64')
+            });
+
       - name: Checkout controls
         uses: actions/checkout@v4
         with:
@@ -55,16 +73,12 @@ jobs:
           from pathlib import Path
           import re, os
           root = Path(os.environ['RUNNER_TEMP'])/'promoted'
-
-          # Next installable Stable test version; current device test is v10000075.
           for p in root.rglob('*'):
               if not p.is_file() or p.suffix.lower() not in {'.java','.xml','.txt','.md','.json','.sh'}:
                   continue
               try: s=p.read_text(encoding='utf-8')
               except Exception: continue
               s=s.replace('10000072','10000076')
-              # Remove remaining Beta/preview wording from public Stable UI while
-              # preserving the exact Beta UI structure and feature surface.
               s=s.replace('Required alerts, silent background alerts and Beta test alerts',
                           'Required alerts, silent background alerts and notification tools')
               s=s.replace('Beta test alerts','notification tools')
@@ -75,9 +89,10 @@ jobs:
               s=s.replace('Preview release','Stable release')
               s=s.replace('development build is ready','Stable build is ready')
               s=s.replace('Development build is ready','Stable build is ready')
+              s=s.replace("Harley's Clan Forum v1.0 [Stable]", "Harley's Clan Forum v1.0")
+              s=s.replace('Harley&apos;s Clan Forum v1.0 [Stable]', 'Harley&apos;s Clan Forum v1.0')
               p.write_text(s,encoding='utf-8')
 
-          # Runtime channel must be Stable everywhere.
           for name in ['UpdateAutomation.java','MainActivity.java','SettingsActivity.java','HcfApplication.java','BootReceiver.java','UpdateDownloadReceiver.java','TelemetryService.java']:
               p=root/'src/com/harleytg/forum'/name
               if not p.exists(): continue
@@ -91,11 +106,10 @@ jobs:
               s=s.replace('optString("channel", "Dev")','optString("channel", "Stable")')
               p.write_text(s,encoding='utf-8')
 
-          # BuildInfo is the canonical Stable identity.
           p=root/'src/com/harleytg/forum/BuildInfo.java'
           s=p.read_text(encoding='utf-8')
           s=re.sub(r'static final String APK_FILE_NAME = ".*?";', 'static final String APK_FILE_NAME = "HCF-Stable-v10000076.apk";', s)
-          s=re.sub(r'static final String DEVELOPMENT_BUILD_LABEL = ".*?";', 'static final String DEVELOPMENT_BUILD_LABEL = "Harley\'s Clan Forum v1.0 [Stable]";', s)
+          s=re.sub(r'static final String DEVELOPMENT_BUILD_LABEL = ".*?";', 'static final String DEVELOPMENT_BUILD_LABEL = "Harley\'s Clan Forum v1.0";', s)
           s=re.sub(r'static final String VERSION_BUILD_LINE = ".*?";', 'static final String VERSION_BUILD_LINE = "1.0 • Stable • Build 10000076";', s)
           s=re.sub(r'static final int VERSION_CODE = [0-9]+;', 'static final int VERSION_CODE = 10000076;', s)
           s=s.replace('static final String CHANNEL = "Dev";', 'static final String CHANNEL = "Stable";')
@@ -103,7 +117,6 @@ jobs:
           s=s.replace('static final boolean ENABLE_DEV_TEST_MENU = true;', 'static final boolean ENABLE_DEV_TEST_MENU = false;')
           p.write_text(s,encoding='utf-8')
 
-          # Manifest Stable identity/version.
           p=root/'AndroidManifest.xml'; s=p.read_text(encoding='utf-8')
           s=re.sub(r'android:versionCode="[0-9]+"','android:versionCode="10000076"',s,count=1)
           s=re.sub(r'android:versionName="[^"]+"','android:versionName="1.0 (10000076)"',s,count=1)
@@ -111,7 +124,6 @@ jobs:
           p.write_text(s,encoding='utf-8')
           PY
 
-          # Guards for what the user should see in Stable.
           grep -q 'package="com.harleytg.forum"' "$RUNNER_TEMP/promoted/AndroidManifest.xml"
           grep -q 'android:versionCode="10000076"' "$RUNNER_TEMP/promoted/AndroidManifest.xml"
           grep -q 'DEFAULT_UPDATE_CHANNEL = "stable"' "$RUNNER_TEMP/promoted/src/com/harleytg/forum/BuildInfo.java"
