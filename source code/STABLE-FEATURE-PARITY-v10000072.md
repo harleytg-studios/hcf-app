@@ -14,20 +14,23 @@ This record defines the Stable promotion boundary for Harley's Clan Forum `1.0 (
 
 ## Promoted to Stable
 
-The following are normal user-facing features/fixes and are part of the Stable promotion set:
+Normal user-facing features/fixes in the Stable promotion set include:
 
-- Contact Support v2 presentation and latest default-collapsed section state.
+- Contact Support v2 presentation with all four sections collapsed on every new opening.
 - Account and Forum Identity presentation/fit fixes.
-- Settings UI improvements that are not marked Dev-only.
+- Settings UI improvements not marked Dev-only.
 - Follow-phone/Day/Night theme refinements and light/dark readability work.
 - Notification history and normal notification controls.
-- Notification routing and lower-latency/adaptive polling behavior intended for production use.
+- Foreground notification bridge cooldown removed in the shipped v10000072 Stable APK.
+- Live notification fallback interval fixed at 1000 ms.
+- Failure retry effective cap fixed at 1000 ms.
+- Network reconnect keeps immediate sync scheduling.
+- Silencing HCF Silent Alerts does not stop the live notification service.
 - Background/screen-off/Battery Saver/constrained-device polling backoff.
 - Registered HCF domain routing and safe-link handling.
 - Primary domain `forum.harleytg.com` and backup `harleysclan.freeflarum.com`.
-- Removal of the retired `.online` forum domain from the Stable routing policy.
+- Retired `.online` forum domain excluded from Stable routing.
 - Logs/diagnostics/error UI cleanup and reliability improvements.
-- Performance improvements and reduced unnecessary network/change-detection work.
 - Existing Stable update checking/channel isolation fixes.
 
 ## Explicitly not promoted from Beta/Dev
@@ -39,12 +42,10 @@ These experimental update/install behaviors remain Beta/Dev-only unless separate
 - experimental downloaded-APK verification flow
 - experimental install-ready fallback flow
 
-The Stable branch should not advertise those items as Stable features.
+## Stable V2 signing line
 
-## Signing line
+v10000072 uses the established Stable V2 signer:
 
-v10000072 uses the local Stable signer:
-
-`9D:46:75:EC:2A:CB:83:22:AB:14:FD:97:0D:A5:B0:61:F5:9E:42:FA:5E:8E:45:3B:67:15:57:B2:13:13:78:05`
+`77:E0:E9:6C:11:77:84:2A:AA:31:1A:8F:C0:EB:EA:29:B9:2D:3C:D2:90:BB:81:5B:DB:86:AD:0E:0A:85:84:4F`
 
 The corresponding private key remains outside GitHub.
