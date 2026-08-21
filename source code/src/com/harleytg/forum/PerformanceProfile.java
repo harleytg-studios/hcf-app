@@ -123,7 +123,48 @@ final class PerformanceProfile {
     }
 
     static long notificationPollInterval(Context context, SharedPreferences sharedPreferences) {
-        return 1000L;
+        if (context == null || !RuntimeState.networkAvailable(context)) {
+            return 15000L;
+        }
+        String saved = saved(sharedPreferences);
+        long interval;
+        if (!AUTO.equals(saved)) {
+            interval = QUALITY.equals(saved) ? 700L : BALANCED.equals(saved) ? 1800L : 5000L;
+        } else {
+            String runtime = autoRuntime(context, sharedPreferences);
+            interval = AUTO_REALTIME.equals(runtime) ? 700L : AUTO_BALANCED.equals(runtime) ? 1800L : AUTO_EXTREME.equals(runtime) ? 10000L : 5000L;
+        }
+        int thermalStatus = thermalStatus(context);
+        if (thermalStatus >= severeThermalStatus() || isBatterySaver(context)) {
+            interval = Math.max(interval, 10000L);
+        } else if (thermalStatus >= moderateThermalStatus()) {
+            interval = Math.max(interval, 5000L);
+        }
+        if (RuntimeState.networkMetered(context)) {
+            interval = Math.max(interval, 3000L);
+        }
+        int batteryPercent = batteryPercent(context);
+        if (!isCharging(context) && batteryPercent >= 0) {
+            if (batteryPercent <= 10) {
+                interval = Math.max(interval, 10000L);
+            } else if (batteryPercent <= 20) {
+                interval = Math.max(interval, 5000L);
+            }
+        }
+        if (!RuntimeState.isForeground()) {
+            long backgroundDurationMs = RuntimeState.backgroundDurationMs();
+            interval = Math.max(interval, backgroundDurationMs >= 60000L ? 15000L : 5000L);
+        }
+        if (!RuntimeState.isInteractive(context)) {
+            interval = Math.max(interval, 10000L);
+        }
+        long sinceLastInteractionMs = RuntimeState.sinceLastInteractionMs();
+        if (sinceLastInteractionMs >= 60000L) {
+            interval = Math.max(interval, 10000L);
+        } else if (sinceLastInteractionMs >= 12000L) {
+            interval = Math.max(interval, 5000L);
+        }
+        return interval;
     }
 
     static long livePollInterval(Context context, SharedPreferences sharedPreferences) {
