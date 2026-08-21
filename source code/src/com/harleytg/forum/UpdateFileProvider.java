@@ -86,7 +86,13 @@ public final class UpdateFileProvider extends ContentProvider {
         if (context == null) {
             throw new FileNotFoundException("Context unavailable");
         }
-        return ParcelFileDescriptor.open(fileForUri(context, uri), 268435456);
+        try {
+            return ParcelFileDescriptor.open(fileForUri(context, uri), 268435456);
+        } catch (IOException e) {
+            FileNotFoundException fnf = new FileNotFoundException(e.getMessage());
+            fnf.initCause(e);
+            throw fnf;
+        }
     }
 
     private static File fileForUri(Context context, Uri uri) throws IOException {
