@@ -1,0 +1,112 @@
+name: Final HCF Beta v10000080 APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-beta-v10000080-final.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record run ID
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const path = 'build-output/V10000080-BETA-RUN.txt';
+            let sha;
+            try {
+              const existing = await github.rest.repos.getContent({owner, repo, path, ref: 'main'});
+              if (!Array.isArray(existing.data)) sha = existing.data.sha;
+            } catch (e) { if (e.status !== 404) throw e; }
+            await github.rest.repos.createOrUpdateFileContents({
+              owner, repo, path, branch: 'main', sha,
+              message: '[skip ci] Record final Beta v10000080 build run',
+              content: Buffer.from(String(context.runId) + '\n').toString('base64')
+            });
+
+  build:
+    needs: record
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Beta source
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: app-repo
+
+      - name: Checkout build repair script
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: build-repo
+          sparse-checkout: |
+            .github/scripts/build-beta-v10000080-repair.py
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Repair reconstructed Beta source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$GITHUB_WORKSPACE/build-repo/.github/scripts/build-beta-v10000080-repair.py" "$GITHUB_WORKSPACE/app-repo/source code"
+
+      - name: Compile, dex, align, and validate Beta
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/app-repo/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-beta-final"
+          OUT="$GITHUB_WORKSPACE/out"
+          rm -rf "$WORK" "$OUT"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
+
+          "$BT/aapt" package -f -m -J "$WORK/gen" \
+            -M "$ROOT/AndroidManifest.xml" \
+            -S "$ROOT/res" \
+            -A "$ROOT/assets" \
+            -I "$ANDROID_JAR" \
+            -F "$WORK/resources.apk"
+
+          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
+
+          mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
+
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Beta-v10000080-aligned-unsigned.apk"
+          "$BT/zipalign" -c -p 4 "$OUT/HCF-Beta-v10000080-aligned-unsigned.apk"
+
+          "$BT/aapt" dump badging "$OUT/HCF-Beta-v10000080-aligned-unsigned.apk" | head -1 | tee "$OUT/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
+          grep -q "versionCode='10000080'" "$OUT/APK-BADGING.txt"
+          grep -q "versionName='1.0 (10000080)'" "$OUT/APK-BADGING.txt"
+          cp "$BT/lib/apksigner.jar" "$OUT/apksigner.jar"
+
+      - name: Upload unsigned Beta artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hcf-beta-v10000080-final-unsigned
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
