@@ -14,45 +14,56 @@ public final class UpdateDownloadReceiver extends BroadcastReceiver {
             return;
         }
         long longExtra = intent.getLongExtra("extra_download_id", -1L);
-        boolean z = false;
+        boolean installerOpened = false;
         SharedPreferences sharedPreferences = context.getSharedPreferences("hcf_app", 0);
-        long j = sharedPreferences.getLong("update_download_id", -1L);
-        if (longExtra <= 0 || longExtra != j) {
+        long expectedId = sharedPreferences.getLong("update_download_id", -1L);
+        if (longExtra <= 0 || longExtra != expectedId) {
             return;
         }
         int status = AppUpdateDownloader.status(context, longExtra);
-        String string = sharedPreferences.getString("update_download_tag", "update");
+        String tag = sharedPreferences.getString("update_download_tag", "update");
         if (status == 8) {
-            AppSecurity.ApkVerification verifyDownloadedUpdate = AppSecurity.verifyDownloadedUpdate(context, longExtra);
-            if (verifyDownloadedUpdate.ok) {
-                if (sharedPreferences.getBoolean("update_auto_install", true)) {
+            AppSecurity.ApkVerification verification = AppSecurity.verifyDownloadedUpdate(context, longExtra);
+            if (verification.ok) {
+                boolean autoInstall = sharedPreferences.getBoolean("update_auto_install", true);
+                boolean foreground = RuntimeState.isForeground();
+
+                // Always remember that a verified APK is waiting. This survives Android
+                // blocking a background activity launch and lets Settings expose Install.
+                sharedPreferences.edit().putBoolean("update_install_pending", true).apply();
+
+                // Android 10+ may block activities launched directly from a background
+                // DOWNLOAD_COMPLETE receiver. Only hand off immediately while HCF is
+                // visibly foregrounded; otherwise post a user-initiated install action.
+                if (autoInstall && foreground) {
                     try {
                         if (AppSecurity.canInstallUpdates(context)) {
-                            z = AppUpdateDownloader.openInstaller(context, longExtra);
+                            installerOpened = AppUpdateDownloader.openInstaller(context, longExtra);
                         } else {
-                            Intent intent2 = new Intent(context, (Class<?>) SettingsActivity.class);
-                            intent2.setAction("com.harleytg.forum.dev.INSTALL_UPDATE");
-                            intent2.putExtra("download_id", longExtra);
-                            intent2.addFlags(335544320);
-                            context.startActivity(intent2);
-                            z = true;
+                            Intent permissionFlow = new Intent(context, (Class<?>) SettingsActivity.class);
+                            permissionFlow.setAction(context.getPackageName() + ".INSTALL_UPDATE");
+                            permissionFlow.putExtra("download_id", longExtra);
+                            permissionFlow.addFlags(335544320);
+                            context.startActivity(permissionFlow);
+                            installerOpened = true;
                         }
                     } catch (Throwable th) {
                         AppLogger.warn(context, "update_auto_install", th.getClass().getSimpleName() + ": " + String.valueOf(th.getMessage()));
                     }
                 }
-                if (!z) {
-                    NotificationHelper.postUpdateReady(context, string, longExtra);
+
+                if (!installerOpened) {
+                    NotificationHelper.postUpdateReady(context, tag, longExtra);
                 }
-                AppLogger.info(context, "update_download_complete", string + " | verified | id=" + longExtra + " | autoInstaller=" + z);
+                AppLogger.info(context, "update_download_complete", tag + " | verified | id=" + longExtra + " | foreground=" + foreground + " | autoInstaller=" + installerOpened);
                 return;
             }
-            AppLogger.warn(context, "update_download_blocked", string + " | " + verifyDownloadedUpdate.message);
-            TelemetryService.sendDiagnosticEvent(context, "update_verification_blocked", verifyDownloadedUpdate.message);
+            AppLogger.warn(context, "update_download_blocked", tag + " | " + verification.message);
+            TelemetryService.sendDiagnosticEvent(context, "update_verification_blocked", verification.message);
             AppUpdateDownloader.cleanupAfterSuccessfulUpdate(context);
             return;
         }
-        AppLogger.warn(context, "update_download_complete", string + " | status=" + status);
+        AppLogger.warn(context, "update_download_complete", tag + " | status=" + status);
         StringBuilder sb = new StringBuilder("DownloadManager status ");
         sb.append(status);
         TelemetryService.sendDiagnosticEvent(context, "update_download_failed", sb.toString());
