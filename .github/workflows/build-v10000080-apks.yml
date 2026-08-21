@@ -65,7 +65,7 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
 
-      - name: Normalize v10000080 visible release identity
+      - name: Normalize v10000080 source for compilation
         shell: bash
         run: |
           set -euo pipefail
@@ -79,6 +79,29 @@ jobs:
               for old in ('10000072','10000077','10000078','10000079'):
                   s = s.replace(old, '10000080')
               release.write_text(s, encoding='utf-8')
+
+          # Dev was reconstructed from an APK and retained a few malformed
+          # decompiler fragments. Apply the already-correct Stable equivalents
+          # in the ephemeral checkout so the Dev source can compile normally.
+          if '${{ matrix.ref }}' == 'dev':
+              logs = root / 'src/com/harleytg/forum/LogsActivity.java'
+              s = logs.read_text(encoding='utf-8')
+              start = s.index('    @Override // android.app.Activity\n    protected void onActivityResult')
+              end = s.index('    private View buildRecoveryView', start)
+              fixed = '''    @Override\n    protected void onActivityResult(int requestCode, int resultCode, Intent data) {\n        super.onActivityResult(requestCode, resultCode, data);\n        if (requestCode != EXPORT_TEXT || resultCode != RESULT_OK || data == null || data.getData() == null) return;\n        pendingExportUri = data.getData();\n        String text = visiblePlainText == null ? "" : visiblePlainText;\n        try (OutputStream out = getContentResolver().openOutputStream(pendingExportUri, "w")) {\n            if (out == null) throw new IllegalStateException("No output stream");\n            out.write(text.getBytes(StandardCharsets.UTF_8));\n            out.flush();\n            AppLogger.info(this, MODE_DIAGNOSTICS.equals(currentMode) ? "diagnostics_exported" : "logs_exported", "document-provider");\n            Toast.makeText(this, "Export complete.", Toast.LENGTH_SHORT).show();\n        } catch (Throwable t) {\n            AppLogger.error(this, "logs_export_failed", t.getClass().getSimpleName());\n            Toast.makeText(this, "Could not export this content.", Toast.LENGTH_LONG).show();\n        } finally {\n            pendingExportUri = null;\n        }\n    }\n\n'''
+              logs.write_text(s[:start] + fixed + s[end:], encoding='utf-8')
+
+              firebase = root / 'src/com/harleytg/forum/FirebaseConfigLoader.java'
+              s = firebase.read_text(encoding='utf-8')
+              start = s.index('    static /* synthetic */ void lambda$refresh$1')
+              end = s.index('    static void clearRemoteCache', start)
+              fixed = '''    static /* synthetic */ void lambda$refresh$1(String urlText, SharedPreferences sharedPreferences, Context context, final Callback callback) {\n        Config result;\n        String message;\n        HttpURLConnection connection = null;\n        try {\n            connection = (HttpURLConnection) new URL(urlText).openConnection();\n            connection.setConnectTimeout(8000);\n            connection.setReadTimeout(8000);\n            connection.setInstanceFollowRedirects(true);\n            connection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 FirebaseConfig");\n            int code = connection.getResponseCode();\n            if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);\n            String raw = readAll(connection.getInputStream());\n            Config parsed = parse(raw, "HTTPS config");\n            if (parsed == null || !parsed.isValid()) throw new IllegalStateException("Invalid Firebase config");\n            sharedPreferences.edit().putString("firebase_config_cache", raw).putString("firebase_config_source", "HTTPS config").apply();\n            result = parsed;\n            message = "Firebase config refreshed from HTTPS.";\n        } catch (Throwable t) {\n            result = load(context);\n            message = "Remote refresh failed; kept " + (result == null ? "no config" : result.source) + ".";\n            AppLogger.error(context, "firebase_config_refresh", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));\n        } finally {\n            if (connection != null) connection.disconnect();\n        }\n        final Config callbackConfig = result;\n        final String callbackMessage = message;\n        new Handler(Looper.getMainLooper()).post(new Runnable() {\n            @Override public void run() { callback.onResult(callbackConfig, callbackMessage); }\n        });\n    }\n\n'''
+              firebase.write_text(s[:start] + fixed + s[end:], encoding='utf-8')
+
+              main = root / 'src/com/harleytg/forum/MainActivity.java'
+              s = main.read_text(encoding='utf-8')
+              s = s.replace('this.drawerSwipeStartX < r0 - max', 'this.drawerSwipeStartX < getResources().getDisplayMetrics().widthPixels - max')
+              main.write_text(s, encoding='utf-8')
           PY
           if [[ "${{ matrix.ref }}" == "dev" ]]; then
             rm -f "$ROOT/res/values/public.xml"
