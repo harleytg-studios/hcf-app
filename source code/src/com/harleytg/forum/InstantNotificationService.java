@@ -12,6 +12,7 @@ import android.os.IBinder;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.json.JSONException;
 
 public final class InstantNotificationService extends Service {
     static final String ACTION_SYNC_NOW = "com.harleytg.forum.SYNC_NOTIFICATIONS_NOW";
@@ -80,6 +81,11 @@ public final class InstantNotificationService extends Service {
             if (!ForumUrlRouter.isForumHost(host)) host = "forum.harleytg.com";
             ForumNotificationSync.perform(context, host, userId.trim(), "silent-one-shot");
             AppLogger.info(context, "instant_notification_service", "one-shot sync • silent channel hidden");
+        } catch (JSONException e) {
+            // A transient 2xx response can occasionally contain HTML or an
+            // unexpected payload instead of the Flarum JSON API object. Skip
+            // this one-shot attempt and let the next sync retry normally.
+            AppLogger.info(context, "instant_notification_service", "one-shot skipped • invalid notification API payload");
         } catch (Throwable t) {
             AppLogger.warn(context, "instant_notification_service", "one-shot | " + t.getClass().getSimpleName());
         }
