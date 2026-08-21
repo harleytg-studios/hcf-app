@@ -1,0 +1,113 @@
+name: HCF Stable v10000082 Working Updater
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-stable-v10000082-working-updater.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record run ID
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const path = 'build-output/V10000082-STABLE-WORKING-UPDATER-RUN.txt';
+            let sha;
+            try {
+              const existing = await github.rest.repos.getContent({owner, repo, path, ref: 'main'});
+              if (!Array.isArray(existing.data)) sha = existing.data.sha;
+            } catch (e) { if (e.status !== 404) throw e; }
+            await github.rest.repos.createOrUpdateFileContents({
+              owner, repo, path, branch: 'main', sha,
+              message: '[skip ci] Record Stable v10000082 working updater build run',
+              content: Buffer.from(String(context.runId) + '\n').toString('base64')
+            });
+
+  build:
+    needs: record
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Stable source
+        uses: actions/checkout@v4
+        with:
+          ref: stable
+          path: app-repo
+
+      - name: Verify Stable updater invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/app-repo/source code"
+          CHECKER="$ROOT/src/com/harleytg/forum/UpdateChecker.java"
+          RECEIVER="$ROOT/src/com/harleytg/forum/UpdateDownloadReceiver.java"
+          BUILD="$ROOT/src/com/harleytg/forum/BuildInfo.java"
+
+          grep -q 'package="com.harleytg.forum"' "$ROOT/AndroidManifest.xml"
+          grep -q 'android:versionCode="10000082"' "$ROOT/AndroidManifest.xml"
+          grep -q 'android:versionName="1.0 (10000082)"' "$ROOT/AndroidManifest.xml"
+          grep -q 'VERSION_CODE = 10000082' "$BUILD"
+          grep -q 'DEFAULT_UPDATE_CHANNEL = "stable"' "$BUILD"
+          grep -q 'Release release = fetchStable()' "$CHECKER"
+          grep -q '!object.optBoolean("prerelease", false)' "$CHECKER"
+          if grep -q 'fetchDev()' "$CHECKER"; then
+            echo 'Stable updater must not contain Dev prerelease selector.' >&2
+            exit 1
+          fi
+          grep -q 'RuntimeState.isForeground()' "$RECEIVER"
+          grep -q 'update_install_pending' "$RECEIVER"
+          grep -q 'NotificationHelper.postUpdateReady' "$RECEIVER"
+          grep -q 'AppSecurity.verifyDownloadedUpdate' "$RECEIVER"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Compile dex align and validate Stable
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/app-repo/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-stable-10000082"
+          OUT="$GITHUB_WORKSPACE/out"
+          rm -rf "$WORK" "$OUT"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
+
+          "$BT/aapt" package -f -m -J "$WORK/gen" -M "$ROOT/AndroidManifest.xml" -S "$ROOT/res" -A "$ROOT/assets" -I "$ANDROID_JAR" -F "$WORK/resources.apk"
+          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
+          mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Stable-v10000082-aligned-unsigned.apk"
+          "$BT/zipalign" -c -p 4 "$OUT/HCF-Stable-v10000082-aligned-unsigned.apk"
+          "$BT/aapt" dump badging "$OUT/HCF-Stable-v10000082-aligned-unsigned.apk" | head -1 | tee "$OUT/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum'" "$OUT/APK-BADGING.txt"
+          grep -q "versionCode='10000082'" "$OUT/APK-BADGING.txt"
+          grep -q "versionName='1.0 (10000082)'" "$OUT/APK-BADGING.txt"
+          cp "$BT/lib/apksigner.jar" "$OUT/apksigner.jar"
+
+      - name: Upload unsigned Stable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hcf-stable-v10000082-working-updater-unsigned
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
