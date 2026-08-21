@@ -56,6 +56,11 @@ final class UpdateChecker {
             this.assetId = assetId;
             this.assetUpdatedAt = assetUpdatedAt == null ? "" : assetUpdatedAt;
         }
+
+        String assetKey() {
+            if (assetId > 0L) return tag + "#" + assetId + "#" + assetUpdatedAt;
+            return tag + "#" + apkUrl;
+        }
     }
 
     static void check(Context context, String ignoredRequestedChannel, final Callback callback) {
