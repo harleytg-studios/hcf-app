@@ -199,7 +199,7 @@ final class PerformanceProfile {
     }
 
     static int batteryPercent(Context context) {
-        Intent registerReceiver;
+        Intent registerReceiver = null;
         if (context == null) {
             return -1;
         }
@@ -258,7 +258,7 @@ final class PerformanceProfile {
     }
 
     private static MemorySnapshot memory(Context context) {
-        ActivityManager activityManager;
+        ActivityManager activityManager = null;
         MemorySnapshot memorySnapshot = new MemorySnapshot();
         try {
             activityManager = (ActivityManager) context.getSystemService("activity");
