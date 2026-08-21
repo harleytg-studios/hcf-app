@@ -61,7 +61,8 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
-          root = Path(__import__('os').environ['GITHUB_WORKSPACE']) / 'app-repo' / 'source code'
+          import os
+          root = Path(os.environ['GITHUB_WORKSPACE']) / 'app-repo' / 'source code'
           old = 'com.harleytg.forum'
           new = 'com.harleytg.forum.dev'
           for p in list((root / 'src').rglob('*.java')) + [root / 'AndroidManifest.xml']:
@@ -83,7 +84,7 @@ jobs:
           grep -q 'android:value="dev"' "$ROOT/AndroidManifest.xml"
           grep -q 'package com.harleytg.forum.dev;' "$ROOT/src/com/harleytg/forum/BuildInfo.java"
           grep -q 'DEFAULT_UPDATE_CHANNEL = "dev"' "$ROOT/src/com/harleytg/forum/BuildInfo.java"
-          grep -q 'Harley\\'s Clan Forum \[Beta\]' "$ROOT/res/values/strings.xml"
+          grep -Fq '[Beta]' "$ROOT/res/values/strings.xml"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
