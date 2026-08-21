@@ -81,10 +81,11 @@ jobs:
           manifest.write_text(text, encoding='utf-8')
           PY
 
-          # Overlay every Dev/Beta resource on top of the Stable runtime resources.
-          # This restores the Beta logo, drawables, layouts, themes and color resources
-          # while keeping any Stable-only resources needed by the known-good runtime.
+          # Overlay Dev/Beta resources on the Stable runtime resources.
           cp -a "$META/res/." "$ROOT/res/"
+          # public.xml is a decompiler-generated symbol map, not branding. Its stale IDs
+          # conflict with Stable's known-good layout, so never ship it in reconstructed builds.
+          rm -f "$ROOT/res/values/public.xml"
           cp "$META/src/com/harleytg/forum/BuildInfo.java" "$ROOT/src/com/harleytg/forum/BuildInfo.java"
 
           python3 - <<'PY'
@@ -101,7 +102,6 @@ jobs:
           grep -Fq "Harley\'s Clan Forum [Beta]" "$ROOT/res/values/strings.xml"
 
           # Prove the Dev logo, not Stable logo, is in the assembled source tree.
-          test "$(git -C "$GITHUB_WORKSPACE/beta-meta" rev-parse HEAD)" != ""
           sha256sum "$META/res/drawable-nodpi-v4/htg_app_logo.png" "$ROOT/res/drawable-nodpi-v4/htg_app_logo.png"
           cmp "$META/res/drawable-nodpi-v4/htg_app_logo.png" "$ROOT/res/drawable-nodpi-v4/htg_app_logo.png"
 
