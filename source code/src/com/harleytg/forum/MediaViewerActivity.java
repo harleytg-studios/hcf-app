@@ -55,11 +55,8 @@ public final class MediaViewerActivity extends ThemedActivity {
         linearLayout2.setPadding(dp(6), dp(4), dp(6), dp(4));
         linearLayout2.setBackgroundColor(ThemeManager.isAmoled(this) ? -16777216 : getColor(R.color.hcf_app_bar));
         ImageButton iconButton = UiButtons.iconButton(this, R.drawable.fa_arrow_left, 0, 12, "Close media viewer");
-        iconButton.setOnClickListener(new View.OnClickListener() { // from class: com.harleytg.forum.dev.MediaViewerActivity$$ExternalSyntheticLambda0
-            @Override // android.view.View.OnClickListener
-            public final void onClick(View view) {
-                MediaViewerActivity.this.m125lambda$buildUi$0$comharleytgforumdevMediaViewerActivity(view);
-            }
+        iconButton.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view) { MediaViewerActivity.this.m125lambda$buildUi$0$comharleytgforumdevMediaViewerActivity(view); }
         });
         linearLayout2.addView(iconButton, new LinearLayout.LayoutParams(dp(46), dp(46)));
         TextView textView = new TextView(this);
@@ -71,19 +68,13 @@ public final class MediaViewerActivity extends ThemedActivity {
         layoutParams.leftMargin = dp(8);
         linearLayout2.addView(textView, layoutParams);
         Button button = button("Share");
-        button.setOnClickListener(new View.OnClickListener() { // from class: com.harleytg.forum.dev.MediaViewerActivity$$ExternalSyntheticLambda1
-            @Override // android.view.View.OnClickListener
-            public final void onClick(View view) {
-                MediaViewerActivity.this.m126lambda$buildUi$1$comharleytgforumdevMediaViewerActivity(view);
-            }
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view) { MediaViewerActivity.this.m126lambda$buildUi$1$comharleytgforumdevMediaViewerActivity(view); }
         });
         linearLayout2.addView(button, new LinearLayout.LayoutParams(dp(72), dp(46)));
         Button button2 = button("Open");
-        button2.setOnClickListener(new View.OnClickListener() { // from class: com.harleytg.forum.dev.MediaViewerActivity$$ExternalSyntheticLambda2
-            @Override // android.view.View.OnClickListener
-            public final void onClick(View view) {
-                MediaViewerActivity.this.m127lambda$buildUi$2$comharleytgforumdevMediaViewerActivity(view);
-            }
+        button2.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view) { MediaViewerActivity.this.m127lambda$buildUi$2$comharleytgforumdevMediaViewerActivity(view); }
         });
         linearLayout2.addView(button2, new LinearLayout.LayoutParams(dp(72), dp(46)));
         linearLayout.addView(linearLayout2, new LinearLayout.LayoutParams(-1, dp(54)));
@@ -115,20 +106,9 @@ public final class MediaViewerActivity extends ThemedActivity {
         return linearLayout;
     }
 
-    /* renamed from: lambda$buildUi$0$com-harleytg-forum-dev-MediaViewerActivity, reason: not valid java name */
-    /* synthetic */ void m125lambda$buildUi$0$comharleytgforumdevMediaViewerActivity(View view) {
-        finish();
-    }
-
-    /* renamed from: lambda$buildUi$1$com-harleytg-forum-dev-MediaViewerActivity, reason: not valid java name */
-    /* synthetic */ void m126lambda$buildUi$1$comharleytgforumdevMediaViewerActivity(View view) {
-        share();
-    }
-
-    /* renamed from: lambda$buildUi$2$com-harleytg-forum-dev-MediaViewerActivity, reason: not valid java name */
-    /* synthetic */ void m127lambda$buildUi$2$comharleytgforumdevMediaViewerActivity(View view) {
-        openExternal();
-    }
+    /* synthetic */ void m125lambda$buildUi$0$comharleytgforumdevMediaViewerActivity(View view) { finish(); }
+    /* synthetic */ void m126lambda$buildUi$1$comharleytgforumdevMediaViewerActivity(View view) { share(); }
+    /* synthetic */ void m127lambda$buildUi$2$comharleytgforumdevMediaViewerActivity(View view) { openExternal(); }
 
     private Button button(String str) {
         Button button = new Button(this);
@@ -161,14 +141,10 @@ public final class MediaViewerActivity extends ThemedActivity {
     }
 
     private static String safeHttps(String str) {
-        String trim;
-        if (str == null) {
-            trim = "";
-        } else {
-            try {
-                trim = str.trim();
-            } catch (Throwable unused) {
-            }
+        String trim = "";
+        if (str != null) {
+            try { trim = str.trim(); }
+            catch (Throwable unused) { trim = ""; }
         }
         Uri parse = Uri.parse(trim);
         if ("https".equalsIgnoreCase(parse.getScheme()) && parse.getHost() != null && !parse.getHost().trim().isEmpty()) {
@@ -181,7 +157,5 @@ public final class MediaViewerActivity extends ThemedActivity {
         return str.replace("&", "&amp;").replace("'", "&#39;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
-    private int dp(int i) {
-        return Math.round(i * getResources().getDisplayMetrics().density);
-    }
+    private int dp(int i) { return Math.round(i * getResources().getDisplayMetrics().density); }
 }
