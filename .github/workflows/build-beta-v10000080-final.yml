@@ -36,20 +36,54 @@ jobs:
     needs: record
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Beta source
+      - name: Checkout known-good Stable runtime
+        uses: actions/checkout@v4
+        with:
+          ref: stable
+          path: app-repo
+
+      - name: Checkout Beta identity files
         uses: actions/checkout@v4
         with:
           ref: dev
-          path: app-repo
-
-      - name: Checkout build repair script
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          path: build-repo
+          path: beta-meta
           sparse-checkout: |
-            .github/scripts/build-beta-v10000080-repair.py
+            source code/src/com/harleytg/forum/BuildInfo.java
+            source code/res/values/strings.xml
           sparse-checkout-cone-mode: false
+
+      - name: Convert Stable runtime to Beta identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/app-repo/source code"
+          META="$GITHUB_WORKSPACE/beta-meta/source code"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path(__import__('os').environ['GITHUB_WORKSPACE']) / 'app-repo' / 'source code'
+          old = 'com.harleytg.forum'
+          new = 'com.harleytg.forum.dev'
+          for p in list((root / 'src').rglob('*.java')) + [root / 'AndroidManifest.xml']:
+              text = p.read_text(encoding='utf-8')
+              text = text.replace(old, new)
+              p.write_text(text, encoding='utf-8')
+
+          manifest = root / 'AndroidManifest.xml'
+          text = manifest.read_text(encoding='utf-8')
+          text = text.replace('android:value="stable"', 'android:value="dev"')
+          manifest.write_text(text, encoding='utf-8')
+          PY
+
+          cp "$META/src/com/harleytg/forum/BuildInfo.java" "$ROOT/src/com/harleytg/forum/BuildInfo.java"
+          cp "$META/res/values/strings.xml" "$ROOT/res/values/strings.xml"
+
+          grep -q 'package="com.harleytg.forum.dev"' "$ROOT/AndroidManifest.xml"
+          grep -q 'android:name="com.harleytg.forum.dev.HcfApplication"' "$ROOT/AndroidManifest.xml"
+          grep -q 'android:value="dev"' "$ROOT/AndroidManifest.xml"
+          grep -q 'package com.harleytg.forum.dev;' "$ROOT/src/com/harleytg/forum/BuildInfo.java"
+          grep -q 'DEFAULT_UPDATE_CHANNEL = "dev"' "$ROOT/src/com/harleytg/forum/BuildInfo.java"
+          grep -q 'Harley\\'s Clan Forum \[Beta\]' "$ROOT/res/values/strings.xml"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -60,12 +94,6 @@ jobs:
           set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-
-      - name: Repair reconstructed Beta source
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$GITHUB_WORKSPACE/build-repo/.github/scripts/build-beta-v10000080-repair.py" "$GITHUB_WORKSPACE/app-repo/source code"
 
       - name: Compile, dex, align, and validate Beta
         shell: bash
@@ -106,7 +134,7 @@ jobs:
       - name: Upload unsigned Beta artifact
         uses: actions/upload-artifact@v4
         with:
-          name: hcf-beta-v10000080-final-unsigned
+          name: hcf-beta-v10000080-stable-runtime-unsigned
           path: out/
           if-no-files-found: error
           retention-days: 1
