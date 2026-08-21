@@ -48,6 +48,12 @@ s = s.replace('        String url;\n        if (i == this.connectionUiGeneration
 s = s.replace('        HttpsURLConnection httpsURLConnection;\n        HttpsURLConnection httpsURLConnection2 = null;', '        HttpsURLConnection httpsURLConnection = null;\n        HttpsURLConnection httpsURLConnection2 = null;', 1)
 main.write_text(s, encoding='utf-8')
 
+# IdentityActivity: initialize the avatar HTTPS connection before guarded creation.
+identity = root / 'src/com/harleytg/forum/IdentityActivity.java'
+s = identity.read_text(encoding='utf-8')
+s = s.replace('        HttpsURLConnection httpsURLConnection;\n        HttpsURLConnection httpsURLConnection2 = null;', '        HttpsURLConnection httpsURLConnection = null;\n        HttpsURLConnection httpsURLConnection2 = null;', 1)
+identity.write_text(s, encoding='utf-8')
+
 # LiveForumUpdater: restore effectively-final fingerprint callback local.
 live = root / 'src/com/harleytg/forum/LiveForumUpdater.java'
 s = live.read_text(encoding='utf-8')
