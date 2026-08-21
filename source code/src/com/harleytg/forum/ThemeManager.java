@@ -22,15 +22,19 @@ final class ThemeManager {
         if (context == null) {
             return null;
         }
-        String mode = mode(context);
-        Configuration configuration = context.getResources().getConfiguration();
-        int resolvedNightMode = resolvedNightMode(context, configuration, mode);
-        if ((configuration.uiMode & 48) == resolvedNightMode) {
+        try {
+            String mode = mode(context);
+            Configuration configuration = context.getResources().getConfiguration();
+            int resolvedNightMode = resolvedNightMode(context, configuration, mode);
+            if ((configuration.uiMode & 48) == resolvedNightMode) {
+                return context;
+            }
+            Configuration configuration2 = new Configuration(configuration);
+            configuration2.uiMode = resolvedNightMode | (configuration2.uiMode & (-49));
+            return context.createConfigurationContext(configuration2);
+        } catch (Throwable unused) {
             return context;
         }
-        Configuration configuration2 = new Configuration(configuration);
-        configuration2.uiMode = resolvedNightMode | (configuration2.uiMode & (-49));
-        return context.createConfigurationContext(configuration2);
     }
 
     static void prepare(Activity activity) {
@@ -75,7 +79,11 @@ final class ThemeManager {
     }
 
     static boolean changedSince(Context context, String str) {
-        return (str == null || str.equals(signature(context))) ? false : true;
+        try {
+            return (str == null || str.equals(signature(context))) ? false : true;
+        } catch (Throwable unused) {
+            return false;
+        }
     }
 
     static String webColorScheme(Context context) {
@@ -83,13 +91,16 @@ final class ThemeManager {
     }
 
     static void applySystemBars(Activity activity) {
-        boolean isDark = isDark(activity);
-        int color = isAmoled(activity) ? -16777216 : activity.getColor(R.color.hcf_bg);
-        activity.getWindow().setStatusBarColor(color);
-        activity.getWindow().setNavigationBarColor(color);
-        int systemUiVisibility = activity.getWindow().getDecorView().getSystemUiVisibility();
-        int i = !isDark ? systemUiVisibility | 8192 : systemUiVisibility & (-8193);
-        activity.getWindow().getDecorView().setSystemUiVisibility(!isDark ? i | 16 : i & (-17));
+        try {
+            boolean isDark = isDark(activity);
+            int color = isAmoled(activity) ? -16777216 : activity.getColor(R.color.hcf_bg);
+            activity.getWindow().setStatusBarColor(color);
+            activity.getWindow().setNavigationBarColor(color);
+            int systemUiVisibility = activity.getWindow().getDecorView().getSystemUiVisibility();
+            int i = !isDark ? systemUiVisibility | 8192 : systemUiVisibility & (-8193);
+            activity.getWindow().getDecorView().setSystemUiVisibility(!isDark ? i | 16 : i & (-17));
+        } catch (Throwable unused) {
+        }
     }
 
     static boolean isDark(Context context) {
@@ -109,13 +120,27 @@ final class ThemeManager {
     }
 
     static String mode(Context context) {
-        SharedPreferences sharedPreferences = context.getSharedPreferences("hcf_app", 0);
-        String string = sharedPreferences.getString("app_theme", "auto_forum");
-        if (!LEGACY_SYSTEM.equals(string)) {
-            return ("auto_forum".equals(string) || AUTO_PHONE.equals(string) || "light".equals(string) || "dark".equals(string) || AMOLED.equals(string)) ? string : "auto_forum";
+        if (context == null) {
+            return "auto_forum";
         }
-        sharedPreferences.edit().putString("app_theme", "auto_forum").apply();
-        return "auto_forum";
+        SharedPreferences sharedPreferences = null;
+        try {
+            sharedPreferences = context.getSharedPreferences("hcf_app", 0);
+            String string = sharedPreferences.getString("app_theme", "auto_forum");
+            if (!LEGACY_SYSTEM.equals(string)) {
+                return ("auto_forum".equals(string) || AUTO_PHONE.equals(string) || "light".equals(string) || "dark".equals(string) || AMOLED.equals(string)) ? string : "auto_forum";
+            }
+            sharedPreferences.edit().putString("app_theme", "auto_forum").apply();
+            return "auto_forum";
+        } catch (Throwable unused) {
+            if (sharedPreferences != null) {
+                try {
+                    sharedPreferences.edit().remove("app_theme").apply();
+                } catch (Throwable unused2) {
+                }
+            }
+            return "auto_forum";
+        }
     }
 
     static String label(Context context) {
@@ -138,17 +163,35 @@ final class ThemeManager {
                 str2 = FORUM_AUTO;
             }
         }
-        SharedPreferences sharedPreferences = context.getSharedPreferences("hcf_app", 0);
-        if (str2.equals(sharedPreferences.getString("forum_auto_theme", FORUM_AUTO))) {
+        if (str2.equals(forumAutoTheme(context))) {
             return false;
         }
-        sharedPreferences.edit().putString("forum_auto_theme", str2).putLong("forum_auto_theme_updated_at", System.currentTimeMillis()).apply();
-        return true;
+        try {
+            context.getSharedPreferences("hcf_app", 0).edit().putString("forum_auto_theme", str2).putLong("forum_auto_theme_updated_at", System.currentTimeMillis()).apply();
+            return true;
+        } catch (Throwable unused) {
+            return false;
+        }
     }
 
     static String forumAutoTheme(Context context) {
-        String string = context.getSharedPreferences("hcf_app", 0).getString("forum_auto_theme", FORUM_AUTO);
-        return ("light".equals(string) || "dark".equals(string)) ? string : FORUM_AUTO;
+        if (context == null) {
+            return FORUM_AUTO;
+        }
+        SharedPreferences sharedPreferences = null;
+        try {
+            sharedPreferences = context.getSharedPreferences("hcf_app", 0);
+            String string = sharedPreferences.getString("forum_auto_theme", FORUM_AUTO);
+            return ("light".equals(string) || "dark".equals(string)) ? string : FORUM_AUTO;
+        } catch (Throwable unused) {
+            if (sharedPreferences != null) {
+                try {
+                    sharedPreferences.edit().remove("forum_auto_theme").apply();
+                } catch (Throwable unused2) {
+                }
+            }
+            return FORUM_AUTO;
+        }
     }
 
     static String autoSourceLabel(Context context) {
