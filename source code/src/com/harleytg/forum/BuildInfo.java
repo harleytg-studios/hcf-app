@@ -1,9 +1,9 @@
 package com.harleytg.forum.dev;
 
-/* loaded from: classes.dex */
+/** Build identity for the Dev/Beta Harley's Clan Forum Android app. */
 final class BuildInfo {
     static final boolean ALLOW_UPDATE_CHANNEL_SWITCH = false;
-    static final String APK_FILE_NAME = "Harley's Clan Forum [Beta].apk";
+    static final String APK_FILE_NAME = "HCF-Beta-v10000080.apk";
     static final String BRAND = "Harley's Studio's";
     static final String CHANNEL = "Dev";
     static final String DEFAULT_UPDATE_CHANNEL = "dev";
@@ -19,22 +19,16 @@ final class BuildInfo {
     static final String UPDATE_STABLE_BRANCH = "stable";
     static final String USER_AGENT_MARKER = "HarleysClanForumApp/1.0";
     static final String VERSION = "1.0";
-    static final String VERSION_BUILD_LINE = "1.0 • Development / Beta • Foundation Release";
-    static final int VERSION_CODE = 10000071;
+    static final int VERSION_CODE = 10000080;
+    static final String VERSION_BUILD_LINE = VERSION + " • Development / Beta • Build " + VERSION_CODE;
     static final String VERSION_CODE_SCHEME = "major-release-v1";
     static final String VERSION_TAG = "v1.0";
 
-    static String userAgent(String str) {
-        String trim = str == null ? "" : str.trim();
-        if (trim.contains(USER_AGENT_MARKER)) {
-            return trim;
-        }
-        if (trim.isEmpty()) {
-            return USER_AGENT_MARKER;
-        }
-        return trim + " HarleysClanForumApp/1.0 NativeApp";
+    static String userAgent(String baseUserAgent) {
+        String base = baseUserAgent == null ? "" : baseUserAgent.trim();
+        if (base.contains(USER_AGENT_MARKER)) return base;
+        return base.isEmpty() ? USER_AGENT_MARKER : base + " " + USER_AGENT_MARKER + " NativeApp";
     }
 
-    private BuildInfo() {
-    }
+    private BuildInfo() {}
 }
