@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    android:versionCode="10000072"
-    android:versionName="1.0 (10000072)"
+    android:versionCode="10000080"
+    android:versionName="1.0 (10000080)"
     android:compileSdkVersion="35"
     android:compileSdkVersionCodename="15"
     package="com.harleytg.forum.dev"
@@ -64,10 +64,10 @@
             android:value="dev"/>
         <meta-data
             android:name="com.harleytg.APP_VERSION"
-            android:value="1.0 (10000072)"/>
+            android:value="1.0 (10000080)"/>
         <meta-data
             android:name="com.harleytg.APP_VERSION_CODE"
-            android:value="10000072"/>
+            android:value="10000080"/>
         <meta-data
             android:name="com.harleytg.APP_TYPE"
             android:value="Native Android Application"/>
