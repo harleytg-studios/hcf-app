@@ -97,6 +97,14 @@ jobs:
           s = s.replace('        String url;\n        if (i == this.connectionUiGeneration', '        String url = null;\n        if (i == this.connectionUiGeneration', 1)
           s = s.replace('        HttpsURLConnection httpsURLConnection;\n        HttpsURLConnection httpsURLConnection2 = null;', '        HttpsURLConnection httpsURLConnection = null;\n        HttpsURLConnection httpsURLConnection2 = null;', 1)
           main.write_text(s, encoding='utf-8')
+
+          live = root / 'src/com/harleytg/forum/LiveForumUpdater.java'
+          s = live.read_text(encoding='utf-8')
+          old = '''    /* synthetic */ void m20lambda$poll$1$comharleytgforumdevLiveForumUpdater(String str, final String str2) {\n        final String str3;\n        try {\n            str3 = fetchFingerprint(str);\n        } catch (Throwable th) {\n            if (this.failures == 0 || this.failures == 2) {\n                AppLogger.warn(this.app, "live_update_poll", th.getClass().getSimpleName());\n            }\n            str3 = null;\n        }\n        this.main.post(new Runnable() {'''
+          new = '''    /* synthetic */ void m20lambda$poll$1$comharleytgforumdevLiveForumUpdater(String str, final String str2) {\n        String fingerprint;\n        try {\n            fingerprint = fetchFingerprint(str);\n        } catch (Throwable th) {\n            if (this.failures == 0 || this.failures == 2) {\n                AppLogger.warn(this.app, "live_update_poll", th.getClass().getSimpleName());\n            }\n            fingerprint = null;\n        }\n        final String str3 = fingerprint;\n        this.main.post(new Runnable() {'''
+          if old not in s:
+              raise SystemExit('LiveForumUpdater reconstruction marker not found')
+          live.write_text(s.replace(old, new, 1), encoding='utf-8')
           PY
           rm -f "$ROOT/res/values/public.xml"
           grep -q 'android:versionCode="10000080"' "$ROOT/AndroidManifest.xml"
