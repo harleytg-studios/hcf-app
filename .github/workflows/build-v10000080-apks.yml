@@ -1,4 +1,4 @@
-name: Build HCF v10000080 APKs
+name: Build HCF Beta v10000080
 
 on:
   push:
@@ -32,27 +32,14 @@ jobs:
               content: Buffer.from(String(context.runId) + '\n').toString('base64')
             });
 
-  build:
+  build-beta:
     needs: record
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: Stable
-            ref: stable
-            package: com.harleytg.forum
-            output: HCF-Stable-v10000080
-          - label: Beta
-            ref: dev
-            package: com.harleytg.forum.dev
-            output: HCF-Beta-v10000080
-
     steps:
-      - name: Checkout ${{ matrix.label }} source
+      - name: Checkout Beta source
         uses: actions/checkout@v4
         with:
-          ref: ${{ matrix.ref }}
+          ref: dev
           path: app-repo
 
       - name: Set up Android SDK
@@ -65,7 +52,7 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
 
-      - name: Normalize v10000080 source for compilation
+      - name: Normalize reconstructed Dev source
         shell: bash
         run: |
           set -euo pipefail
@@ -73,6 +60,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           root = Path('app-repo/source code')
+
           release = root / 'src/com/harleytg/forum/ReleaseNotes.java'
           if release.exists():
               s = release.read_text(encoding='utf-8')
@@ -80,45 +68,43 @@ jobs:
                   s = s.replace(old, '10000080')
               release.write_text(s, encoding='utf-8')
 
-          # Dev was reconstructed from an APK and retained a few malformed
-          # decompiler fragments. Apply the already-correct Stable equivalents
-          # in the ephemeral checkout so the Dev source can compile normally.
-          if '${{ matrix.ref }}' == 'dev':
-              logs = root / 'src/com/harleytg/forum/LogsActivity.java'
-              s = logs.read_text(encoding='utf-8')
-              start = s.index('    @Override // android.app.Activity\n    protected void onActivityResult')
+          logs = root / 'src/com/harleytg/forum/LogsActivity.java'
+          s = logs.read_text(encoding='utf-8')
+          marker = '    @Override // android.app.Activity\n    protected void onActivityResult'
+          if marker in s:
+              start = s.index(marker)
               end = s.index('    private View buildRecoveryView', start)
               fixed = '''    @Override\n    protected void onActivityResult(int requestCode, int resultCode, Intent data) {\n        super.onActivityResult(requestCode, resultCode, data);\n        if (requestCode != EXPORT_TEXT || resultCode != RESULT_OK || data == null || data.getData() == null) return;\n        pendingExportUri = data.getData();\n        String text = visiblePlainText == null ? "" : visiblePlainText;\n        try (OutputStream out = getContentResolver().openOutputStream(pendingExportUri, "w")) {\n            if (out == null) throw new IllegalStateException("No output stream");\n            out.write(text.getBytes(StandardCharsets.UTF_8));\n            out.flush();\n            AppLogger.info(this, MODE_DIAGNOSTICS.equals(currentMode) ? "diagnostics_exported" : "logs_exported", "document-provider");\n            Toast.makeText(this, "Export complete.", Toast.LENGTH_SHORT).show();\n        } catch (Throwable t) {\n            AppLogger.error(this, "logs_export_failed", t.getClass().getSimpleName());\n            Toast.makeText(this, "Could not export this content.", Toast.LENGTH_LONG).show();\n        } finally {\n            pendingExportUri = null;\n        }\n    }\n\n'''
               logs.write_text(s[:start] + fixed + s[end:], encoding='utf-8')
 
-              firebase = root / 'src/com/harleytg/forum/FirebaseConfigLoader.java'
-              s = firebase.read_text(encoding='utf-8')
-              start = s.index('    static /* synthetic */ void lambda$refresh$1')
+          firebase = root / 'src/com/harleytg/forum/FirebaseConfigLoader.java'
+          s = firebase.read_text(encoding='utf-8')
+          marker = '    static /* synthetic */ void lambda$refresh$1'
+          if marker in s:
+              start = s.index(marker)
               end = s.index('    static void clearRemoteCache', start)
               fixed = '''    static /* synthetic */ void lambda$refresh$1(String urlText, SharedPreferences sharedPreferences, Context context, final Callback callback) {\n        Config result;\n        String message;\n        HttpURLConnection connection = null;\n        try {\n            connection = (HttpURLConnection) new URL(urlText).openConnection();\n            connection.setConnectTimeout(8000);\n            connection.setReadTimeout(8000);\n            connection.setInstanceFollowRedirects(true);\n            connection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 FirebaseConfig");\n            int code = connection.getResponseCode();\n            if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);\n            String raw = readAll(connection.getInputStream());\n            Config parsed = parse(raw, "HTTPS config");\n            if (parsed == null || !parsed.isValid()) throw new IllegalStateException("Invalid Firebase config");\n            sharedPreferences.edit().putString("firebase_config_cache", raw).putString("firebase_config_source", "HTTPS config").apply();\n            result = parsed;\n            message = "Firebase config refreshed from HTTPS.";\n        } catch (Throwable t) {\n            result = load(context);\n            message = "Remote refresh failed; kept " + (result == null ? "no config" : result.source) + ".";\n            AppLogger.error(context, "firebase_config_refresh", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));\n        } finally {\n            if (connection != null) connection.disconnect();\n        }\n        final Config callbackConfig = result;\n        final String callbackMessage = message;\n        new Handler(Looper.getMainLooper()).post(new Runnable() {\n            @Override public void run() { callback.onResult(callbackConfig, callbackMessage); }\n        });\n    }\n\n'''
               firebase.write_text(s[:start] + fixed + s[end:], encoding='utf-8')
 
-              main = root / 'src/com/harleytg/forum/MainActivity.java'
-              s = main.read_text(encoding='utf-8')
-              s = s.replace('this.drawerSwipeStartX < r0 - max', 'this.drawerSwipeStartX < getResources().getDisplayMetrics().widthPixels - max')
-              main.write_text(s, encoding='utf-8')
+          main = root / 'src/com/harleytg/forum/MainActivity.java'
+          s = main.read_text(encoding='utf-8')
+          s = s.replace('this.drawerSwipeStartX < r0 - max', 'this.drawerSwipeStartX < getResources().getDisplayMetrics().widthPixels - max')
+          main.write_text(s, encoding='utf-8')
           PY
-          if [[ "${{ matrix.ref }}" == "dev" ]]; then
-            rm -f "$ROOT/res/values/public.xml"
-          fi
+          rm -f "$ROOT/res/values/public.xml"
           grep -q 'android:versionCode="10000080"' "$ROOT/AndroidManifest.xml"
           grep -q 'android:versionName="1.0 (10000080)"' "$ROOT/AndroidManifest.xml"
-          grep -q 'package="${{ matrix.package }}"' "$ROOT/AndroidManifest.xml"
+          grep -q 'package="com.harleytg.forum.dev"' "$ROOT/AndroidManifest.xml"
 
-      - name: Compile and align ${{ matrix.label }} APK
+      - name: Compile and align Beta APK
         shell: bash
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/app-repo/source code"
           BT="$ANDROID_HOME/build-tools/35.0.0"
           ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
-          WORK="$RUNNER_TEMP/hcf-${{ matrix.ref }}"
-          OUT="$GITHUB_WORKSPACE/out-${{ matrix.ref }}"
+          WORK="$RUNNER_TEMP/hcf-dev"
+          OUT="$GITHUB_WORKSPACE/out-dev"
           rm -rf "$WORK" "$OUT"
           mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
 
@@ -131,25 +117,23 @@ jobs:
 
           mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
           javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
-
           mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
-          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release \
-            --output "$WORK/dex" "${CLASS_FILES[@]}"
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
 
           cp "$WORK/resources.apk" "$WORK/unsigned.apk"
           (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
-          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/${{ matrix.output }}-aligned-unsigned.apk"
-          "$BT/zipalign" -c -p 4 "$OUT/${{ matrix.output }}-aligned-unsigned.apk"
-          "$BT/aapt" dump badging "$OUT/${{ matrix.output }}-aligned-unsigned.apk" | head -1 | tee "$OUT/APK-BADGING.txt"
-          grep -q "name='${{ matrix.package }}'" "$OUT/APK-BADGING.txt"
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Beta-v10000080-aligned-unsigned.apk"
+          "$BT/zipalign" -c -p 4 "$OUT/HCF-Beta-v10000080-aligned-unsigned.apk"
+          "$BT/aapt" dump badging "$OUT/HCF-Beta-v10000080-aligned-unsigned.apk" | head -1 | tee "$OUT/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
           grep -q "versionCode='10000080'" "$OUT/APK-BADGING.txt"
           grep -q "versionName='1.0 (10000080)'" "$OUT/APK-BADGING.txt"
           cp "$BT/lib/apksigner.jar" "$OUT/apksigner.jar"
 
-      - name: Upload ${{ matrix.label }} unsigned build
+      - name: Upload Beta unsigned build
         uses: actions/upload-artifact@v4
         with:
-          name: hcf-${{ matrix.ref }}-v10000080-unsigned
-          path: out-${{ matrix.ref }}/
+          name: hcf-dev-v10000080-unsigned
+          path: out-dev/
           if-no-files-found: error
           retention-days: 1
