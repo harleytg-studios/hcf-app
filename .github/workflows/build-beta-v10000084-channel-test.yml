@@ -1,0 +1,147 @@
+name: HCF Beta v10000084 Dev Channel Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-beta-v10000084-channel-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record run ID
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const path = 'build-output/V10000084-BETA-CHANNEL-TEST-RUN.txt';
+            let sha;
+            try {
+              const existing = await github.rest.repos.getContent({owner, repo, path, ref: 'main'});
+              if (!Array.isArray(existing.data)) sha = existing.data.sha;
+            } catch (e) { if (e.status !== 404) throw e; }
+            await github.rest.repos.createOrUpdateFileContents({
+              owner, repo, path, branch: 'main', sha,
+              message: '[skip ci] Record Beta v10000084 channel-test run',
+              content: Buffer.from(String(context.runId) + '\n').toString('base64')
+            });
+
+  build:
+    needs: record
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout known-good Stable runtime
+        uses: actions/checkout@v4
+        with:
+          ref: stable
+          path: app-repo
+
+      - name: Checkout Dev Beta identity branding and updater
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: beta-meta
+          sparse-checkout: |
+            source code/res
+            source code/src/com/harleytg/forum/BuildInfo.java
+            source code/src/com/harleytg/forum/UpdateChecker.java
+          sparse-checkout-cone-mode: false
+
+      - name: Convert runtime and overlay Beta channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/app-repo/source code"
+          META="$GITHUB_WORKSPACE/beta-meta/source code"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          root = Path(os.environ['GITHUB_WORKSPACE']) / 'app-repo' / 'source code'
+          for p in list((root / 'src').rglob('*.java')) + [root / 'AndroidManifest.xml']:
+              text = p.read_text(encoding='utf-8').replace('com.harleytg.forum', 'com.harleytg.forum.dev')
+              p.write_text(text, encoding='utf-8')
+
+          manifest = root / 'AndroidManifest.xml'
+          text = manifest.read_text(encoding='utf-8')
+          text = text.replace('android:value="stable"', 'android:value="dev"')
+          for old in ('10000080', '10000081', '10000082', '10000083', '10000084'):
+              text = text.replace(f'android:versionCode="{old}"', 'android:versionCode="10000084"')
+              text = text.replace(f'android:versionName="1.0 ({old})"', 'android:versionName="1.0 (10000084)"')
+              text = text.replace(f'android:value="1.0 ({old})"', 'android:value="1.0 (10000084)"')
+              text = text.replace(f'android:value="{old}"', 'android:value="10000084"')
+          manifest.write_text(text, encoding='utf-8')
+          PY
+
+          cp -a "$META/res/." "$ROOT/res/"
+          rm -f "$ROOT/res/values/public.xml"
+          cp "$META/src/com/harleytg/forum/BuildInfo.java" "$ROOT/src/com/harleytg/forum/BuildInfo.java"
+          cp "$META/src/com/harleytg/forum/UpdateChecker.java" "$ROOT/src/com/harleytg/forum/UpdateChecker.java"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p = Path(os.environ['GITHUB_WORKSPACE']) / 'app-repo' / 'source code' / 'src/com/harleytg/forum/BuildInfo.java'
+          text = p.read_text(encoding='utf-8')
+          for old in ('10000080', '10000081', '10000082', '10000083'):
+              text = text.replace(old, '10000084')
+          p.write_text(text, encoding='utf-8')
+          PY
+
+          grep -q 'package="com.harleytg.forum.dev"' "$ROOT/AndroidManifest.xml"
+          grep -q 'android:versionCode="10000084"' "$ROOT/AndroidManifest.xml"
+          grep -q 'DEFAULT_UPDATE_CHANNEL = "dev"' "$ROOT/src/com/harleytg/forum/BuildInfo.java"
+          grep -q 'Release release = fetchDev();' "$ROOT/src/com/harleytg/forum/UpdateChecker.java"
+          grep -q 'object.optBoolean("prerelease", false)' "$ROOT/src/com/harleytg/forum/UpdateChecker.java"
+          grep -Fq "Harley\'s Clan Forum [Beta]" "$ROOT/res/values/strings.xml"
+          cmp "$META/res/drawable-nodpi-v4/htg_app_logo.png" "$ROOT/res/drawable-nodpi-v4/htg_app_logo.png"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Compile dex align and validate Beta
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/app-repo/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-beta-10000084-channel-test"
+          OUT="$GITHUB_WORKSPACE/out"
+          rm -rf "$WORK" "$OUT"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
+          "$BT/aapt" package -f -m -J "$WORK/gen" -M "$ROOT/AndroidManifest.xml" -S "$ROOT/res" -A "$ROOT/assets" -I "$ANDROID_JAR" -F "$WORK/resources.apk"
+          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
+          mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Beta-v10000084-ChannelTest-aligned-unsigned.apk"
+          "$BT/zipalign" -c -p 4 "$OUT/HCF-Beta-v10000084-ChannelTest-aligned-unsigned.apk"
+          "$BT/aapt" dump badging "$OUT/HCF-Beta-v10000084-ChannelTest-aligned-unsigned.apk" | head -1 | tee "$OUT/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
+          grep -q "versionCode='10000084'" "$OUT/APK-BADGING.txt"
+          grep -q "versionName='1.0 (10000084)'" "$OUT/APK-BADGING.txt"
+          cp "$BT/lib/apksigner.jar" "$OUT/apksigner.jar"
+
+      - name: Upload unsigned Beta artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hcf-beta-v10000084-channel-test-unsigned
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
