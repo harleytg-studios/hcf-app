@@ -66,6 +66,15 @@ if old not in s:
     raise SystemExit('ForumNotificationClient reconstruction marker not found')
 client.write_text(s.replace(old, new, 1), encoding='utf-8')
 
+# HcfIntentChooser: initialize the ResolveInfo label before the guarded lookup.
+chooser = root / 'src/com/harleytg/forum/HcfIntentChooser.java'
+s = chooser.read_text(encoding='utf-8')
+old = '''    private static String resolveLabel(PackageManager packageManager, ResolveInfo resolveInfo) {\n        CharSequence loadLabel;\n        if (resolveInfo == null) {\n            loadLabel = null;\n        } else {\n            try {\n                loadLabel = resolveInfo.loadLabel(packageManager);\n            } catch (Throwable unused) {\n            }\n        }'''
+new = '''    private static String resolveLabel(PackageManager packageManager, ResolveInfo resolveInfo) {\n        CharSequence loadLabel = null;\n        if (resolveInfo != null) {\n            try { loadLabel = resolveInfo.loadLabel(packageManager); }\n            catch (Throwable unused) { loadLabel = null; }\n        }'''
+if old not in s:
+    raise SystemExit('HcfIntentChooser reconstruction marker not found')
+chooser.write_text(s.replace(old, new, 1), encoding='utf-8')
+
 # The decompiled public.xml exports stale resource IDs; programmatic UI does not need it.
 public_xml = root / 'res/values/public.xml'
 if public_xml.exists():
