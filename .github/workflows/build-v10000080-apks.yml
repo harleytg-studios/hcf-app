@@ -89,6 +89,13 @@ jobs:
           main = root / 'src/com/harleytg/forum/MainActivity.java'
           s = main.read_text(encoding='utf-8')
           s = s.replace('this.drawerSwipeStartX < r0 - max', 'this.drawerSwipeStartX < getResources().getDisplayMetrics().widthPixels - max')
+          old = '''    private void showChecking(final String str) {\n        boolean z = true;\n        final int i = this.connectionUiGeneration + 1;\n        this.connectionUiGeneration = i;\n        if (str == null || str.trim().isEmpty()) {\n            str = "forum.harleytg.com";\n        }'''
+          new = '''    private void showChecking(final String requestedHost) {\n        boolean z = true;\n        final int i = this.connectionUiGeneration + 1;\n        this.connectionUiGeneration = i;\n        final String str = (requestedHost == null || requestedHost.trim().isEmpty())\n                ? "forum.harleytg.com" : requestedHost;'''
+          if old not in s:
+              raise SystemExit('showChecking reconstruction marker not found')
+          s = s.replace(old, new, 1)
+          s = s.replace('        String url;\n        if (i == this.connectionUiGeneration', '        String url = null;\n        if (i == this.connectionUiGeneration', 1)
+          s = s.replace('        HttpsURLConnection httpsURLConnection;\n        HttpsURLConnection httpsURLConnection2 = null;', '        HttpsURLConnection httpsURLConnection = null;\n        HttpsURLConnection httpsURLConnection2 = null;', 1)
           main.write_text(s, encoding='utf-8')
           PY
           rm -f "$ROOT/res/values/public.xml"
