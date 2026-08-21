@@ -1,0 +1,36 @@
+{
+  "forum": "https://forum.harleytg.com",
+  "extension": "flarum/pusher",
+  "versionConstraint": "^1.8",
+  "provider": "pusher",
+  "install": [
+    "composer require flarum/pusher:^1.8",
+    "php flarum extension:enable flarum-pusher",
+    "php flarum cache:clear"
+  ],
+  "settings": {
+    "flarum-pusher.app_id": "SET_ON_FORUM_HOST",
+    "flarum-pusher.app_key": "SET_ON_FORUM_HOST",
+    "flarum-pusher.app_secret": "SET_ON_FORUM_HOST",
+    "flarum-pusher.app_cluster": "SET_ON_FORUM_HOST"
+  },
+  "expectedForumApiAttributes": [
+    "pusherKey",
+    "pusherCluster"
+  ],
+  "channels": {
+    "public": [
+      "newPost"
+    ],
+    "private-user<ID>": [
+      "newPost",
+      "notification"
+    ]
+  },
+  "authEndpoint": "/api/pusher/auth",
+  "notes": [
+    "This file is a deployment reference and does not contain production Pusher credentials.",
+    "Enter the four flarum-pusher settings on the Flarum host/Admin UI after installing the extension.",
+    "The Android client reads pusherKey/pusherCluster from /api and authenticates private-user<ID> with the existing Flarum session cookie and X-CSRF-Token."
+  ]
+}
