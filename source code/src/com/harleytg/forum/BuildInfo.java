@@ -2,7 +2,7 @@ package com.harleytg.forum;
 
 /** Build identity for the Stable Harley's Clan Forum Android app. */
 final class BuildInfo {
-    static final String APK_FILE_NAME = "HCF-Stable-v10000080.apk";
+    static final String APK_FILE_NAME = "HCF-Stable-v10000082.apk";
     static final String BRAND = "Harley's Studio's";
     static final String CHANNEL = "Stable";
     static final String DEFAULT_UPDATE_CHANNEL = "stable";
@@ -18,7 +18,7 @@ final class BuildInfo {
     static final String UPDATE_STABLE_BRANCH = "stable";
     static final String USER_AGENT_MARKER = "HarleysClanForumApp/1.0";
     static final String VERSION = "1.0";
-    static final int VERSION_CODE = 10000080;
+    static final int VERSION_CODE = 10000082;
     static final String VERSION_BUILD_LINE = VERSION + " • Stable • Build " + VERSION_CODE;
     static final String VERSION_CODE_SCHEME = "major-release-v1";
     static final String VERSION_TAG = "v1.0";
