@@ -80,6 +80,9 @@ jobs:
                   s = s.replace(old, '10000080')
               release.write_text(s, encoding='utf-8')
           PY
+          if [[ "${{ matrix.ref }}" == "dev" ]]; then
+            rm -f "$ROOT/res/values/public.xml"
+          fi
           grep -q 'android:versionCode="10000080"' "$ROOT/AndroidManifest.xml"
           grep -q 'android:versionName="1.0 (10000080)"' "$ROOT/AndroidManifest.xml"
           grep -q 'package="${{ matrix.package }}"' "$ROOT/AndroidManifest.xml"
