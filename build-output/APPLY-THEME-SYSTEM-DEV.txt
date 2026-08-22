@@ -1,1 +1,2 @@
 Apply uploaded HCF theme-system update directly to dev.
+Retry with boundary-safe Settings patch.
