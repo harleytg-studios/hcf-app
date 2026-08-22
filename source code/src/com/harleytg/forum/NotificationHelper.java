@@ -303,15 +303,6 @@ final class NotificationHelper {
         return new Notification.Builder(context, SILENT_CHANNEL_ID).setSmallIcon(R.drawable.ic_notification_paw).setContentTitle("Harley's Clan Forum").setContentText("Live alerts active • checking in real time").setContentIntent(PendingIntent.getActivity(context, 41070, intent, 201326592)).setOngoing(true).setOnlyAlertOnce(true).setShowWhen(false).setCategory("service").setVisibility(0).setPriority(-2).build();
     }
 
-    /* JADX WARN: Removed duplicated region for block: B:18:0x0039  */
-    /* JADX WARN: Removed duplicated region for block: B:23:0x0064 A[Catch: all -> 0x009c, TryCatch #0 {, blocks: (B:9:0x0008, B:12:0x0010, B:19:0x003b, B:23:0x0064, B:26:0x007a, B:33:0x0044, B:35:0x004a, B:37:0x005a, B:38:0x005f), top: B:8:0x0008 }] */
-    /* JADX WARN: Removed duplicated region for block: B:35:0x004a A[Catch: all -> 0x009c, TryCatch #0 {, blocks: (B:9:0x0008, B:12:0x0010, B:19:0x003b, B:23:0x0064, B:26:0x007a, B:33:0x0044, B:35:0x004a, B:37:0x005a, B:38:0x005f), top: B:8:0x0008 }] */
-    /* JADX WARN: Removed duplicated region for block: B:37:0x005a A[Catch: all -> 0x009c, TryCatch #0 {, blocks: (B:9:0x0008, B:12:0x0010, B:19:0x003b, B:23:0x0064, B:26:0x007a, B:33:0x0044, B:35:0x004a, B:37:0x005a, B:38:0x005f), top: B:8:0x0008 }] */
-    /*
-        Code decompiled incorrectly, please refer to instructions dump.
-        To view partially-correct add '--show-bad-code' argument
-    */
-
     static synchronized int recordForumNotificationCount(Context context, int newCount, String host, String source) {
         if (context == null) return 0;
         if (!ForumUrlRouter.isForumHost(host)) host = ForumConfig.PRIMARY_HOST;
@@ -389,11 +380,9 @@ final class NotificationHelper {
             str2 = "You have " + i + " new forum notifications.";
         }
         String str3 = str2;
-        if (silencePassiveEnabled(context)) {
-            AppLogger.info(context, "silent_alert_suppressed", "generic notification summary");
-            return;
-        }
-        postInternal(context, "Harley's Clan Forum", str3, Uri.parse(ForumUrlRouter.home(str) + "notifications"), FORUM_SUMMARY_ID, true, true);
+        // This is a real forum alert fallback, not passive service status. It must
+        // remain on the audible HCF Alerts channel even when Silent Alerts is off.
+        postInternal(context, "Harley's Clan Forum", str3, Uri.parse(ForumUrlRouter.home(str) + "notifications"), FORUM_SUMMARY_ID, true, false);
     }
 
     static void postUpdateAvailable(Context context, UpdateChecker.Release release) {
@@ -405,7 +394,7 @@ final class NotificationHelper {
                 intent.addFlags(335544320);
                 PendingIntent activity = PendingIntent.getActivity(context, 51001, intent, 201326592);
                 Notification.Builder builder = new Notification.Builder(context, CHANNEL_ID);
-                Notification.Builder contentTitle = builder.setSmallIcon(R.drawable.ic_notification_paw).setLargeIcon(BitmapFactory.decodeResource(context.getResources(), R.drawable.htg_app_logo)).setContentTitle("Stable update available");
+                Notification.Builder contentTitle = builder.setSmallIcon(R.drawable.ic_notification_paw).setLargeIcon(BitmapFactory.decodeResource(context.getResources(), R.drawable.htg_app_logo)).setContentTitle("Beta update available");
                 StringBuilder sb = new StringBuilder("v");
                 sb.append(UpdateChecker.displayVersion(release));
                 if (release == null || release.versionCode <= 0) {
@@ -414,7 +403,9 @@ final class NotificationHelper {
                     str = " • build " + release.versionCode;
                 }
                 sb.append(str);
-                sb.append(" is ready for Stable.");
+                sb.append(release != null && release.sameVersionHashUpdate
+                        ? " is a revised Dev/Beta APK (new SHA-256)."
+                        : " is ready for Dev/Beta.");
                 contentTitle.setContentText(sb.toString()).setContentIntent(activity).setAutoCancel(true).setCategory("sys").setVisibility(0).setPriority(0);
                 NotificationManager notificationManager = (NotificationManager) context.getSystemService("notification");
                 if (notificationManager != null) {

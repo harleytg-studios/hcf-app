@@ -23,6 +23,7 @@ final class UpdateChecker {
     static final String CHANNEL_STABLE = "stable";
     private static final String RELEASES_URL = "https://api.github.com/repos/markhitchk/hcf-app/releases?per_page=30";
     private static final String CACHE_ASSET_ID = "update_checked_asset_id";
+    private static final String CACHE_ASSET_SHA256 = "update_checked_asset_sha256";
     private static final String CACHE_ASSET_UPDATED = "update_checked_asset_updated";
     private static final String CACHE_VERSION_CODE = "update_checked_asset_version_code";
     private static final long MAX_CHECK_APK_BYTES = 104857600L;
@@ -42,6 +43,8 @@ final class UpdateChecker {
         final String publishedAt;
         final String releaseUrl;
         final String tag;
+        boolean sameVersionHashUpdate;
+        String sha256 = "";
         long versionCode = -1L;
 
         Release(String tag, String name, String publishedAt, String releaseUrl, String apkUrl,
@@ -58,8 +61,8 @@ final class UpdateChecker {
         }
 
         String assetKey() {
-            if (assetId > 0L) return tag + "#" + assetId + "#" + assetUpdatedAt;
-            return tag + "#" + apkUrl;
+            String base = assetId > 0L ? tag + "#" + assetId + "#" + assetUpdatedAt : tag + "#" + apkUrl;
+            return sha256.isEmpty() ? base : base + "#sha256:" + sha256;
         }
     }
 
@@ -68,10 +71,8 @@ final class UpdateChecker {
         AppExecutors.network().execute(() -> {
             try {
                 Release release = fetchDev();
-                release.versionCode = resolveApkVersionCode(app, release, CHANNEL_DEV);
-                boolean available = release.versionCode > 0
-                        ? release.versionCode > BuildInfo.VERSION_CODE
-                        : compareVersions(release.tag, BuildInfo.VERSION) > 0;
+                resolveApkMetadata(app, release, CHANNEL_DEV);
+                boolean available = isUpdateAvailable(app, release);
                 post(() -> callback.onResult(release, available));
             } catch (Throwable error) {
                 String message = error.getMessage();
@@ -88,6 +89,12 @@ final class UpdateChecker {
         return compareVersions(release.tag, BuildInfo.VERSION);
     }
 
+    static String updateReason(Release release) {
+        return release != null && release.sameVersionHashUpdate
+                ? "same build code, revised APK hash"
+                : "newer build code";
+    }
+
     static String displayVersion(Release release) {
         if (release == null) return "Unknown";
         String value = release.tag == null ? "" : release.tag.trim();
@@ -102,10 +109,11 @@ final class UpdateChecker {
         for (int i = 0; i < releases.length(); i++) {
             JSONObject object = releases.optJSONObject(i);
             if (object != null && !object.optBoolean("draft", false) && object.optBoolean("prerelease", false)) {
-                return parseRelease(object);
+                Release release = parseRelease(object);
+                if (!release.apkUrl.isEmpty()) return release;
             }
         }
-        throw new IllegalStateException("No Dev/Beta app release is published yet.");
+        throw new IllegalStateException("No Dev/Beta release with a trusted APK is published yet.");
     }
 
     private static Release parseRelease(JSONObject object) {
@@ -126,24 +134,37 @@ final class UpdateChecker {
                 String candidateName = asset.optString("name", "").trim();
                 String candidateUrl = asset.optString("browser_download_url", "").trim();
                 if (candidateName.toLowerCase(Locale.US).endsWith(".apk") && AppSecurity.isTrustedReleaseDownload(candidateUrl)) {
-                    apkName = candidateName;
-                    apkUrl = candidateUrl;
-                    assetId = asset.optLong("id", -1L);
-                    assetUpdated = asset.optString("updated_at", "").trim();
-                    break;
+                    long candidateId = asset.optLong("id", -1L);
+                    String candidateUpdated = asset.optString("updated_at", "").trim();
+                    boolean newerAsset = apkUrl.isEmpty()
+                            || candidateUpdated.compareTo(assetUpdated) > 0
+                            || (candidateUpdated.equals(assetUpdated) && candidateId > assetId);
+                    if (newerAsset) {
+                        apkName = candidateName;
+                        apkUrl = candidateUrl;
+                        assetId = candidateId;
+                        assetUpdated = candidateUpdated;
+                    }
                 }
             }
         }
         return new Release(tag, name, published, page, apkUrl, apkName, prerelease, assetId, assetUpdated);
     }
 
-    private static long resolveApkVersionCode(Context context, Release release, String channel) throws Exception {
-        if (context == null || release == null || release.apkUrl.trim().isEmpty()) return -1L;
+    private static void resolveApkMetadata(Context context, Release release, String channel) throws Exception {
+        if (context == null || release == null || release.apkUrl.trim().isEmpty()) return;
         SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
         long cachedId = prefs.getLong(CACHE_ASSET_ID, -1L);
         String cachedUpdated = prefs.getString(CACHE_ASSET_UPDATED, "");
         long cachedCode = prefs.getLong(CACHE_VERSION_CODE, -1L);
-        if (release.assetId > 0 && cachedId == release.assetId && release.assetUpdatedAt.equals(cachedUpdated) && cachedCode > 0) return cachedCode;
+        String cachedSha256 = prefs.getString(CACHE_ASSET_SHA256, "");
+        if (release.assetId > 0 && cachedId == release.assetId
+                && release.assetUpdatedAt.equals(cachedUpdated) && cachedCode > 0
+                && AppSecurity.isSha256(cachedSha256)) {
+            release.versionCode = cachedCode;
+            release.sha256 = cachedSha256.toLowerCase(Locale.US);
+            return;
+        }
         File apk = new File(context.getCacheDir(), "hcf-update-check-" + channel + "-" + Math.max(0L, release.assetId) + ".apk");
         try {
             downloadForInspection(release.apkUrl, apk, channel);
@@ -152,10 +173,41 @@ final class UpdateChecker {
             if (!context.getPackageName().equals(info.packageName)) throw new IllegalStateException("The published " + channel + " APK uses the wrong Android package.");
             long code = Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
             if (code <= 0) throw new IllegalStateException("The published " + channel + " APK has an invalid versionCode.");
-            prefs.edit().putLong(CACHE_ASSET_ID, release.assetId).putString(CACHE_ASSET_UPDATED, release.assetUpdatedAt).putLong(CACHE_VERSION_CODE, code).apply();
-            return code;
+            String sha256 = AppSecurity.fileSha256(apk);
+            if (!AppSecurity.isSha256(sha256)) throw new IllegalStateException("The published " + channel + " APK hash could not be verified.");
+            release.versionCode = code;
+            release.sha256 = sha256;
+            prefs.edit()
+                    .putLong(CACHE_ASSET_ID, release.assetId)
+                    .putString(CACHE_ASSET_UPDATED, release.assetUpdatedAt)
+                    .putLong(CACHE_VERSION_CODE, code)
+                    .putString(CACHE_ASSET_SHA256, sha256)
+                    .apply();
         } finally {
             try { if (apk.isFile()) apk.delete(); } catch (Throwable ignored) {}
+        }
+    }
+
+    private static boolean isUpdateAvailable(Context context, Release release) throws Exception {
+        if (release == null) return false;
+        if (release.versionCode <= 0L) return compareVersions(release.tag, BuildInfo.VERSION) > 0;
+        long installedVersion = installedVersionCode(context);
+        if (release.versionCode > installedVersion) return true;
+        if (release.versionCode < installedVersion) return false;
+        String installedSha256 = AppSecurity.installedApkSha256(context);
+        release.sameVersionHashUpdate = AppSecurity.isSha256(release.sha256)
+                && AppSecurity.isSha256(installedSha256)
+                && !release.sha256.equalsIgnoreCase(installedSha256);
+        return release.sameVersionHashUpdate;
+    }
+
+    private static long installedVersionCode(Context context) {
+        if (context == null) return BuildInfo.VERSION_CODE;
+        try {
+            PackageInfo info = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            return Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
+        } catch (Throwable ignored) {
+            return BuildInfo.VERSION_CODE;
         }
     }
 

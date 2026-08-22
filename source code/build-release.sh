@@ -8,11 +8,14 @@ android_jar="$sdk_root/platforms/android-${ANDROID_PLATFORM_VERSION:-35}/android
 manifest="$project_dir/AndroidManifest.xml"
 build_info="$project_dir/src/com/harleytg/forum/BuildInfo.java"
 ui_verifier="$project_dir/../.github/scripts/verify-hcf-alerts-ui.py"
+release_verifier="$project_dir/../.github/scripts/verify-release-readiness.py"
 
 [[ -f "$manifest" ]] || { echo "Missing AndroidManifest.xml" >&2; exit 2; }
 [[ -f "$build_info" ]] || { echo "Missing BuildInfo.java" >&2; exit 2; }
 [[ -f "$ui_verifier" ]] || { echo "Missing HCF Alerts UI verifier" >&2; exit 24; }
+[[ -f "$release_verifier" ]] || { echo "Missing release-readiness verifier" >&2; exit 25; }
 python3 "$ui_verifier" "$project_dir"
+python3 "$release_verifier" "$project_dir/.."
 [[ -x "$build_tools/aapt" ]] || { echo "Missing aapt in $build_tools" >&2; exit 3; }
 [[ -x "$build_tools/d8" ]] || { echo "Missing d8 in $build_tools" >&2; exit 4; }
 [[ -x "$build_tools/zipalign" ]] || { echo "Missing zipalign in $build_tools" >&2; exit 5; }
@@ -88,6 +91,7 @@ cp "$work/resources.apk" "$work/unsigned.apk"
 
 output_apk="$output_dir/$output_name"
 "$build_tools/apksigner" sign \
+  --min-sdk-version 23 \
   --v1-signing-enabled true \
   --v2-signing-enabled true \
   --v3-signing-enabled true \
@@ -99,7 +103,8 @@ output_apk="$output_dir/$output_name"
   --out "$output_apk" \
   "$work/aligned.apk"
 
-"$build_tools/apksigner" verify --verbose --print-certs "$output_apk"
+[[ -f "$output_apk.idsig" ]] || { echo "Missing APK Signature Scheme v4 sidecar" >&2; exit 26; }
+"$build_tools/apksigner" verify --min-sdk-version 23 --verbose --print-certs "$output_apk"
 
-printf 'Built %s\nPackage: %s\nVersion: %s (%s)\nChannel: %s\n' \
-  "$output_apk" "$package_name" "$version_name" "$version_code" "$channel"
+printf 'Built %s\nV4 sidecar: %s\nPackage: %s\nVersion name: %s\nVersion code: %s\nChannel: %s\n' \
+  "$output_apk" "$output_apk.idsig" "$package_name" "$version_name" "$version_code" "$channel"

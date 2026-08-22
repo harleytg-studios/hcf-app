@@ -94,8 +94,11 @@ final class AppPrefs {
     static final String UPDATE_AUTO_INSTALL = "update_auto_install";
     static final String UPDATE_CHANNEL = "update_channel";
     static final String UPDATE_DOWNLOAD_ID = "update_download_id";
+    static final String UPDATE_DOWNLOAD_LABEL = "update_download_label";
     static final String UPDATE_DOWNLOAD_NAME = "update_download_name";
+    static final String UPDATE_DOWNLOAD_SHA256 = "update_download_sha256";
     static final String UPDATE_DOWNLOAD_TAG = "update_download_tag";
+    static final String UPDATE_DOWNLOAD_VERSION_CODE = "update_download_version_code";
     static final String UPDATE_INSTALL_PENDING = "update_install_pending";
     static final String UPDATE_LAST_AVAILABLE_TAG = "update_last_available_tag";
     static final String UPDATE_LAST_CHECK = "update_last_check";

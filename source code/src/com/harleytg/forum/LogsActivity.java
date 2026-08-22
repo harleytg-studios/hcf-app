@@ -547,13 +547,6 @@ public final class LogsActivity extends ThemedActivity {
         }
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    /* JADX WARN: Removed duplicated region for block: B:62:0x0130  */
-    /* JADX WARN: Removed duplicated region for block: B:65:? A[RETURN, SYNTHETIC] */
-    /*
-        Code decompiled incorrectly, please refer to instructions dump.
-        To view partially-correct add '--show-bad-code' argument
-    */
     public void renderLogs() {
         if (contentText == null || !MODE_LOGS.equals(currentMode)) return;
         List<LogEntry> entries = parseLogs(rawLogs);

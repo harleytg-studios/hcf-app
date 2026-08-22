@@ -19,7 +19,7 @@ import java.util.Set;
 
 /** Pulls the trusted forum-domain registry from the hcf-app main branch. */
 final class RemoteDomainConfig {
-    static final String CONFIG_URL = "https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/domains.config";
+    static final String CONFIG_URL = BuildInfo.REMOTE_DOMAIN_CONFIG;
 
     private static final String PREFS = "hcf_remote_domains";
     private static final String KEY_RAW = "raw";

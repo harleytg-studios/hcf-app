@@ -1239,7 +1239,7 @@ public final class SettingsActivity extends ThemedActivity {
         updateInstallButton = actionButton("Install Downloaded Update", v -> installDownloadedUpdate());
         updateInstallButton.setVisibility(AppUpdateDownloader.isDownloaded(this) ? View.VISIBLE : View.GONE);
         card.addView(updateInstallButton);
-        TextView verification = target(text("APK verification: HCF checks the downloaded package name, Android versionCode, and signing certificate before opening Android's installer. Android still requires your confirmation to install.", 10, getColor(R.color.hcf_muted)), "apk_verification");
+        TextView verification = target(text("APK verification: HCF checks the downloaded package name, Android versionCode, exact SHA-256 file hash, and signing-certificate lineage before opening Android's installer. A changed SHA-256 can also identify a revised APK with the same versionCode. Android still requires your confirmation to install.", 10, getColor(R.color.hcf_muted)), "apk_verification");
         verification.setPadding(0, dp(8), 0, 0);
         card.addView(verification);
         return card;
@@ -1290,7 +1290,7 @@ public final class SettingsActivity extends ThemedActivity {
                 String releaseType = release.prerelease ? "Pre-release" : "Official release";
                 String installed = "v" + BuildInfo.VERSION + " (" + installedVersionCode() + ")";
                 if (newer) {
-                    updateStatus.setText(channelDisplayName(channel) + " Update Available\nInstalled: " + installed + "\nLatest available: " + remote + "\n" + releaseType + " • " + asset);
+                    updateStatus.setText(channelDisplayName(channel) + " Update Available\nInstalled: " + installed + "\nLatest available: " + remote + "\nReason: " + UpdateChecker.updateReason(release) + "\n" + releaseType + " • " + asset);
                     updateStatus.setTextColor(getColor(R.color.hcf_accent_text));
                     if (updateDownloadButton != null && release.apkUrl != null && !release.apkUrl.isEmpty()) updateDownloadButton.setVisibility(View.VISIBLE);
                     if (prefs.getBoolean("update_auto_download", false) && release.apkUrl != null && !release.apkUrl.isEmpty()) {
@@ -1300,7 +1300,9 @@ public final class SettingsActivity extends ThemedActivity {
                             watchUpdateDownloadForAutoInstall(id);
                         }
                     }
-                    if (userInitiated) Toast.makeText(SettingsActivity.this, channelDisplayName(channel) + " update available" + (release.versionCode > 0 ? " • build " + release.versionCode : ""), Toast.LENGTH_LONG).show();
+                    if (userInitiated) Toast.makeText(SettingsActivity.this, release.sameVersionHashUpdate
+                            ? "Revised Dev/Beta APK available • SHA-256 changed"
+                            : channelDisplayName(channel) + " update available" + (release.versionCode > 0 ? " • build " + release.versionCode : ""), Toast.LENGTH_LONG).show();
                 } else if (UpdateChecker.compareReleaseToInstalled(release) < 0) {
                     updateStatus.setText("Installed build is newer\nInstalled: " + installed + "\nLatest published: " + remote + " • " + asset);
                     updateStatus.setTextColor(getColor(R.color.hcf_meta));

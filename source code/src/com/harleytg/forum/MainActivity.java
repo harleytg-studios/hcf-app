@@ -2333,7 +2333,7 @@ public class MainActivity extends ThemedActivity {
     /* renamed from: lambda$scheduleWhatsNew$46$com-harleytg-forum-dev-MainActivity, reason: not valid java name */
     /* synthetic */ void m85lambda$scheduleWhatsNew$46$comharleytgforumdevMainActivity() {
         try {
-            if (ReleaseNotes.shouldNotify(this.prefs)) {
+            if (hasWindowFocus() && ReleaseNotes.shouldNotify(this.prefs)) {
                 showWhatsNewNotification();
             }
         } catch (Throwable th) {
@@ -2347,7 +2347,7 @@ public class MainActivity extends ThemedActivity {
         }
         ReleaseNotes.markSeen(this.prefs);
         this.welcomeBanner.animate().cancel();
-        this.welcomeBanner.setText("✨  What's New • v1.0\nBeta/Dev v" + BuildInfo.VERSION_CODE + " • Theme, notifications & stability update  •  Tap to view");
+        this.welcomeBanner.setText("✨  What's New • v1.0\nBeta/Dev v" + BuildInfo.VERSION_CODE + " • Setup, secure updates & reliability  •  Tap to view");
         this.welcomeBanner.setContentDescription("What's new in v1.0. Tap to view release notes.");
         this.welcomeBanner.setClickable(true);
         this.welcomeBanner.setFocusable(true);
@@ -2529,7 +2529,7 @@ public class MainActivity extends ThemedActivity {
         if (release == null || isFinishing() || isDestroyed()) {
             return;
         }
-        new AlertDialog.Builder(this).setTitle("Beta Update Available").setMessage("A newer Harley's Clan Forum development build is ready.\n\nInstalled: v1.0 (" + BuildInfo.VERSION_CODE + ")\nAvailable: v" + UpdateChecker.displayVersion(release) + " (" + (release.versionCode > 0 ? Long.toString(release.versionCode) : "Checking build code") + ")\n\nChannel: Development / Beta\nUpdate when you're ready to test the latest build.").setNegativeButton("Later", (DialogInterface.OnClickListener) null).setPositiveButton("Update Now", new DialogInterface.OnClickListener() { // from class: com.harleytg.forum.dev.MainActivity$$ExternalSyntheticLambda12
+        new AlertDialog.Builder(this).setTitle("Beta Update Available").setMessage("An updated Harley's Clan Forum development APK is ready.\n\nInstalled: v1.0 (" + BuildInfo.VERSION_CODE + ")\nAvailable: v" + UpdateChecker.displayVersion(release) + " (" + (release.versionCode > 0 ? Long.toString(release.versionCode) : "Checking build code") + ")\nReason: " + UpdateChecker.updateReason(release) + "\n\nChannel: Development / Beta\nUpdate when you're ready to test the latest build.").setNegativeButton("Later", (DialogInterface.OnClickListener) null).setPositiveButton("Update Now", new DialogInterface.OnClickListener() { // from class: com.harleytg.forum.dev.MainActivity$$ExternalSyntheticLambda12
             @Override // android.content.DialogInterface.OnClickListener
             public final void onClick(DialogInterface dialogInterface, int i) {
                 MainActivity.this.m86xf46525d5(dialogInterface, i);
@@ -2577,7 +2577,7 @@ public class MainActivity extends ThemedActivity {
             }
         });
         this.nativeUpdateDialog.show();
-        UpdateChecker.check(this, "stable", new UpdateChecker.Callback() { // from class: com.harleytg.forum.dev.MainActivity.4
+        UpdateChecker.check(this, "dev", new UpdateChecker.Callback() { // from class: com.harleytg.forum.dev.MainActivity.4
             @Override // com.harleytg.forum.dev.UpdateChecker.Callback
             public void onResult(UpdateChecker.Release release, boolean z) {
                 String str;
@@ -3971,6 +3971,9 @@ public class MainActivity extends ThemedActivity {
         super.onResume();
         this.appliedThemeSignature = ThemeManager.signature(this);
         resumeUpdateInstallPermissionIfNeeded();
+        // SetupActivity may temporarily cover MainActivity during an upgrade.
+        // Re-schedule without marking seen so What's New appears after setup returns.
+        scheduleWhatsNew(true);
         if (this.launchFailed || (webView = this.webView) == null) {
             return;
         }
@@ -4185,13 +4188,7 @@ public class MainActivity extends ThemedActivity {
         super.onDestroy();
     }
 
-    /* JADX WARN: Removed duplicated region for block: B:39:0x009d  */
-    /* JADX WARN: Removed duplicated region for block: B:42:0x00a0  */
     @Override // android.app.Activity
-    /*
-        Code decompiled incorrectly, please refer to instructions dump.
-        To view partially-correct add '--show-bad-code' argument
-    */
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == UPDATE_INSTALL_PERMISSION_REQUEST) {
