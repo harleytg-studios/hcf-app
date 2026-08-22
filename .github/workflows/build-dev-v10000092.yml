@@ -1,4 +1,4 @@
-name: HCF Beta v10000091 Release Gate
+name: HCF Beta v10000092 Release Gate
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - 'README.md'
       - '.github/scripts/verify-hcf-alerts-ui.py'
       - '.github/scripts/verify-release-readiness.py'
-      - '.github/workflows/build-dev-v10000091.yml'
+      - '.github/workflows/build-dev-v10000092.yml'
   workflow_dispatch:
 
 permissions:
@@ -47,8 +47,8 @@ jobs:
           ROOT="$GITHUB_WORKSPACE/source code"
           BT="$ANDROID_HOME/build-tools/35.0.0"
           ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
-          WORK="$RUNNER_TEMP/hcf-beta-v10000091"
-          OUT="$GITHUB_WORKSPACE/out-v10000091"
+          WORK="$RUNNER_TEMP/hcf-beta-v10000092"
+          OUT="$GITHUB_WORKSPACE/out-v10000092"
           mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
 
           "$BT/aapt" package -f -m \
@@ -66,14 +66,14 @@ jobs:
 
           cp "$WORK/resources.apk" "$WORK/unsigned.apk"
           (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
-          APK="$OUT/HCF-Beta-v10000091-aligned-unsigned.apk"
+          APK="$OUT/HCF-Beta-v10000092-aligned-unsigned.apk"
           "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$APK"
           "$BT/zipalign" -c -p 4 "$APK"
 
           "$BT/aapt" dump badging "$APK" | head -1 | tee "$OUT/APK-BADGING.txt"
           grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
-          grep -q "versionCode='10000091'" "$OUT/APK-BADGING.txt"
-          grep -q "versionName='1.0 (10000091)'" "$OUT/APK-BADGING.txt"
+          grep -q "versionCode='10000092'" "$OUT/APK-BADGING.txt"
+          grep -q "versionName='1.0 (10000092)'" "$OUT/APK-BADGING.txt"
 
           unzip -p "$APK" classes.dex | strings > "$OUT/DEX-STRINGS.txt"
           grep -Fq 'same build code, revised APK hash' "$OUT/DEX-STRINGS.txt"
@@ -87,7 +87,7 @@ jobs:
       - name: Upload verified unsigned APK
         uses: actions/upload-artifact@v4
         with:
-          name: HCF-Beta-v10000091-Unsigned
-          path: out-v10000091/
+          name: HCF-Beta-v10000092-Unsigned
+          path: out-v10000092/
           if-no-files-found: error
           retention-days: 7
