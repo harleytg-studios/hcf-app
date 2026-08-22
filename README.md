@@ -36,6 +36,8 @@ This branch is Android-only and intentionally minimal.
 
 Historical patch notes, old test-build notes, duplicate branding, deployment helper copies, temporary artifacts, and iOS files are intentionally excluded from the active `dev` branch.
 
+Only the two active read-only GitHub Actions workflows and their release-verification scripts are retained. Generated trigger/output logs, one-time source-patching scripts, and unreferenced Android drawables are excluded.
+
 ## Release gates
 
 The v10000092 workflow compiles the complete Java/resource source, packages and aligns an unsigned CI APK, verifies package/version identity, checks the approved three-tile HCF Alerts UI, and rejects decompiler stubs or missing same-version SHA-256 update protections. Production signing remains local so the Beta private key is never stored in GitHub Actions.

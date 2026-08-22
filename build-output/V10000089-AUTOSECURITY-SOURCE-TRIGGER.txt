@@ -1,2 +1,0 @@
-Apply automatic linked-account/security sync to Beta v10000089 source.
-Apply the user-friendly Notifications UI redesign and move Background notification sync into HCF Alerts.

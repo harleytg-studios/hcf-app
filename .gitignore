@@ -1,4 +1,5 @@
 # Generated Android build artifacts
+/build-output/
 source code/.build-generated/
 source code/out/
 source code/classes/

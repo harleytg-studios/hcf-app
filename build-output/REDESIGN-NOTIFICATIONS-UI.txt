@@ -1,2 +1,0 @@
-Apply the user-friendly Notifications UI redesign on dev.
-Retry after workflow registration.

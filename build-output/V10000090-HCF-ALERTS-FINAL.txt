@@ -1,1 +1,0 @@
-Apply and build the final V10000090 HCF Alerts expanded UI migration from the newer rendered design.
