@@ -106,6 +106,27 @@ text = text.replace(
 identity.write_text(text, encoding="utf-8")
 
 # ---------------------------------------------------------------------------
+# Settings: make the background-delivery state truthful and user-friendly.
+# HCF Alerts never becomes app-disabled; the Silent Alerts switch only changes
+# whether Android's continuous foreground sync service may run.
+# ---------------------------------------------------------------------------
+settings = src / "SettingsActivity.java"
+text = settings.read_text(encoding="utf-8")
+text = text.replace(
+    '            boolean background = prefs.getBoolean("background_notification_sync", true);\n            String delivery = background ? "Background delivery ON" : "Background delivery paused";',
+    '            boolean background = prefs.getBoolean("background_notification_sync", true);\n            boolean silentStatusDisabled = prefs.getBoolean("silence_background_service_notification", false);\n            String sessionUserId = prefs.getString("session_user_id", "");\n            boolean signedIn = sessionUserId != null && !sessionUserId.trim().isEmpty();\n            String delivery = !background ? "Background delivery paused"\n                    : !signedIn ? "Background delivery waiting for sign-in"\n                    : silentStatusDisabled ? "Background delivery delayed"\n                    : "Background delivery live";',
+)
+text = text.replace(
+    '            Toast.makeText(this, checked ? "HCF Silent Alerts disabled." : "HCF Silent Alerts enabled • silent.", Toast.LENGTH_LONG).show();',
+    '            Toast.makeText(this, checked ? "HCF Silent Alerts disabled. Real HCF Alerts stay on; background delivery may be delayed." : "HCF Silent Alerts enabled • live background delivery available.", Toast.LENGTH_LONG).show();',
+)
+text = text.replace(
+    '        card.addView(text("This affects the silent service-status channel only. Android may limit continuous background checking when the service status is disabled.", 10, getColor(R.color.hcf_muted)));',
+    '        card.addView(text("This never disables HCF Alerts. When this switch is ON, the continuous foreground sync service stops because Android requires a visible service notification; fallback background checks remain scheduled.", 10, getColor(R.color.hcf_muted)));',
+)
+settings.write_text(text, encoding="utf-8")
+
+# ---------------------------------------------------------------------------
 # Diagnostics/support/release notes: remove historic hard-coded build identity.
 # ---------------------------------------------------------------------------
 logs = src / "LogsActivity.java"
@@ -150,6 +171,10 @@ text = text.replace(
     'return "1.0-10000072";',
     'return BuildInfo.VERSION + "-" + BuildInfo.VERSION_CODE;',
 )
+text = text.replace(
+    'addSection(activity, linearLayout4, "Updated • Passive notification silence", "Silence passive notifications now keeps live background sync active while routing service status, generic summaries and test/status alerts through silent low-priority behavior. Messages, mentions and replies remain normal alerts.");',
+    'addSection(activity, linearLayout4, "Updated • HCF Alerts background delivery", "Background notification sync now lives under HCF Alerts. HCF Alerts remains the real alert channel and is never disabled by the Silent Alerts setting. Disabling HCF Silent Alerts stops the continuous foreground sync service, so delivery while the app is closed may fall back to delayed Android background checks.");',
+)
 notes.write_text(text, encoding="utf-8")
 
 updater = src / "AppUpdateDownloader.java"
@@ -191,9 +216,17 @@ if 'CharSequence loadLabel = null;' not in chooser.read_text(encoding="utf-8"):
     raise SystemExit("HcfIntentChooser resolveLabel initialization missing")
 if 'HttpsURLConnection httpsURLConnection = null;' not in identity.read_text(encoding="utf-8"):
     raise SystemExit("IdentityActivity avatar connection initialization missing")
+settings_text = settings.read_text(encoding="utf-8")
+if 'Background delivery live' not in settings_text or 'Background delivery delayed' not in settings_text:
+    raise SystemExit("Settings background delivery status is not mode-aware")
+if 'This never disables HCF Alerts.' not in settings_text:
+    raise SystemExit("Silent Alerts helper does not preserve HCF Alerts semantics")
 if "10000072" in support.read_text(encoding="utf-8"):
     raise SystemExit("SupportContactActivity still contains stale build identity")
-if "AMOLED" not in notes.read_text(encoding="utf-8"):
+notes_text = notes.read_text(encoding="utf-8")
+if "AMOLED" not in notes_text:
     raise SystemExit("Release notes do not describe the AMOLED theme update")
+if "HCF Alerts background delivery" not in notes_text:
+    raise SystemExit("Release notes contain stale notification-silence behavior")
 
 print("post-repair compile + identity cleanup passed")
