@@ -18,7 +18,7 @@ import java.util.Map;
 
 /** Shared state and Android integration helpers for the versioned App Setup Center. */
 final class SetupCenter {
-    static final int CURRENT_SETUP_VERSION = 1;
+    static final int CURRENT_SETUP_VERSION = 2;
     static final int CURRENT_WELCOME_VERSION = 1;
     static final String EXTRA_AUTO_LAUNCHED = "hcf_setup_auto_launched";
     static final String PRIMARY_FORUM_HOST = "forum.harleytg.com";
@@ -98,10 +98,6 @@ final class SetupCenter {
         installDrawerEntry(activity);
         if (savedInstanceState != null) return;
 
-        // New onboarding gate: welcome the user before asking them to configure
-        // optional Android integrations. The welcome screen records its own state
-        // only after the user chooses Setup or Continue, so an interrupted first
-        // launch can safely show the welcome screen again.
         if (shouldShowWelcome(activity)) {
             Intent welcome = new Intent(activity, WelcomeActivity.class);
             welcome.putExtra(EXTRA_AUTO_LAUNCHED, true);
@@ -110,8 +106,6 @@ final class SetupCenter {
             return;
         }
 
-        // Compatibility path for an install whose welcome screen was already
-        // acknowledged but whose current Setup Center version has never been seen.
         if (!shouldAutoLaunch(activity)) return;
         markSeen(activity);
         Intent intent = new Intent(activity, SetupActivity.class);
