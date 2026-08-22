@@ -1,2 +1,3 @@
 Build replacement HCF Beta v10000089 with automatic linked-account/security sync and corrected Beta footer.
 Retry after workflow registration.
+Run after source auto-security patch landed.
