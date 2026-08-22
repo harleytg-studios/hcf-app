@@ -1,4 +1,4 @@
-name: HCF Alerts UI v2 Source Update
+name: HCF Alerts Render-Matched Source Update
 
 on:
   push:
@@ -30,7 +30,7 @@ jobs:
             }
             await github.rest.repos.createOrUpdateFileContents({
               owner, repo, path, branch: 'dev', sha,
-              message: '[skip ci] Record HCF Alerts UI v2 run',
+              message: '[skip ci] Record HCF Alerts render-v3 run',
               content: Buffer.from(String(context.runId) + '\n').toString('base64')
             });
 
@@ -40,14 +40,15 @@ jobs:
           ref: dev
           fetch-depth: 1
 
-      - name: Apply HCF Alerts dashboard UI source patch
+      - name: Apply selected-render HCF Alerts source patch
         shell: bash
         run: |
           set -euo pipefail
-          python3 .github/scripts/patch-hcf-alerts-ui-v2.py "$GITHUB_WORKSPACE/source code"
-          grep -n 'HCF_ALERTS_STATUS_TILES_V2' 'source code/src/com/harleytg/forum/SettingsActivity.java'
-          grep -n 'backgroundState = "Delayed"' 'source code/src/com/harleytg/forum/SettingsActivity.java'
-          grep -n 'syncState = "Synced"' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          python3 .github/scripts/patch-hcf-alerts-ui-v3.py "$GITHUB_WORKSPACE/source code"
+          grep -n 'HCF_ALERTS_RENDER_V3' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -n 'Background notification sync' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -n 'Permission allowed' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -n 'High priority' 'source code/src/com/harleytg/forum/SettingsActivity.java'
           grep -n 'Open Android settings' 'source code/src/com/harleytg/forum/SettingsActivity.java'
           grep -n 'HCF Alerts are the real forum alerts.' 'source code/src/com/harleytg/forum/SettingsActivity.java'
 
@@ -68,7 +69,7 @@ jobs:
           ROOT="$GITHUB_WORKSPACE/source code"
           BT="$ANDROID_HOME/build-tools/35.0.0"
           ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
-          WORK="$RUNNER_TEMP/hcf-alerts-ui-v2"
+          WORK="$RUNNER_TEMP/hcf-alerts-render-v3"
           rm -rf "$WORK"
           mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex"
 
@@ -90,6 +91,7 @@ jobs:
           grep -q 'Background notification sync' "$WORK/DEX-STRINGS.txt"
           grep -q 'Permission allowed' "$WORK/DEX-STRINGS.txt"
           grep -q 'High priority' "$WORK/DEX-STRINGS.txt"
+          grep -q 'Open Android settings' "$WORK/DEX-STRINGS.txt"
           grep -q 'HCF Alerts are the real forum alerts.' "$WORK/DEX-STRINGS.txt"
           ! grep -q 'Method not decompiled:' "$WORK/DEX-STRINGS.txt"
 
@@ -103,6 +105,6 @@ jobs:
           if git diff --cached --quiet; then
             echo 'No SettingsActivity changes to commit.'
           else
-            git commit -m 'Redesign HCF Alerts sub-settings status dashboard'
+            git commit -m 'Match HCF Alerts sub-settings to selected render'
             git push origin HEAD:dev
           fi
