@@ -1,2 +1,3 @@
 Build replacement HCF Beta v10000089.
 Includes automatic linked-account/security sync, corrected [Development Build / Beta] footer, realtime Pusher updates, and HCF Silent Alerts status/disable behavior.
+Retry after replacement workflow registration.
