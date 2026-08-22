@@ -90,10 +90,14 @@ logs.write_text(text, encoding="utf-8")
 
 support = src / "SupportContactActivity.java"
 text = support.read_text(encoding="utf-8")
-text = text.replace(
-    'addLockedRow(bodyContainer, "App", "Harley\'s Clan Forum v1.0 • build 10000072");',
-    'addLockedRow(bodyContainer, "App", "Harley\'s Clan Forum v" + BuildInfo.VERSION + " • build " + BuildInfo.VERSION_CODE);',
+text, support_replacements = re.subn(
+    r'addLockedRow\(bodyContainer, "App", "[^"\n]*10000072"\);',
+    'addLockedRow(bodyContainer, "App", "Harley\\\'s Clan Forum v" + BuildInfo.VERSION + " • build " + BuildInfo.VERSION_CODE);',
+    text,
+    count=1,
 )
+if support_replacements != 1:
+    raise SystemExit("SupportContactActivity stale App build row not found")
 support.write_text(text, encoding="utf-8")
 
 notes = src / "ReleaseNotes.java"
