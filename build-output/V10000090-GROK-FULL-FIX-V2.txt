@@ -6,3 +6,4 @@ Final release run after idempotent SupportContact diagnostics + AMOLED release-n
 Retry after HcfIntentChooser definite-assignment repair, post script commit daa1372.
 Retry after IdentityActivity HTTPS connection definite-assignment repair, post script commit 74b9952.
 Final release compile after mode-aware HCF Alerts background-delivery status and accurate release notes, post script commit e81aa58.
+Direct Dev-only final release gate; no Stable recovery stage, workflow commit 96e3523.
