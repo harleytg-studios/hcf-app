@@ -1,0 +1,35 @@
+name: Diagnose Remaining Grok Stubs
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - build-output/V10000090-GROK-STUB-DIAG.txt
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+      - uses: actions/checkout@v4
+        with:
+          ref: stable
+          path: stable-repo
+      - name: Apply repair and print every remaining stub
+        shell: bash
+        run: |
+          set +e
+          python3 .github/scripts/fix-grok-guide-v10000090.py "$GITHUB_WORKSPACE/source code" "$GITHUB_WORKSPACE/stable-repo/source code"
+          rc=$?
+          set -e
+          echo "repair script exit=$rc"
+          echo '=== REMAINING METHOD NOT DECOMPILED ==='
+          grep -R -n 'Method not decompiled:' 'source code/src' || true
+          echo '=== REMAINING UNSUPPORTED OPERATION ==='
+          grep -R -n 'throw new UnsupportedOperationException' 'source code/src' || true
+          echo '=== ALL JAVA FILES WITH DECOMPILER MARKERS ==='
+          grep -R -l -E 'Method not decompiled:|throw new UnsupportedOperationException' 'source code/src' || true
+          exit 0
