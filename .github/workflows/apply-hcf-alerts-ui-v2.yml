@@ -1,0 +1,88 @@
+name: HCF Alerts UI v2 Source Update
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - build-output/V10000090-HCF-ALERTS-UI-V2.txt
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 1
+
+      - name: Apply HCF Alerts dashboard UI source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/patch-hcf-alerts-ui-v2.py "$GITHUB_WORKSPACE/source code"
+          grep -n 'HCF_ALERTS_STATUS_TILES_V2' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -n 'backgroundState = "Delayed"' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -n 'syncState = "Synced"' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -n 'Open Android settings' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -n 'HCF Alerts are the real forum alerts.' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Compile direct Dev source
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-alerts-ui-v2"
+          rm -rf "$WORK"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex"
+
+          "$BT/aapt" package -f -m \
+            -J "$WORK/gen" \
+            -M "$ROOT/AndroidManifest.xml" \
+            -S "$ROOT/res" \
+            -A "$ROOT/assets" \
+            -I "$ANDROID_JAR" \
+            -F "$WORK/resources.apk"
+
+          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
+
+          mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
+
+          unzip -p "$WORK/dex/classes.dex" 2>/dev/null | strings > "$WORK/DEX-STRINGS.txt" || strings "$WORK/dex/classes.dex" > "$WORK/DEX-STRINGS.txt"
+          grep -q 'Background notification sync' "$WORK/DEX-STRINGS.txt"
+          grep -q 'Permission allowed' "$WORK/DEX-STRINGS.txt"
+          grep -q 'High priority' "$WORK/DEX-STRINGS.txt"
+          grep -q 'HCF Alerts are the real forum alerts.' "$WORK/DEX-STRINGS.txt"
+          ! grep -q 'Method not decompiled:' "$WORK/DEX-STRINGS.txt"
+
+      - name: Commit source update
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          if git diff --cached --quiet; then
+            echo 'No SettingsActivity changes to commit.'
+          else
+            git commit -m 'Redesign HCF Alerts sub-settings status dashboard'
+            git push origin HEAD:dev
+          fi
