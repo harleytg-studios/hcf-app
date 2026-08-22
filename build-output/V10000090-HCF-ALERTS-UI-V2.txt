@@ -1,0 +1,1 @@
+Apply the selected second render to HCF Alerts sub-settings source UI.
