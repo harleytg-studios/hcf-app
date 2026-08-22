@@ -8,11 +8,6 @@ if len(sys.argv) != 2:
 root = Path(sys.argv[1]).resolve()
 src = root / "src/com/harleytg/forum"
 
-# ---------------------------------------------------------------------------
-# MainActivity: every build-dependent user-facing string and the notification
-# onboarding gate must come from BuildInfo. Stable recovery source is used only
-# to recover clean method bodies; this restores Beta wording afterwards.
-# ---------------------------------------------------------------------------
 main = src / "MainActivity.java"
 text = main.read_text(encoding="utf-8")
 text = text.replace(
@@ -29,12 +24,7 @@ text = text.replace("Checking Stable updates…", "Checking Development / Beta u
 text = text.replace("A newer Stable build", "A newer Development / Beta build")
 main.write_text(text, encoding="utf-8")
 
-# ---------------------------------------------------------------------------
-# ForumNotificationClient: JADX left two checked JSONException construction
-# paths in readableValue() without handling. Treat stringified JSON as optional
-# structured content; malformed JSON simply falls back to the already-cleaned
-# text instead of breaking compilation or notification parsing.
-# ---------------------------------------------------------------------------
+# JADX left checked JSON construction in a readable helper without a catch.
 client = src / "ForumNotificationClient.java"
 text = client.read_text(encoding="utf-8")
 old = '''        if ((trim.startsWith("{") && trim.endsWith("}")) || (trim.startsWith("[") && trim.endsWith("]"))) {
@@ -76,10 +66,7 @@ if old not in text:
 text = text.replace(old, new, 1)
 client.write_text(text, encoding="utf-8")
 
-# ---------------------------------------------------------------------------
-# Remaining version drift identified by the Grok report/direct-source audit.
-# These classes either come from Stable recovery or pre-date BuildInfo usage.
-# ---------------------------------------------------------------------------
+# Remaining version identity drift.
 logs = src / "LogsActivity.java"
 text = logs.read_text(encoding="utf-8")
 text = text.replace(
@@ -90,14 +77,11 @@ logs.write_text(text, encoding="utf-8")
 
 support = src / "SupportContactActivity.java"
 text = support.read_text(encoding="utf-8")
-text, support_replacements = re.subn(
-    r'addLockedRow\(bodyContainer, "App", "[^"\n]*10000072"\);',
-    'addLockedRow(bodyContainer, "App", "Harley\\\'s Clan Forum v" + BuildInfo.VERSION + " • build " + BuildInfo.VERSION_CODE);',
-    text,
-    count=1,
-)
-if support_replacements != 1:
-    raise SystemExit("SupportContactActivity stale App build row not found")
+old_support = 'addLockedRow(bodyContainer, "App", "Harley\'s Clan Forum v1.0 • build 10000072");'
+new_support = 'addLockedRow(bodyContainer, "App", "Harley\'s Clan Forum v" + BuildInfo.VERSION + " • build " + BuildInfo.VERSION_CODE);'
+if old_support not in text:
+    raise SystemExit("SupportContactActivity exact stale App build row not found")
+text = text.replace(old_support, new_support, 1)
 support.write_text(text, encoding="utf-8")
 
 notes = src / "ReleaseNotes.java"
@@ -122,10 +106,7 @@ text = text.replace("return 10000072L;", "return BuildInfo.VERSION_CODE;")
 text = text.replace("return 10000071L;", "return BuildInfo.VERSION_CODE;")
 updater.write_text(text, encoding="utf-8")
 
-# ---------------------------------------------------------------------------
-# Final direct-source conditions. A stale historic build code in production
-# Java is now a hard failure rather than just a warning.
-# ---------------------------------------------------------------------------
+# Final direct-source conditions.
 problems = []
 stale_markers = ("10000072", "10000071", "v10000047")
 for path in src.rglob("*.java"):
