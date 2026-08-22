@@ -1,0 +1,86 @@
+name: Build HCF Beta v10000087 Realtime
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/build-beta-v10000087-realtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev source
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Verify build identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/source code"
+          grep -q 'package="com.harleytg.forum.dev"' "$ROOT/AndroidManifest.xml"
+          grep -q 'android:versionCode="10000087"' "$ROOT/AndroidManifest.xml"
+          grep -q 'android:versionName="1.0 (10000087)"' "$ROOT/AndroidManifest.xml"
+          grep -q 'VERSION_CODE = 10000087' "$ROOT/src/com/harleytg/forum/BuildInfo.java"
+          grep -q 'HCF-Beta-v10000087.apk' "$ROOT/src/com/harleytg/forum/BuildInfo.java"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Compile unsigned Beta APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-beta-v10000087"
+          OUT="$GITHUB_WORKSPACE/out"
+          rm -rf "$WORK" "$OUT"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
+
+          "$BT/aapt" package -f -m \
+            -J "$WORK/gen" \
+            -M "$ROOT/AndroidManifest.xml" \
+            -S "$ROOT/res" \
+            -A "$ROOT/assets" \
+            -I "$ANDROID_JAR" \
+            -F "$WORK/resources.apk"
+
+          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
+
+          mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
+
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Beta-v10000087-aligned-unsigned.apk"
+          "$BT/zipalign" -c -p 4 "$OUT/HCF-Beta-v10000087-aligned-unsigned.apk"
+
+          "$BT/aapt" dump badging "$OUT/HCF-Beta-v10000087-aligned-unsigned.apk" | head -1 | tee "$OUT/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
+          grep -q "versionCode='10000087'" "$OUT/APK-BADGING.txt"
+          grep -q "versionName='1.0 (10000087)'" "$OUT/APK-BADGING.txt"
+          sha256sum "$OUT/HCF-Beta-v10000087-aligned-unsigned.apk" | tee "$OUT/SHA256SUMS.txt"
+
+      - name: Upload unsigned APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-Beta-v10000087-Realtime-Unsigned
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
