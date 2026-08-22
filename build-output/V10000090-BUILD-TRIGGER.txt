@@ -1,2 +1,3 @@
 Trigger registered workflow for replacement HCF Beta v10000089.
 Automatic linked-account/security sync + [Development Build / Beta] footer + realtime + Silent Alerts fixes.
+Rebuild with redesigned Notifications UI and Background notification sync moved under HCF Alerts.
