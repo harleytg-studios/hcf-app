@@ -133,7 +133,8 @@ text = text.replace(
     'settingsContent.addView(connectedSettingsPanel("HCF Test Alerts", "Dev/Beta diagnostics only", testAlertsInfoCard(), shouldExpand("test_alerts", false)));',
 )
 
-if "Real forum alerts" not in text:
+approved_hcf_alerts_ui = "HCF_ALERTS_RENDER_FINAL_V10000090" in text
+if not approved_hcf_alerts_ui and "Real forum alerts" not in text:
     start = text.index('    private View mainAlertsCard() {')
     end = text.index('    private View themeModeSelector()', start)
     replacement = r'''    private View mainAlertsCard() {
@@ -265,12 +266,23 @@ checks = [
     ("Open Account Security once to sync" not in identity_text, "manual-sync instruction removed"),
     ("Syncing automatically" in security_text, "ForumSecurity automatic status"),
     ('"notifications", "hcf_alerts")' in settings_text, "background sync search route moved to HCF Alerts"),
-    ("Real forum alerts" in settings_text, "user-friendly HCF Alerts hero"),
     ("Background delivery" in settings_text, "HCF Alerts background delivery section"),
     ("Service-status channel" in settings_text, "HCF Silent Alerts separation"),
     ("Developer test channel" in settings_text, "HCF Test Alerts separation"),
-    ("Open HCF Alerts Android Settings" in settings_text, "HCF Alerts Android settings shortcut"),
 ]
+if approved_hcf_alerts_ui:
+    checks.extend([
+        ("HCF_ALERTS_RENDER_FINAL_V10000090" in settings_text, "approved HCF Alerts render marker"),
+        ('hcfAlertStatusTile(alertState, "Alerts"' in settings_text, "approved three-tile dashboard"),
+        ('hcfAlertsActionRow("Open Android settings"' in settings_text, "approved Android settings action"),
+        ('"Real forum alerts"' not in settings_text, "obsolete HCF Alerts hero remains absent"),
+        ('"Open HCF Alerts Android Settings"' not in settings_text, "obsolete Android settings action remains absent"),
+    ])
+else:
+    checks.extend([
+        ("Real forum alerts" in settings_text, "legacy user-friendly HCF Alerts hero"),
+        ("Open HCF Alerts Android Settings" in settings_text, "legacy HCF Alerts Android settings shortcut"),
+    ])
 for passed, label in checks:
     if not passed:
         raise SystemExit("validation failed: " + label)

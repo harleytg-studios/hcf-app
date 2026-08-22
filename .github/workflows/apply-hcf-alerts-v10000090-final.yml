@@ -45,6 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 .github/scripts/patch-hcf-alerts-v10000090-final.py "$GITHUB_WORKSPACE/source code"
+          python3 .github/scripts/verify-hcf-alerts-ui.py "$GITHUB_WORKSPACE/source code"
           SRC='source code/src/com/harleytg/forum/SettingsActivity.java'
           grep -n 'HCF_ALERTS_RENDER_FINAL_V10000090' "$SRC"
           grep -n 'Background notification sync' "$SRC"

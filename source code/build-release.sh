@@ -7,9 +7,12 @@ build_tools="$sdk_root/build-tools/${BUILD_TOOLS_VERSION:-35.0.0}"
 android_jar="$sdk_root/platforms/android-${ANDROID_PLATFORM_VERSION:-35}/android.jar"
 manifest="$project_dir/AndroidManifest.xml"
 build_info="$project_dir/src/com/harleytg/forum/BuildInfo.java"
+ui_verifier="$project_dir/../.github/scripts/verify-hcf-alerts-ui.py"
 
 [[ -f "$manifest" ]] || { echo "Missing AndroidManifest.xml" >&2; exit 2; }
 [[ -f "$build_info" ]] || { echo "Missing BuildInfo.java" >&2; exit 2; }
+[[ -f "$ui_verifier" ]] || { echo "Missing HCF Alerts UI verifier" >&2; exit 24; }
+python3 "$ui_verifier" "$project_dir"
 [[ -x "$build_tools/aapt" ]] || { echo "Missing aapt in $build_tools" >&2; exit 3; }
 [[ -x "$build_tools/d8" ]] || { echo "Missing d8 in $build_tools" >&2; exit 4; }
 [[ -x "$build_tools/zipalign" ]] || { echo "Missing zipalign in $build_tools" >&2; exit 5; }

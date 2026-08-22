@@ -31,7 +31,7 @@ jobs:
           grep -q 'hcf_native_sync=1' 'source code/src/com/harleytg/forum/MainActivity.java'
           grep -Fq "Harley's Clan Forum v1.0 [Development Build / Beta]" 'source code/src/com/harleytg/forum/BuildInfo.java'
           ! grep -Fq 'Open Account Security once to sync linked sign-in providers.' 'source code/src/com/harleytg/forum/IdentityActivity.java'
-          grep -Fq 'Real forum alerts' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
           grep -Fq 'Background notification sync' 'source code/src/com/harleytg/forum/SettingsActivity.java'
           grep -Fq 'Service-status channel' 'source code/src/com/harleytg/forum/SettingsActivity.java'
           grep -Fq 'Developer test channel' 'source code/src/com/harleytg/forum/SettingsActivity.java'
