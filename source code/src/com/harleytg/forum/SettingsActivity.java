@@ -706,22 +706,35 @@ public final class SettingsActivity extends ThemedActivity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(0, dp(4), 0, dp(2));
         root.setTag(TARGET_TAG_PREFIX + "theme");
+
         LinearLayout first = new LinearLayout(this);
         first.setOrientation(LinearLayout.HORIZONTAL);
         first.setWeightSum(2.0f);
         LinearLayout second = new LinearLayout(this);
         second.setOrientation(LinearLayout.HORIZONTAL);
         second.setWeightSum(2.0f);
+        LinearLayout third = new LinearLayout(this);
+        third.setOrientation(LinearLayout.HORIZONTAL);
+        third.setWeightSum(1.0f);
+
         String mode = ThemeManager.mode(this);
         first.addView(themeChoiceButton("Forum Auto", "auto_forum", "auto_forum".equals(mode)), themeChoiceParams(false));
         first.addView(themeChoiceButton("Phone Auto", "auto_phone", "auto_phone".equals(mode)), themeChoiceParams(true));
-        boolean dark = "dark".equals(mode) || "amoled".equals(mode);
         second.addView(themeChoiceButton("Light", "light", "light".equals(mode)), themeChoiceParams(false));
-        second.addView(themeChoiceButton("Dark", "dark", dark), themeChoiceParams(true));
+        second.addView(themeChoiceButton("Dark", "dark", "dark".equals(mode)), themeChoiceParams(true));
+        third.addView(themeChoiceButton("AMOLED", "amoled", "amoled".equals(mode)), themeChoiceParams(false));
+
         root.addView(first);
         LinearLayout.LayoutParams secondLp = new LinearLayout.LayoutParams(-1, -2);
         secondLp.topMargin = dp(8);
         root.addView(second, secondLp);
+        LinearLayout.LayoutParams thirdLp = new LinearLayout.LayoutParams(-1, -2);
+        thirdLp.topMargin = dp(8);
+        root.addView(third, thirdLp);
+
+        TextView live = text(ThemeManager.autoSourceLabel(this), 10, getColor(R.color.hcf_cyan));
+        live.setPadding(dp(2), dp(8), dp(2), 0);
+        root.addView(live);
         return root;
     }
 
@@ -759,7 +772,10 @@ public final class SettingsActivity extends ThemedActivity {
         theme.setTypeface(null, 1);
         card.addView(theme);
         card.addView(themeModeSelector());
-        card.addView(text("Forum Auto follows your forum Night Mode setting; Phone Auto follows Android directly.", 10, getColor(R.color.hcf_muted)));
+        card.addView(text(
+                "Forum Auto follows Flarum Night Mode (uses last known value on startup). "
+                        + "Phone Auto follows Android. Light / Dark / AMOLED force the app chrome immediately.",
+                10, getColor(R.color.hcf_muted)));
         Button performance = target(actionButton("Performance Profile: " + PerformanceProfile.settingLabel(this, prefs), null), "performance_profile");
         performance.setContentDescription("Choose app performance profile");
         performance.setOnClickListener(v -> showPerformanceProfileDialog(performance));
