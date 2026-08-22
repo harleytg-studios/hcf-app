@@ -92,6 +92,20 @@ text = text.replace(
 chooser.write_text(text, encoding="utf-8")
 
 # ---------------------------------------------------------------------------
+# IdentityActivity: another JADX definite-assignment artifact. The avatar HTTPS
+# loader catches openConnection failures and later disconnects conditionally,
+# so initialize the connection reference to null exactly as the compileable
+# Stable recovery source does.
+# ---------------------------------------------------------------------------
+identity = src / "IdentityActivity.java"
+text = identity.read_text(encoding="utf-8")
+text = text.replace(
+    '    /* synthetic */ void m14x27753261(final String str) {\n        HttpsURLConnection httpsURLConnection;\n        HttpsURLConnection httpsURLConnection2 = null;',
+    '    /* synthetic */ void m14x27753261(final String str) {\n        HttpsURLConnection httpsURLConnection = null;\n        HttpsURLConnection httpsURLConnection2 = null;',
+)
+identity.write_text(text, encoding="utf-8")
+
+# ---------------------------------------------------------------------------
 # Diagnostics/support/release notes: remove historic hard-coded build identity.
 # ---------------------------------------------------------------------------
 logs = src / "LogsActivity.java"
@@ -175,6 +189,8 @@ if 'return firstDeepObject(new JSONObject(trim), i + 1, strArr);' in client_text
     raise SystemExit("ForumNotificationClient JSON parsing guard missing")
 if 'CharSequence loadLabel = null;' not in chooser.read_text(encoding="utf-8"):
     raise SystemExit("HcfIntentChooser resolveLabel initialization missing")
+if 'HttpsURLConnection httpsURLConnection = null;' not in identity.read_text(encoding="utf-8"):
+    raise SystemExit("IdentityActivity avatar connection initialization missing")
 if "10000072" in support.read_text(encoding="utf-8"):
     raise SystemExit("SupportContactActivity still contains stale build identity")
 if "AMOLED" not in notes.read_text(encoding="utf-8"):
