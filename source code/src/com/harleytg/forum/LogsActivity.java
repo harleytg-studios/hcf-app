@@ -33,6 +33,7 @@ import android.widget.Toast;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -554,11 +555,40 @@ public final class LogsActivity extends ThemedActivity {
         To view partially-correct add '--show-bad-code' argument
     */
     public void renderLogs() {
-        /*
-            Method dump skipped, instructions count: 313
-            To view this dump add '--comments-level debug' option
-        */
-        throw new UnsupportedOperationException("Method not decompiled: com.harleytg.forum.dev.LogsActivity.renderLogs():void");
+        if (contentText == null || !MODE_LOGS.equals(currentMode)) return;
+        List<LogEntry> entries = parseLogs(rawLogs);
+        String query = searchInput == null ? "" : searchInput.getText().toString().trim().toLowerCase(Locale.US);
+        List<LogEntry> visible = new ArrayList<>();
+        for (LogEntry entry : entries) {
+            if (!matchesFilter(entry)) continue;
+            if (!query.isEmpty() && !entry.searchable().contains(query)) continue;
+            visible.add(entry);
+        }
+
+        if (groupRepeats) visible = groupEntries(visible);
+        Collections.reverse(visible);
+        SpannableStringBuilder styled = new SpannableStringBuilder();
+        StringBuilder plain = new StringBuilder();
+        int errors = 0;
+        int warnings = 0;
+        for (LogEntry entry : visible) {
+            if ("ERROR".equals(entry.level) || "CRASH".equals(entry.level)) errors += entry.count;
+            if ("WARN".equals(entry.level)) warnings += entry.count;
+            appendStyledEntry(styled, plain, entry);
+        }
+        if (visible.isEmpty()) {
+            String empty = query.isEmpty() && FILTER_ALL.equals(activeFilter)
+                    ? "No app logs yet."
+                    : "No log entries match the current filters.";
+            styled.append(empty);
+            plain.append(empty);
+        }
+        visiblePlainText = plain.toString();
+        contentText.setText(styled);
+        viewerTitle.setText("App Logs");
+        if (viewerSubtitle != null) viewerSubtitle.setText("Local troubleshooting history from this app");
+        viewerMeta.setText(visible.size() + " shown" + (errors > 0 ? " • " + errors + " errors" : warnings > 0 ? " • " + warnings + " warnings" : ""));
+        if (contentScroll != null) contentScroll.post(() -> contentScroll.fullScroll(View.FOCUS_UP));
     }
 
     /* renamed from: lambda$renderLogs$11$com-harleytg-forum-dev-LogsActivity, reason: not valid java name */
@@ -777,7 +807,7 @@ public final class LogsActivity extends ThemedActivity {
         if (safeUrl.trim().isEmpty()) {
             safeUrl = "Not recorded yet";
         }
-        StringBuilder sb = new StringBuilder("Harley's Clan Forum • Sanitized Diagnostic Report\n\nApp: 1.0 (10000072)\nPackage: ");
+        StringBuilder sb = new StringBuilder("Harley's Clan Forum • Sanitized Diagnostic Report\n\nApp: " + BuildInfo.installedVersionName() + "\nPackage: ");
         sb.append(getPackageName());
         sb.append("\nAndroid: SDK ");
         sb.append(Build.VERSION.SDK_INT);
@@ -993,37 +1023,25 @@ public final class LogsActivity extends ThemedActivity {
         }
     }
 
-    @Override // android.app.Activity
-    protected void onActivityResult(int i, int i2, Intent intent) {
-        OutputStream openOutputStream;
-        super.onActivityResult(i, i2, intent);
-        if (i != EXPORT_TEXT || i2 != -1 || intent == null || intent.getData() == null) {
-            return;
-        }
-        this.pendingExportUri = intent.getData();
-        String str = this.visiblePlainText;
-        if (str == null) {
-            str = "";
-        }
-        try {
-            openOutputStream = getContentResolver().openOutputStream(this.pendingExportUri, "w");
+     // android.app.Activity
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != EXPORT_TEXT || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        pendingExportUri = data.getData();
+        String text = visiblePlainText == null ? "" : visiblePlainText;
+        try (OutputStream out = getContentResolver().openOutputStream(pendingExportUri, "w")) {
+            if (out == null) throw new IllegalStateException("No output stream");
+            out.write(text.getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            AppLogger.info(this, MODE_DIAGNOSTICS.equals(currentMode) ? "diagnostics_exported" : "logs_exported", "document-provider");
+            Toast.makeText(this, "Export complete.", Toast.LENGTH_SHORT).show();
+        } catch (Throwable t) {
+            AppLogger.error(this, "logs_export_failed", t.getClass().getSimpleName());
+            Toast.makeText(this, "Could not export this content.", Toast.LENGTH_LONG).show();
         } finally {
-            try {
-            } finally {
-            }
-        }
-        try {
-            if (openOutputStream == null) {
-                throw new IllegalStateException("No output stream");
-            }
-            openOutputStream.write(str.getBytes(StandardCharsets.UTF_8));
-            openOutputStream.flush();
-            AppLogger.info(this, MODE_DIAGNOSTICS.equals(this.currentMode) ? "diagnostics_exported" : "logs_exported", "document-provider");
-            Toast.makeText(this, "Export complete.", 0).show();
-            if (openOutputStream != null) {
-                openOutputStream.close();
-            }
-        } finally {
+            pendingExportUri = null;
         }
     }
 

@@ -42,6 +42,8 @@ final class NotificationHelper {
     private static volatile Bitmap cachedLargeIcon;
 
     static boolean isEnabledByUser(Context context) {
+        // Product rule: HCF Alerts are required and have no app-level OFF state.
+        // Android notification permission and per-channel settings remain authoritative.
         return true;
     }
 
@@ -77,17 +79,21 @@ final class NotificationHelper {
                 notificationChannel2.setShowBadge(false);
                 notificationChannel2.setLockscreenVisibility(0);
                 notificationManager.createNotificationChannel(notificationChannel2);
-                NotificationChannel notificationChannel3 = new NotificationChannel(TEST_CHANNEL_ID, TEST_CHANNEL_NAME, 3);
-                notificationChannel3.setDescription("Development and Beta notification tests only");
-                notificationChannel3.setGroup(CHANNEL_GROUP_ID);
-                notificationChannel3.enableVibration(true);
-                notificationChannel3.setShowBadge(false);
-                notificationChannel3.setLockscreenVisibility(0);
-                notificationManager.createNotificationChannel(notificationChannel3);
+                if (BuildInfo.ENABLE_DEV_TEST_MENU) {
+                    NotificationChannel notificationChannel3 = new NotificationChannel(TEST_CHANNEL_ID, TEST_CHANNEL_NAME, 3);
+                    notificationChannel3.setDescription("Development and Beta notification tests only");
+                    notificationChannel3.setGroup(CHANNEL_GROUP_ID);
+                    notificationChannel3.enableVibration(true);
+                    notificationChannel3.setShowBadge(false);
+                    notificationChannel3.setLockscreenVisibility(0);
+                    notificationManager.createNotificationChannel(notificationChannel3);
+                } else {
+                    deleteChannelIfPresent(notificationManager, TEST_CHANNEL_ID);
+                }
                 for (String str : LEGACY_CHANNEL_IDS) {
                     deleteChannelIfPresent(notificationManager, str);
                 }
-                AppLogger.info(context, "notification_channel", "channels=HCF Alerts|HCF Silent Alerts|HCF Test Alerts");
+                AppLogger.info(context, "notification_channel", BuildInfo.ENABLE_DEV_TEST_MENU ? "channels=HCF Alerts|HCF Silent Alerts|HCF Test Alerts" : "channels=HCF Alerts|HCF Silent Alerts");
             } catch (Throwable th) {
                 AppLogger.error(context, "notification_channel_create", th.getClass().getSimpleName() + ": " + String.valueOf(th.getMessage()));
             }
@@ -111,6 +117,7 @@ final class NotificationHelper {
     }
 
     static boolean postNotificationServiceTest(Context context) {
+        if (!BuildInfo.ENABLE_DEV_TEST_MENU) return false;
         if (context == null) {
             return false;
         }
@@ -170,7 +177,7 @@ final class NotificationHelper {
             return "Off";
         }
         if (SILENT_CHANNEL_ID.equals(str)) {
-            return "On • Silent";
+            return silencePassiveEnabled(context) ? "Disabled by app setting" : "Enabled • Silent";
         }
         if (channelImportance >= 4) {
             return "On • High priority";
@@ -190,6 +197,7 @@ final class NotificationHelper {
     }
 
     static boolean canPostOnChannel(Context context, String str) {
+        if (SILENT_CHANNEL_ID.equals(str) && silencePassiveEnabled(context)) return false;
         return isEnabledByUser(context) && hasRuntimePermission(context) && areAppNotificationsEnabled(context) && channelImportance(context, str) != 0;
     }
 
@@ -248,6 +256,7 @@ final class NotificationHelper {
     }
 
     static void postTest(Context context, String str, String str2, String str3) {
+        if (!BuildInfo.ENABLE_DEV_TEST_MENU) return;
         postInternal(context, trim(str, 120, "HCF test alert"), trim(str2, 500, "HCF notification test"), validatedForumUri(str3), (int) (System.currentTimeMillis() & 2147483647L), false, false, TEST_CHANNEL_ID);
     }
 
@@ -289,7 +298,6 @@ final class NotificationHelper {
     }
 
     static Notification buildInstantServiceNotification(Context context) {
-        createChannel(context);
         Intent intent = new Intent(context, (Class<?>) MainActivity.class);
         intent.addFlags(603979776);
         return new Notification.Builder(context, SILENT_CHANNEL_ID).setSmallIcon(R.drawable.ic_notification_paw).setContentTitle("Harley's Clan Forum").setContentText("Live alerts active • checking in real time").setContentIntent(PendingIntent.getActivity(context, 41070, intent, 201326592)).setOngoing(true).setOnlyAlertOnce(true).setShowWhen(false).setCategory("service").setVisibility(0).setPriority(-2).build();
@@ -303,94 +311,25 @@ final class NotificationHelper {
         Code decompiled incorrectly, please refer to instructions dump.
         To view partially-correct add '--show-bad-code' argument
     */
-    static synchronized int recordForumNotificationCount(android.content.Context r10, int r11, java.lang.String r12, java.lang.String r13) {
-        /*
-            java.lang.Class<com.harleytg.forum.dev.NotificationHelper> r0 = com.harleytg.forum.dev.NotificationHelper.class
-            monitor-enter(r0)
-            r1 = 0
-            if (r10 != 0) goto L8
-            monitor-exit(r0)
-            return r1
-        L8:
-            boolean r2 = com.harleytg.forum.dev.ForumUrlRouter.isForumHost(r12)     // Catch: java.lang.Throwable -> L9c
-            if (r2 != 0) goto L10
-            java.lang.String r12 = "forum.harleytg.com"
-        L10:
-            java.lang.String r2 = "hcf_app"
-            android.content.SharedPreferences r2 = r10.getSharedPreferences(r2, r1)     // Catch: java.lang.Throwable -> L9c
-            int r11 = java.lang.Math.max(r1, r11)     // Catch: java.lang.Throwable -> L9c
-            java.lang.String r3 = "last_notification_count"
-            boolean r3 = r2.contains(r3)     // Catch: java.lang.Throwable -> L9c
-            java.lang.String r4 = "last_notification_count"
-            int r4 = r2.getInt(r4, r11)     // Catch: java.lang.Throwable -> L9c
-            java.lang.String r5 = "active_host"
-            java.lang.String r6 = ""
-            java.lang.String r5 = r2.getString(r5, r6)     // Catch: java.lang.Throwable -> L9c
-            r6 = 1
-            if (r3 == 0) goto L36
-            if (r11 == r4) goto L34
-            goto L36
-        L34:
-            r7 = r1
-            goto L37
-        L36:
-            r7 = r6
-        L37:
-            if (r5 != 0) goto L3b
-            java.lang.String r5 = ""
-        L3b:
-            boolean r5 = r12.equalsIgnoreCase(r5)     // Catch: java.lang.Throwable -> L9c
-            r5 = r5 ^ r6
-            if (r7 != 0) goto L44
-            if (r5 == 0) goto L62
-        L44:
-            android.content.SharedPreferences$Editor r2 = r2.edit()     // Catch: java.lang.Throwable -> L9c
-            if (r7 == 0) goto L58
-            java.lang.String r6 = "last_notification_count"
-            r2.putInt(r6, r11)     // Catch: java.lang.Throwable -> L9c
-            java.lang.String r6 = "notification_last_count_change_at"
-            long r8 = java.lang.System.currentTimeMillis()     // Catch: java.lang.Throwable -> L9c
-            r2.putLong(r6, r8)     // Catch: java.lang.Throwable -> L9c
-        L58:
-            if (r5 == 0) goto L5f
-            java.lang.String r5 = "active_host"
-            r2.putString(r5, r12)     // Catch: java.lang.Throwable -> L9c
-        L5f:
-            r2.apply()     // Catch: java.lang.Throwable -> L9c
-        L62:
-            if (r7 == 0) goto L94
-            java.lang.String r2 = ""
-            java.lang.String r5 = ""
-            java.lang.String r12 = com.harleytg.forum.dev.ForumUrlRouter.home(r12)     // Catch: java.lang.Throwable -> L9c
-            broadcastEvent(r10, r2, r5, r12, r11)     // Catch: java.lang.Throwable -> L9c
-            java.lang.String r12 = "notification_count_changed"
-            java.lang.StringBuilder r2 = new java.lang.StringBuilder     // Catch: java.lang.Throwable -> L9c
-            r2.<init>()     // Catch: java.lang.Throwable -> L9c
-            if (r13 != 0) goto L7a
-            java.lang.String r13 = "sync"
-        L7a:
-            r2.append(r13)     // Catch: java.lang.Throwable -> L9c
-            java.lang.String r13 = " | count="
-            r2.append(r13)     // Catch: java.lang.Throwable -> L9c
-            r2.append(r11)     // Catch: java.lang.Throwable -> L9c
-            java.lang.String r13 = " previous="
-            r2.append(r13)     // Catch: java.lang.Throwable -> L9c
-            r2.append(r4)     // Catch: java.lang.Throwable -> L9c
-            java.lang.String r13 = r2.toString()     // Catch: java.lang.Throwable -> L9c
-            com.harleytg.forum.dev.AppLogger.info(r10, r12, r13)     // Catch: java.lang.Throwable -> L9c
-        L94:
-            if (r3 == 0) goto L9a
-            if (r11 <= r4) goto L9a
-            int r1 = r11 - r4
-        L9a:
-            monitor-exit(r0)
-            return r1
-        L9c:
-            r10 = move-exception
-            monitor-exit(r0)
-            throw r10
-        */
-        throw new UnsupportedOperationException("Method not decompiled: com.harleytg.forum.dev.NotificationHelper.recordForumNotificationCount(android.content.Context, int, java.lang.String, java.lang.String):int");
+
+    static synchronized int recordForumNotificationCount(Context context, int newCount, String host, String source) {
+        if (context == null) return 0;
+        if (!ForumUrlRouter.isForumHost(host)) host = ForumConfig.PRIMARY_HOST;
+        SharedPreferences prefs = context.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
+        int normalized = Math.max(0, newCount);
+        boolean hadBaseline = prefs.contains(AppPrefs.LAST_NOTIFICATION_COUNT);
+        int previous = prefs.getInt(AppPrefs.LAST_NOTIFICATION_COUNT, normalized);
+        prefs.edit()
+                .putInt(AppPrefs.LAST_NOTIFICATION_COUNT, normalized)
+                .putString(AppPrefs.ACTIVE_HOST, host)
+                .apply();
+
+        if (!hadBaseline || normalized != previous) {
+            broadcastEvent(context, "", "", ForumUrlRouter.home(host), normalized);
+        }
+        AppLogger.info(context, "notification_count",
+                (source == null ? "sync" : source) + " | count=" + normalized + " previous=" + previous);
+        return hadBaseline && normalized > previous ? normalized - previous : 0;
     }
 
     static synchronized int deliverDetailedAlerts(Context context, List<ForumNotificationClient.Alert> list, int i, String str, String str2) {
@@ -466,7 +405,7 @@ final class NotificationHelper {
                 intent.addFlags(335544320);
                 PendingIntent activity = PendingIntent.getActivity(context, 51001, intent, 201326592);
                 Notification.Builder builder = new Notification.Builder(context, CHANNEL_ID);
-                Notification.Builder contentTitle = builder.setSmallIcon(R.drawable.ic_notification_paw).setLargeIcon(BitmapFactory.decodeResource(context.getResources(), R.drawable.htg_app_logo)).setContentTitle("Beta update available");
+                Notification.Builder contentTitle = builder.setSmallIcon(R.drawable.ic_notification_paw).setLargeIcon(BitmapFactory.decodeResource(context.getResources(), R.drawable.htg_app_logo)).setContentTitle("Stable update available");
                 StringBuilder sb = new StringBuilder("v");
                 sb.append(UpdateChecker.displayVersion(release));
                 if (release == null || release.versionCode <= 0) {
@@ -475,7 +414,7 @@ final class NotificationHelper {
                     str = " • build " + release.versionCode;
                 }
                 sb.append(str);
-                sb.append(" is ready for Development / Beta.");
+                sb.append(" is ready for Stable.");
                 contentTitle.setContentText(sb.toString()).setContentIntent(activity).setAutoCancel(true).setCategory("sys").setVisibility(0).setPriority(0);
                 NotificationManager notificationManager = (NotificationManager) context.getSystemService("notification");
                 if (notificationManager != null) {

@@ -7,6 +7,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.ResolveInfo;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -223,104 +225,30 @@ final class AppUpdateDownloader {
         Code decompiled incorrectly, please refer to instructions dump.
         To view partially-correct add '--show-bad-code' argument
     */
-    static com.harleytg.forum.dev.AppUpdateDownloader.ProgressSnapshot progress(android.content.Context r18, long r19) {
-        /*
-            r0 = r18
-            if (r0 == 0) goto L99
-            r1 = 0
-            int r3 = (r19 > r1 ? 1 : (r19 == r1 ? 0 : -1))
-            if (r3 > 0) goto Lc
-            goto L99
-        Lc:
-            java.lang.String r3 = "download"
-            java.lang.Object r0 = r0.getSystemService(r3)
-            android.app.DownloadManager r0 = (android.app.DownloadManager) r0
-            if (r0 != 0) goto L23
-            com.harleytg.forum.dev.AppUpdateDownloader$ProgressSnapshot r0 = new com.harleytg.forum.dev.AppUpdateDownloader$ProgressSnapshot
-            r7 = -1
-            r9 = 0
-            r4 = 0
-            r5 = 0
-            r3 = r0
-            r3.<init>(r4, r5, r7, r9)
-            return r0
-        L23:
-            r3 = 0
-            android.app.DownloadManager$Query r4 = new android.app.DownloadManager$Query     // Catch: java.lang.Throwable -> L87
-            r4.<init>()     // Catch: java.lang.Throwable -> L87
-            r5 = 1
-            long[] r5 = new long[r5]     // Catch: java.lang.Throwable -> L87
-            r6 = 0
-            r5[r6] = r19     // Catch: java.lang.Throwable -> L87
-            android.app.DownloadManager$Query r4 = r4.setFilterById(r5)     // Catch: java.lang.Throwable -> L87
-            android.database.Cursor r3 = r0.query(r4)     // Catch: java.lang.Throwable -> L87
-            if (r3 == 0) goto L84
-            boolean r0 = r3.moveToFirst()     // Catch: java.lang.Throwable -> L87
-            if (r0 == 0) goto L84
-            java.lang.String r0 = "status"
-            int r0 = r3.getColumnIndex(r0)     // Catch: java.lang.Throwable -> L87
-            java.lang.String r4 = "bytes_so_far"
-            int r4 = r3.getColumnIndex(r4)     // Catch: java.lang.Throwable -> L87
-            java.lang.String r5 = "total_size"
-            int r5 = r3.getColumnIndex(r5)     // Catch: java.lang.Throwable -> L87
-            java.lang.String r7 = "reason"
-            int r7 = r3.getColumnIndex(r7)     // Catch: java.lang.Throwable -> L87
-            if (r0 < 0) goto L5f
-            int r0 = r3.getInt(r0)     // Catch: java.lang.Throwable -> L87
-            r9 = r0
-            goto L60
-        L5f:
-            r9 = r6
-        L60:
-            if (r4 < 0) goto L66
-            long r1 = r3.getLong(r4)     // Catch: java.lang.Throwable -> L87
-        L66:
-            r10 = r1
-            if (r5 < 0) goto L6e
-            long r0 = r3.getLong(r5)     // Catch: java.lang.Throwable -> L87
-            goto L70
-        L6e:
-            r0 = -1
-        L70:
-            r12 = r0
-            if (r7 < 0) goto L77
-            int r6 = r3.getInt(r7)     // Catch: java.lang.Throwable -> L87
-        L77:
-            r14 = r6
-            com.harleytg.forum.dev.AppUpdateDownloader$ProgressSnapshot r0 = new com.harleytg.forum.dev.AppUpdateDownloader$ProgressSnapshot     // Catch: java.lang.Throwable -> L87
-            r8 = r0
-            r8.<init>(r9, r10, r12, r14)     // Catch: java.lang.Throwable -> L87
-            if (r3 == 0) goto L83
-            r3.close()
-        L83:
-            return r0
-        L84:
-            if (r3 == 0) goto L8c
-            goto L89
-        L87:
-            if (r3 == 0) goto L8c
-        L89:
-            r3.close()
-        L8c:
-            com.harleytg.forum.dev.AppUpdateDownloader$ProgressSnapshot r0 = new com.harleytg.forum.dev.AppUpdateDownloader$ProgressSnapshot
-            r8 = -1
-            r10 = 0
-            r5 = 0
-            r6 = 0
-            r4 = r0
-            r4.<init>(r5, r6, r8, r10)
-            return r0
-        L99:
-            com.harleytg.forum.dev.AppUpdateDownloader$ProgressSnapshot r0 = new com.harleytg.forum.dev.AppUpdateDownloader$ProgressSnapshot
-            r15 = -1
-            r17 = 0
-            r12 = 0
-            r13 = 0
-            r11 = r0
-            r11.<init>(r12, r13, r15, r17)
-            return r0
-        */
-        throw new UnsupportedOperationException("Method not decompiled: com.harleytg.forum.dev.AppUpdateDownloader.progress(android.content.Context, long):com.harleytg.forum.dev.AppUpdateDownloader$ProgressSnapshot");
+
+    static ProgressSnapshot progress(Context context, long id) {
+        if (context == null || id <= 0L) return new ProgressSnapshot(0, 0L, -1L, 0);
+        DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
+        if (dm == null) return new ProgressSnapshot(0, 0L, -1L, 0);
+        Cursor c = null;
+        try {
+            c = dm.query(new DownloadManager.Query().setFilterById(id));
+            if (c != null && c.moveToFirst()) {
+                int statusIndex = c.getColumnIndex(DownloadManager.COLUMN_STATUS);
+                int downloadedIndex = c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR);
+                int totalIndex = c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES);
+                int reasonIndex = c.getColumnIndex(DownloadManager.COLUMN_REASON);
+                int status = statusIndex >= 0 ? c.getInt(statusIndex) : 0;
+                long downloaded = downloadedIndex >= 0 ? c.getLong(downloadedIndex) : 0L;
+                long total = totalIndex >= 0 ? c.getLong(totalIndex) : -1L;
+                int reason = reasonIndex >= 0 ? c.getInt(reasonIndex) : 0;
+                return new ProgressSnapshot(status, downloaded, total, reason);
+            }
+        } catch (Throwable ignored) {
+        } finally {
+            if (c != null) c.close();
+        }
+        return new ProgressSnapshot(0, 0L, -1L, 0);
     }
 
     /* JADX WARN: Code restructure failed: missing block: B:21:0x0040, code lost:
@@ -343,51 +271,23 @@ final class AppUpdateDownloader {
         Code decompiled incorrectly, please refer to instructions dump.
         To view partially-correct add '--show-bad-code' argument
     */
-    static int status(android.content.Context r4, long r5) {
-        /*
-            r0 = 0
-            int r0 = (r5 > r0 ? 1 : (r5 == r0 ? 0 : -1))
-            r1 = 0
-            if (r0 > 0) goto L8
-            return r1
-        L8:
-            java.lang.String r0 = "download"
-            java.lang.Object r4 = r4.getSystemService(r0)
-            android.app.DownloadManager r4 = (android.app.DownloadManager) r4
-            if (r4 != 0) goto L13
-            return r1
-        L13:
-            r0 = 0
-            android.app.DownloadManager$Query r2 = new android.app.DownloadManager$Query     // Catch: java.lang.Throwable -> L43
-            r2.<init>()     // Catch: java.lang.Throwable -> L43
-            r3 = 1
-            long[] r3 = new long[r3]     // Catch: java.lang.Throwable -> L43
-            r3[r1] = r5     // Catch: java.lang.Throwable -> L43
-            android.app.DownloadManager$Query r5 = r2.setFilterById(r3)     // Catch: java.lang.Throwable -> L43
-            android.database.Cursor r0 = r4.query(r5)     // Catch: java.lang.Throwable -> L43
-            if (r0 == 0) goto L40
-            boolean r4 = r0.moveToFirst()     // Catch: java.lang.Throwable -> L43
-            if (r4 == 0) goto L40
-            java.lang.String r4 = "status"
-            int r4 = r0.getColumnIndex(r4)     // Catch: java.lang.Throwable -> L43
-            if (r4 < 0) goto L3a
-            int r1 = r0.getInt(r4)     // Catch: java.lang.Throwable -> L43
-        L3a:
-            if (r0 == 0) goto L3f
-            r0.close()
-        L3f:
-            return r1
-        L40:
-            if (r0 == 0) goto L48
-            goto L45
-        L43:
-            if (r0 == 0) goto L48
-        L45:
-            r0.close()
-        L48:
-            return r1
-        */
-        throw new UnsupportedOperationException("Method not decompiled: com.harleytg.forum.dev.AppUpdateDownloader.status(android.content.Context, long):int");
+
+    static int status(Context context, long id) {
+        if (id <= 0L) return 0;
+        DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
+        if (dm == null) return 0;
+        Cursor c = null;
+        try {
+            c = dm.query(new DownloadManager.Query().setFilterById(id));
+            if (c != null && c.moveToFirst()) {
+                int index = c.getColumnIndex(DownloadManager.COLUMN_STATUS);
+                return index >= 0 ? c.getInt(index) : 0;
+            }
+        } catch (Throwable ignored) {
+        } finally {
+            if (c != null) c.close();
+        }
+        return 0;
     }
 
     /* JADX WARN: Can't wrap try/catch for region: R(8:5|(3:45|46|(7:48|49|8|9|(3:15|(3:17|(2:24|(3:28|29|(2:31|32)(1:33)))|23)|40)|41|42))|7|8|9|(5:11|13|15|(0)|40)|41|42) */
@@ -404,99 +304,56 @@ final class AppUpdateDownloader {
         Code decompiled incorrectly, please refer to instructions dump.
         To view partially-correct add '--show-bad-code' argument
     */
-    static boolean cleanupAfterSuccessfulUpdate(android.content.Context r10) {
-        /*
-            r0 = 0
-            if (r10 != 0) goto L4
-            return r0
-        L4:
-            android.content.Context r10 = r10.getApplicationContext()
-            java.lang.String r1 = "hcf_app"
-            android.content.SharedPreferences r1 = r10.getSharedPreferences(r1, r0)
-            r2 = -1
-            java.lang.String r4 = "update_download_id"
-            long r2 = r1.getLong(r4, r2)
-            r5 = 0
-            int r5 = (r2 > r5 ? 1 : (r2 == r5 ? 0 : -1))
-            r6 = 1
-            if (r5 <= 0) goto L3e
-            java.lang.String r5 = "download"
-            java.lang.Object r5 = r10.getSystemService(r5)     // Catch: java.lang.Throwable -> L30
-            android.app.DownloadManager r5 = (android.app.DownloadManager) r5     // Catch: java.lang.Throwable -> L30
-            if (r5 == 0) goto L3e
-            long[] r7 = new long[r6]     // Catch: java.lang.Throwable -> L30
-            r7[r0] = r2     // Catch: java.lang.Throwable -> L30
-            r5.remove(r7)     // Catch: java.lang.Throwable -> L30
-            r2 = r6
-            goto L3f
-        L30:
-            r2 = move-exception
-            java.lang.Class r2 = r2.getClass()
-            java.lang.String r2 = r2.getSimpleName()
-            java.lang.String r3 = "update_cleanup_dm"
-            com.harleytg.forum.dev.AppLogger.warn(r10, r3, r2)
-        L3e:
-            r2 = r0
-        L3f:
-            java.lang.String r3 = android.os.Environment.DIRECTORY_DOWNLOADS     // Catch: java.lang.Throwable -> L85
-            java.io.File r3 = r10.getExternalFilesDir(r3)     // Catch: java.lang.Throwable -> L85
-            if (r3 == 0) goto L93
-            boolean r5 = r3.isDirectory()     // Catch: java.lang.Throwable -> L85
-            if (r5 == 0) goto L93
-            java.io.File[] r3 = r3.listFiles()     // Catch: java.lang.Throwable -> L85
-            if (r3 == 0) goto L93
-            int r5 = r3.length     // Catch: java.lang.Throwable -> L85
-        L54:
-            if (r0 >= r5) goto L93
-            r7 = r3[r0]     // Catch: java.lang.Throwable -> L85
-            if (r7 == 0) goto L82
-            boolean r8 = r7.isFile()     // Catch: java.lang.Throwable -> L85
-            if (r8 != 0) goto L61
-            goto L82
-        L61:
-            java.lang.String r8 = r7.getName()     // Catch: java.lang.Throwable -> L85
-            java.util.Locale r9 = java.util.Locale.US     // Catch: java.lang.Throwable -> L85
-            java.lang.String r8 = r8.toLowerCase(r9)     // Catch: java.lang.Throwable -> L85
-            java.lang.String r9 = ".apk"
-            boolean r9 = r8.endsWith(r9)     // Catch: java.lang.Throwable -> L85
-            if (r9 == 0) goto L82
-            java.lang.String r9 = "harleysclanforum-"
-            boolean r8 = r8.startsWith(r9)     // Catch: java.lang.Throwable -> L85
-            if (r8 == 0) goto L82
-            boolean r7 = r7.delete()     // Catch: java.lang.Throwable -> L82
-            if (r7 == 0) goto L82
-            r2 = r6
-        L82:
-            int r0 = r0 + 1
-            goto L54
-        L85:
-            r0 = move-exception
-            java.lang.Class r0 = r0.getClass()
-            java.lang.String r0 = r0.getSimpleName()
-            java.lang.String r3 = "update_cleanup_files"
-            com.harleytg.forum.dev.AppLogger.warn(r10, r3, r0)
-        L93:
-            android.content.SharedPreferences$Editor r0 = r1.edit()
-            android.content.SharedPreferences$Editor r0 = r0.remove(r4)
-            java.lang.String r1 = "update_download_tag"
-            android.content.SharedPreferences$Editor r0 = r0.remove(r1)
-            java.lang.String r1 = "update_download_name"
-            android.content.SharedPreferences$Editor r0 = r0.remove(r1)
-            java.lang.String r1 = "update_install_pending"
-            android.content.SharedPreferences$Editor r0 = r0.remove(r1)
-            java.lang.String r1 = "update_resume_after_permission"
-            android.content.SharedPreferences$Editor r0 = r0.remove(r1)
-            r0.apply()
-            java.lang.StringBuilder r0 = new java.lang.StringBuilder
-            java.lang.String r1 = "installer artifacts removed="
-            r0.<init>(r1)
-            r0.append(r2)
-            java.lang.String r0 = r0.toString()
-            java.lang.String r1 = "update_cleanup"
-            com.harleytg.forum.dev.AppLogger.info(r10, r1, r0)
-            return r2
-        */
-        throw new UnsupportedOperationException("Method not decompiled: com.harleytg.forum.dev.AppUpdateDownloader.cleanupAfterSuccessfulUpdate(android.content.Context):boolean");
+
+    static boolean cleanupAfterSuccessfulUpdate(Context context) {
+        if (context == null) return false;
+        Context app = context.getApplicationContext();
+        SharedPreferences prefs = app.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
+        long id = prefs.getLong(AppPrefs.UPDATE_DOWNLOAD_ID, -1L);
+        boolean removed = false;
+        if (id > 0L) {
+            try {
+                DownloadManager dm = (DownloadManager) app.getSystemService(Context.DOWNLOAD_SERVICE);
+                if (dm != null) {
+                    dm.remove(id);
+                    removed = true;
+                }
+            } catch (Throwable t) {
+                AppLogger.warn(app, "update_cleanup_dm", t.getClass().getSimpleName());
+            }
+        }
+
+        try {
+            File dir = app.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+            if (dir != null && dir.isDirectory()) {
+                File[] files = dir.listFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        if (file == null || !file.isFile()) continue;
+                        String name = file.getName().toLowerCase(Locale.US);
+                        boolean updaterApk = name.startsWith("hcf-beta-")
+                                || name.startsWith("harleysclanforum-beta-")
+                                || name.startsWith("harleysclanforum-");
+                        if (name.endsWith(".apk") && updaterApk) {
+                            try { if (file.delete()) removed = true; } catch (Throwable ignored) {}
+                        }
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            AppLogger.warn(app, "update_cleanup_files", t.getClass().getSimpleName());
+        }
+
+        prefs.edit()
+                .remove(AppPrefs.UPDATE_DOWNLOAD_ID)
+                .remove(AppPrefs.UPDATE_DOWNLOAD_TAG)
+                .remove(AppPrefs.UPDATE_DOWNLOAD_NAME)
+                .remove(AppPrefs.UPDATE_INSTALL_PENDING)
+                .remove(AppPrefs.UPDATE_RESUME_AFTER_PERMISSION)
+                .putString(AppPrefs.UPDATE_CHANNEL, BuildInfo.DEFAULT_UPDATE_CHANNEL)
+                .apply();
+        AppLogger.info(app, "update_cleanup", "beta installer artifacts removed=" + removed);
+        return removed;
     }
 
     static void cleanupIfCurrentVersionWasDownloaded(Context context) {
@@ -523,19 +380,52 @@ final class AppUpdateDownloader {
         Code decompiled incorrectly, please refer to instructions dump.
         To view partially-correct add '--show-bad-code' argument
     */
-    static boolean cleanupStaleUpdaterApks(android.content.Context r18) {
-        /*
-            Method dump skipped, instructions count: 216
-            To view this dump add '--comments-level debug' option
-        */
-        throw new UnsupportedOperationException("Method not decompiled: com.harleytg.forum.dev.AppUpdateDownloader.cleanupStaleUpdaterApks(android.content.Context):boolean");
+
+    static boolean cleanupStaleUpdaterApks(Context context) {
+        if (context == null) return false;
+        Context app = context.getApplicationContext();
+        boolean removed = false;
+        long activeId = app.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE)
+                .getLong(AppPrefs.UPDATE_DOWNLOAD_ID, -1L);
+        int activeStatus = activeId > 0L ? status(app, activeId) : 0;
+        boolean activeDownload = activeStatus == DownloadManager.STATUS_PENDING
+                || activeStatus == DownloadManager.STATUS_RUNNING
+                || activeStatus == DownloadManager.STATUS_PAUSED;
+        long installedVersion = installedVersionCode(app);
+        if (installedVersion <= 0L) installedVersion = BuildInfo.VERSION_CODE;
+        try {
+            File dir = app.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+            if (dir == null || !dir.isDirectory()) return false;
+            File[] files = dir.listFiles();
+            if (files == null) return false;
+            PackageManager pm = app.getPackageManager();
+            for (File file : files) {
+                if (file == null || !file.isFile()) continue;
+                String name = file.getName().toLowerCase(Locale.US);
+                boolean updaterApk = name.startsWith("hcf-beta-")
+                        || name.startsWith("harleysclanforum-beta-")
+                        || name.startsWith("harleysclanforum-");
+                if (!updaterApk || !name.endsWith(".apk")) continue;
+                PackageInfo archive = pm.getPackageArchiveInfo(file.getAbsolutePath(), 0);
+                if (archive == null || archive.packageName == null || !app.getPackageName().equals(archive.packageName)) continue;
+                long archiveVersion = archiveVersionCode(archive);
+                if (activeDownload && archiveVersion > installedVersion) continue;
+                if (archiveVersion > 0L && archiveVersion <= installedVersion) {
+                    try { if (file.delete()) removed = true; } catch (Throwable ignored) {}
+                }
+            }
+        } catch (Throwable t) {
+            AppLogger.warn(app, "update_cleanup_stale", t.getClass().getSimpleName());
+        }
+        if (removed) AppLogger.info(app, "update_cleanup_stale", "old Stable updater APKs removed");
+        return removed;
     }
 
     private static long installedVersionCode(Context context) {
         try {
             return archiveVersionCode(context.getPackageManager().getPackageInfo(context.getPackageName(), 0));
         } catch (Throwable unused) {
-            return 10000071L;
+            return BuildInfo.VERSION_CODE;
         }
     }
 

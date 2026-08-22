@@ -6,8 +6,10 @@ sdk_root="${ANDROID_SDK_ROOT:?Set ANDROID_SDK_ROOT}"
 build_tools="$sdk_root/build-tools/${BUILD_TOOLS_VERSION:-35.0.0}"
 android_jar="$sdk_root/platforms/android-${ANDROID_PLATFORM_VERSION:-35}/android.jar"
 manifest="$project_dir/AndroidManifest.xml"
+build_info="$project_dir/src/com/harleytg/forum/BuildInfo.java"
 
 [[ -f "$manifest" ]] || { echo "Missing AndroidManifest.xml" >&2; exit 2; }
+[[ -f "$build_info" ]] || { echo "Missing BuildInfo.java" >&2; exit 2; }
 [[ -x "$build_tools/aapt" ]] || { echo "Missing aapt in $build_tools" >&2; exit 3; }
 [[ -x "$build_tools/d8" ]] || { echo "Missing d8 in $build_tools" >&2; exit 4; }
 [[ -x "$build_tools/zipalign" ]] || { echo "Missing zipalign in $build_tools" >&2; exit 5; }
@@ -17,6 +19,13 @@ manifest="$project_dir/AndroidManifest.xml"
 package_name="$(sed -n 's/.*package="\([^"]*\)".*/\1/p' "$manifest" | head -1)"
 version_code="$(sed -n 's/.*android:versionCode="\([^"]*\)".*/\1/p' "$manifest" | head -1)"
 version_name="$(sed -n 's/.*android:versionName="\([^"]*\)".*/\1/p' "$manifest" | head -1)"
+buildinfo_version_code="$(sed -n 's/.*VERSION_CODE = \([0-9][0-9]*\);.*/\1/p' "$build_info" | head -1)"
+buildinfo_apk_name="$(sed -n 's/.*APK_FILE_NAME = "\([^"]*\)";.*/\1/p' "$build_info" | head -1)"
+[[ -n "$buildinfo_version_code" && "$version_code" == "$buildinfo_version_code" ]] || { echo "Manifest/BuildInfo versionCode mismatch" >&2; exit 21; }
+if grep -R -nE 'Method not decompiled:|throw new UnsupportedOperationException' "$project_dir/src"; then
+  echo "Decompiler stubs remain in production source" >&2
+  exit 22
+fi
 
 case "$package_name" in
   com.harleytg.forum)
@@ -29,13 +38,15 @@ case "$package_name" in
     channel="dev"
     output_name="HCF-Beta-v${version_code}.apk"
     default_alias="hcf-beta-v2"
-    expected_signer="${HCF_EXPECTED_SIGNER:-}"
+    expected_signer="${HCF_EXPECTED_SIGNER:-93D49BF9A877C7CFB1B37F9064BD955CD67BD7DD8DB73A9E3F766B59C4BCCE63}"
     ;;
   *)
     echo "Unsupported package: $package_name" >&2
     exit 8
     ;;
 esac
+
+[[ "$output_name" == "$buildinfo_apk_name" ]] || { echo "BuildInfo APK filename mismatch" >&2; exit 23; }
 
 keystore_path="${HCF_KEYSTORE:?Set HCF_KEYSTORE to the channel signing JKS}"
 keystore_alias="${HCF_KEY_ALIAS:-$default_alias}"
@@ -77,7 +88,7 @@ output_apk="$output_dir/$output_name"
   --v1-signing-enabled true \
   --v2-signing-enabled true \
   --v3-signing-enabled true \
-  --v4-signing-enabled false \
+  --v4-signing-enabled true \
   --ks "$keystore_path" \
   --ks-key-alias "$keystore_alias" \
   --ks-pass env:HCF_APKSIGNER_PASSWORD \

@@ -166,11 +166,10 @@ final class LiveForumUpdater {
     }
 
     void acknowledge(String str, String str2) {
-        if (str == null || str2 == null) {
-            return;
-        }
+        if (str == null || str2 == null) return;
         this.baselineKey = str;
         this.baselineFingerprint = str2;
+        saveBaseline(str, str2);
     }
 
     private void scheduleAuthCheck() {
@@ -409,7 +408,7 @@ final class LiveForumUpdater {
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
             connection.setRequestProperty("X-CSRF-Token", realtimeConfig.csrfToken);
             connection.setRequestProperty("X-Requested-With", "XMLHttpRequest");
-            connection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 Realtime");
+            connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " Realtime");
             String cookie = cookieForHost(realtimeConfig.forumHost);
             if (!cookie.isEmpty()) {
                 connection.setRequestProperty("Cookie", cookie);
@@ -571,7 +570,7 @@ final class LiveForumUpdater {
             connection.setRequestProperty("Accept", "application/vnd.api+json, application/json");
             connection.setRequestProperty("Cache-Control", "no-cache, max-age=0");
             connection.setRequestProperty("X-Requested-With", "XMLHttpRequest");
-            connection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 RealtimeBootstrap");
+            connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " RealtimeBootstrap");
             String cookie = cookieForHost(host);
             if (!cookie.isEmpty()) {
                 connection.setRequestProperty("Cookie", cookie);
@@ -713,9 +712,13 @@ final class LiveForumUpdater {
             this.failures = 0;
             state("LIVE");
             if (!key.equals(this.baselineKey) || (previous = this.baselineFingerprint) == null) {
+                previous = loadBaseline(key);
                 this.baselineKey = key;
-                this.baselineFingerprint = fingerprint;
-            } else if (!fingerprint.equals(previous)) {
+                this.baselineFingerprint = previous == null ? fingerprint : previous;
+                if (previous == null) saveBaseline(key, fingerprint);
+            }
+            previous = this.baselineFingerprint;
+            if (previous != null && !fingerprint.equals(previous)) {
                 this.listener.onChangeCandidate(key, fingerprint);
             }
             if (fallbackPoll && !this.socketConnected) {
@@ -731,11 +734,33 @@ final class LiveForumUpdater {
     }
 
     private void state(String state) {
-        if (state.equals(this.lastState)) {
-            return;
-        }
+        if (state.equals(this.lastState)) return;
+        String previous = this.lastState == null || this.lastState.isEmpty() ? "NONE" : this.lastState;
         this.lastState = state;
+        AppLogger.info(this.app, "live_update_state", previous + " -> " + state);
         this.listener.onStateChanged(state);
+    }
+
+    private String baselinePrefKey(String key) {
+        if (key == null) return "";
+        return "live_fp_" + Integer.toHexString(key.hashCode());
+    }
+
+    private String loadBaseline(String key) {
+        try {
+            String value = this.prefs.getString(baselinePrefKey(key), null);
+            return value == null || value.isEmpty() ? null : value;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private void saveBaseline(String key, String fingerprint) {
+        if (key == null || fingerprint == null || fingerprint.isEmpty()) return;
+        try {
+            this.prefs.edit().putString(baselinePrefKey(key), fingerprint).apply();
+        } catch (Throwable ignored) {
+        }
     }
 
     private String endpointFor(Uri uri) {
@@ -786,7 +811,7 @@ final class LiveForumUpdater {
             connection.setInstanceFollowRedirects(false);
             connection.setRequestProperty("Accept", "application/vnd.api+json, application/json");
             connection.setRequestProperty("Cache-Control", "no-cache, max-age=0");
-            connection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 LiveUpdate");
+            connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " LiveUpdate");
             if (!forceRefresh && cacheEntry != null) {
                 if (!cacheEntry.etag.isEmpty()) {
                     connection.setRequestProperty("If-None-Match", cacheEntry.etag);

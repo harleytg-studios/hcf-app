@@ -93,65 +93,35 @@ final class FirebaseConfigLoader {
         }
     }
 
-    static /* synthetic */ void lambda$refresh$1(String str, SharedPreferences sharedPreferences, Context context, final Callback callback) {
-        final Config config;
-        final String str2;
-        HttpURLConnection httpURLConnection;
-        int responseCode;
-        HttpURLConnection httpURLConnection2 = null;
+    static /* synthetic */ void lambda$refresh$1(String urlText, SharedPreferences sharedPreferences, Context context, final Callback callback) {
+        Config result;
+        String message;
+        HttpURLConnection connection = null;
         try {
-            httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
-            try {
-                httpURLConnection.setConnectTimeout(8000);
-                httpURLConnection.setReadTimeout(8000);
-                httpURLConnection.setInstanceFollowRedirects(true);
-                httpURLConnection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 FirebaseConfig");
-                responseCode = httpURLConnection.getResponseCode();
-            } catch (Throwable th) {
-                th = th;
-                httpURLConnection2 = httpURLConnection;
-                try {
-                    Config load = load(context);
-                    StringBuilder sb = new StringBuilder("Remote refresh failed; kept ");
-                    sb.append(load == null ? "no config" : load.source);
-                    sb.append(".");
-                    String sb2 = sb.toString();
-                    AppLogger.error(context, "firebase_config_refresh", th.getClass().getSimpleName() + ": " + String.valueOf(th.getMessage()));
-                    config = load;
-                    str2 = sb2;
-                    new Handler(Looper.getMainLooper()).post(new Runnable() { // from class: com.harleytg.forum.dev.FirebaseConfigLoader$$ExternalSyntheticLambda0
-                        @Override // java.lang.Runnable
-                        public final void run() {
-                            FirebaseConfigLoader.Callback.this.onResult(config, str2);
-                        }
-                    });
-                } finally {
-                    if (httpURLConnection2 != null) {
-                        httpURLConnection2.disconnect();
-                    }
-                }
-            }
-        } catch (Throwable th2) {
-            th = th2;
+            connection = (HttpURLConnection) new URL(urlText).openConnection();
+            connection.setConnectTimeout(8000);
+            connection.setReadTimeout(8000);
+            connection.setInstanceFollowRedirects(true);
+            connection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 FirebaseConfig");
+            int code = connection.getResponseCode();
+            if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);
+            String raw = readAll(connection.getInputStream());
+            Config parsed = parse(raw, "HTTPS config");
+            if (parsed == null || !parsed.isValid()) throw new IllegalStateException("Invalid Firebase config");
+            sharedPreferences.edit().putString("firebase_config_cache", raw).putString("firebase_config_source", "HTTPS config").apply();
+            result = parsed;
+            message = "Firebase config refreshed from HTTPS.";
+        } catch (Throwable t) {
+            result = load(context);
+            message = "Remote refresh failed; kept " + (result == null ? "no config" : result.source) + ".";
+            AppLogger.error(context, "firebase_config_refresh", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));
+        } finally {
+            if (connection != null) connection.disconnect();
         }
-        if (responseCode < 200 || responseCode >= 300) {
-            throw new IllegalStateException("HTTP " + responseCode);
-        }
-        String readAll = readAll(httpURLConnection.getInputStream());
-        config = parse(readAll, "HTTPS config");
-        if (config == null || !config.isValid()) {
-            throw new IllegalStateException("Invalid Firebase config");
-        }
-        sharedPreferences.edit().putString("firebase_config_cache", readAll).putString("firebase_config_source", "HTTPS config").apply();
-        str2 = "Firebase config refreshed from HTTPS.";
-        if (httpURLConnection != null) {
-            httpURLConnection.disconnect();
-        }
-        new Handler(Looper.getMainLooper()).post(new Runnable() { // from class: com.harleytg.forum.dev.FirebaseConfigLoader$$ExternalSyntheticLambda0
-            @Override // java.lang.Runnable
-            public final void run() {
-                FirebaseConfigLoader.Callback.this.onResult(config, str2);
-            }
+        final Config callbackConfig = result;
+        final String callbackMessage = message;
+        new Handler(Looper.getMainLooper()).post(new Runnable() {
+            @Override public void run() { callback.onResult(callbackConfig, callbackMessage); }
         });
     }
 

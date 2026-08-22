@@ -272,18 +272,22 @@ final class ForumNotificationClient {
         }
         String trim = clean.trim();
         if ((trim.startsWith("{") && trim.endsWith("}")) || (trim.startsWith("[") && trim.endsWith("]"))) {
-            if (trim.startsWith("{")) {
-                return firstDeepObject(new JSONObject(trim), i + 1, strArr);
-            }
-            JSONArray jSONArray2 = new JSONArray(trim);
-            while (i2 < jSONArray2.length()) {
-                String readableValue2 = readableValue(jSONArray2.opt(i2), i + 1, strArr);
-                if (!readableValue2.isEmpty()) {
-                    return readableValue2;
+            try {
+                if (trim.startsWith("{")) {
+                    return firstDeepObject(new JSONObject(trim), i + 1, strArr);
                 }
-                i2++;
+                JSONArray jSONArray2 = new JSONArray(trim);
+                while (i2 < jSONArray2.length()) {
+                    String readableValue2 = readableValue(jSONArray2.opt(i2), i + 1, strArr);
+                    if (!readableValue2.isEmpty()) {
+                        return readableValue2;
+                    }
+                    i2++;
+                }
+                return "";
+            } catch (Throwable ignored) {
+                return clean(trim, 500);
             }
-            return "";
         }
         return clean(trim, 500);
     }

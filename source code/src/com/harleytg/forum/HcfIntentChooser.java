@@ -408,7 +408,7 @@ final class HcfIntentChooser {
     }
 
     private static String resolveLabel(PackageManager packageManager, ResolveInfo resolveInfo) {
-        CharSequence loadLabel;
+        CharSequence loadLabel = null;
         if (resolveInfo == null) {
             loadLabel = null;
         } else {

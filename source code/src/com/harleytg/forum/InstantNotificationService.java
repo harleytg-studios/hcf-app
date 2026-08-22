@@ -12,14 +12,14 @@ import android.os.IBinder;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.json.JSONException;
 
-/* loaded from: classes.dex */
 public final class InstantNotificationService extends Service {
     static final String ACTION_SYNC_NOW = "com.harleytg.forum.dev.SYNC_NOTIFICATIONS_NOW";
-    private static final long FAILURE_MAX_MS = 60000;
-    private static final long FAILURE_MIN_MS = 2500;
-    private static final long NO_SESSION_POLL_MS = 15000;
+    private static final long FAILURE_MAX_MS = 60000L;
+    private static final long FAILURE_MIN_MS = 2500L;
     static final int SERVICE_NOTIFICATION_ID = 41070;
+
     private int failures;
     private volatile boolean immediateRequested;
     private ConnectivityManager.NetworkCallback networkCallback;
@@ -29,242 +29,246 @@ public final class InstantNotificationService extends Service {
     private final Object scheduleLock = new Object();
     private final AtomicBoolean inFlight = new AtomicBoolean(false);
 
-    @Override // android.app.Service
-    public IBinder onBind(Intent intent) {
-        return null;
+    @Override
+    public IBinder onBind(Intent intent) { return null; }
+
+    private static boolean hasSession(Context context) {
+        if (context == null) return false;
+        try {
+            String userId = context.getSharedPreferences("hcf_app", 0).getString("session_user_id", "");
+            return userId != null && !userId.trim().isEmpty();
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     static void apply(Context context) {
-        if (context == null) {
-            return;
-        }
-        if (context.getSharedPreferences("hcf_app", 0).getBoolean("background_notification_sync", true)) {
-            start(context);
-        } else {
-            stop(context);
-        }
+        if (context == null) return;
+        SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
+        if (prefs.getBoolean("background_notification_sync", true) && hasSession(context)) start(context);
+        else stop(context);
     }
 
-    /* JADX WARN: Unreachable blocks removed: 2, instructions: 2 */
     static void start(Context context) {
-        if (context == null) {
+        if (context == null) return;
+        if (!hasSession(context) || NotificationHelper.silencePassiveEnabled(context)) {
+            stop(context);
             return;
         }
-        NotificationHelper.silencePassiveEnabled(context);
         startWithAction(context, null);
     }
 
     static void requestImmediateSync(Context context) {
-        if (context == null) {
-            return;
-        }
-        if (NotificationHelper.silencePassiveEnabled(context)) {
-            requestOneShotSync(context);
-        } else {
-            startWithAction(context, ACTION_SYNC_NOW);
-        }
+        if (context == null || !hasSession(context)) return;
+        if (NotificationHelper.silencePassiveEnabled(context)) requestOneShotSync(context);
+        else startWithAction(context, ACTION_SYNC_NOW);
     }
 
     private static void requestOneShotSync(Context context) {
-        final Context applicationContext = context.getApplicationContext();
-        AppExecutors.network().execute(new Runnable() { // from class: com.harleytg.forum.dev.InstantNotificationService$$ExternalSyntheticLambda0
-            @Override // java.lang.Runnable
-            public final void run() {
-                InstantNotificationService.lambda$requestOneShotSync$0(applicationContext);
-            }
+        final Context app = context.getApplicationContext();
+        AppExecutors.network().execute(new Runnable() {
+            @Override public void run() { runOneShot(app); }
         });
     }
 
-    static /* synthetic */ void lambda$requestOneShotSync$0(Context context) {
-        String string;
-        String str = "forum.harleytg.com";
+    private static void runOneShot(Context context) {
         try {
-            SharedPreferences sharedPreferences = context.getSharedPreferences("hcf_app", 0);
-            if (sharedPreferences.getBoolean("background_notification_sync", true) && (string = sharedPreferences.getString("session_user_id", "")) != null && !string.trim().isEmpty() && RuntimeState.networkAvailable(context)) {
-                String string2 = sharedPreferences.getString("active_host", "forum.harleytg.com");
-                if (ForumUrlRouter.isForumHost(string2)) {
-                    str = string2;
-                }
-                ForumNotificationSync.perform(context, str, string.trim(), "silent-one-shot");
-                AppLogger.info(context, "instant_notification_service", "one-shot sync • silent channel hidden");
-            }
-        } catch (Throwable th) {
-            AppLogger.warn(context, "instant_notification_service", "one-shot | " + th.getClass().getSimpleName());
+            SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
+            if (!prefs.getBoolean("background_notification_sync", true)) return;
+            String userId = prefs.getString("session_user_id", "");
+            if (userId == null || userId.trim().isEmpty() || !RuntimeState.networkAvailable(context)) return;
+            String host = prefs.getString("active_host", "forum.harleytg.com");
+            if (!ForumUrlRouter.isForumHost(host)) host = "forum.harleytg.com";
+            ForumNotificationSync.perform(context, host, userId.trim(), "silent-one-shot");
+            AppLogger.info(context, "instant_notification_service", "one-shot sync • silent channel hidden");
+        } catch (JSONException e) {
+            // A transient 2xx response can occasionally contain HTML or an
+            // unexpected payload instead of the Flarum JSON API object. Skip
+            // this one-shot attempt and let the next sync retry normally.
+            AppLogger.info(context, "instant_notification_service", "one-shot skipped • invalid notification API payload");
+        } catch (Throwable t) {
+            AppLogger.warn(context, "instant_notification_service", "one-shot | " + t.getClass().getSimpleName());
         }
     }
 
-    /* JADX WARN: Unreachable blocks removed: 5, instructions: 6 */
-    private static void startWithAction(Context context, String str) {
-        if (context == null) {
+    private static void startWithAction(Context context, String action) {
+        if (context == null) return;
+        SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
+        if (!prefs.getBoolean("background_notification_sync", true) || !hasSession(context)) {
+            stop(context);
             return;
         }
-        NotificationHelper.silencePassiveEnabled(context);
+        if (NotificationHelper.silencePassiveEnabled(context)) {
+            if (ACTION_SYNC_NOW.equals(action)) requestOneShotSync(context);
+            else stop(context);
+            return;
+        }
         try {
-            Intent intent = new Intent(context, (Class<?>) InstantNotificationService.class);
-            if (str != null) {
-                intent.setAction(str);
-            }
-            context.startForegroundService(intent);
-        } catch (Throwable th) {
-            AppLogger.warn(context, "instant_notification_service", "start-blocked | " + th.getClass().getSimpleName());
+            Intent intent = new Intent(context, InstantNotificationService.class);
+            if (action != null) intent.setAction(action);
+            if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent);
+            else context.startService(intent);
+        } catch (Throwable t) {
+            AppLogger.warn(context, "instant_notification_service", "start-blocked | " + t.getClass().getSimpleName());
         }
     }
 
     static void stop(Context context) {
-        if (context == null) {
-            return;
-        }
-        try {
-            context.stopService(new Intent(context, (Class<?>) InstantNotificationService.class));
-        } catch (Throwable th) {
-            AppLogger.warn(context, "instant_notification_service", "stop | " + th.getClass().getSimpleName());
-        }
+        if (context == null) return;
+        try { context.stopService(new Intent(context, InstantNotificationService.class)); }
+        catch (Throwable t) { AppLogger.warn(context, "instant_notification_service", "stop | " + t.getClass().getSimpleName()); }
     }
 
-    @Override // android.app.Service
+    @Override
     public void onCreate() {
         super.onCreate();
-        NotificationHelper.createChannel(this);
-        Notification buildInstantServiceNotification = NotificationHelper.buildInstantServiceNotification(this);
         try {
-            if (Build.VERSION.SDK_INT >= 34) {
-                startForeground(SERVICE_NOTIFICATION_ID, buildInstantServiceNotification, 1073741824);
-            } else {
-                startForeground(SERVICE_NOTIFICATION_ID, buildInstantServiceNotification);
-            }
-            this.running = true;
-            this.failures = 0;
-            registerNetworkCallback();
-            AppLogger.info(this, "instant_notification_service", "started • adaptive v10000047");
-            scheduleNext(0L);
-        } catch (Throwable th) {
-            AppLogger.error(this, "instant_notification_foreground", th.getClass().getSimpleName() + ": " + String.valueOf(th.getMessage()));
+            NotificationHelper.createChannel(this);
+            Notification notification = NotificationHelper.buildInstantServiceNotification(this);
+            // The two-argument API uses the manifest-declared specialUse type and
+            // avoids OEM-specific failures caused by redundantly forcing the type.
+            startForeground(SERVICE_NOTIFICATION_ID, notification);
+        } catch (Throwable t) {
+            AppLogger.error(this, "instant_notification_foreground", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));
             stopSelf();
+            return;
         }
+
+        running = true;
+        failures = 0;
+        registerNetworkCallback();
+        AppLogger.info(this, "instant_notification_service", "started • adaptive v" + BuildInfo.VERSION_CODE);
+        scheduleNext(0L);
     }
 
-    @Override // android.app.Service
-    public int onStartCommand(Intent intent, int i, int i2) {
-        if (!getSharedPreferences("hcf_app", 0).getBoolean("background_notification_sync", true)) {
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        SharedPreferences prefs = getSharedPreferences("hcf_app", 0);
+        if (!prefs.getBoolean("background_notification_sync", true) || !hasSession(this)) {
+            running = false;
             stopSelf();
-            return 2;
+            return START_NOT_STICKY;
         }
-        this.running = true;
+        running = true;
         if (intent != null && ACTION_SYNC_NOW.equals(intent.getAction())) {
-            this.immediateRequested = true;
+            immediateRequested = true;
             scheduleNext(0L);
-        } else if (this.scheduled == null) {
+        } else if (scheduled == null) {
             scheduleNext(0L);
         }
-        return 1;
+        return START_STICKY;
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void scheduleNext(long j) {
-        if (this.running) {
-            synchronized (this.scheduleLock) {
-                ScheduledFuture<?> scheduledFuture = this.scheduled;
-                if (scheduledFuture != null) {
-                    scheduledFuture.cancel(false);
-                }
-                long max = Math.max(0L, j);
-                RuntimeDiagnostics.notificationPoll(max, "Adaptive polling fallback");
-                this.scheduled = AppExecutors.scheduler().schedule(new Runnable() { // from class: com.harleytg.forum.dev.InstantNotificationService$$ExternalSyntheticLambda1
-                    @Override // java.lang.Runnable
-                    public final void run() {
-                        InstantNotificationService.this.triggerSync();
-                    }
-                }, max, TimeUnit.MILLISECONDS);
-            }
+    public void scheduleNext(long delayMs) {
+        if (!running) return;
+        synchronized (scheduleLock) {
+            if (scheduled != null) scheduled.cancel(false);
+            long delay = Math.max(0L, delayMs);
+            RuntimeDiagnostics.notificationPoll(delay, "Adaptive polling fallback");
+            scheduled = AppExecutors.scheduler().schedule(new Runnable() {
+                @Override public void run() { triggerSync(); }
+            }, delay, TimeUnit.MILLISECONDS);
         }
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
     public void triggerSync() {
-        if (this.running) {
-            if (!this.inFlight.compareAndSet(false, true)) {
-                this.immediateRequested = true;
-            } else {
-                AppExecutors.network().execute(new Runnable() { // from class: com.harleytg.forum.dev.InstantNotificationService$$ExternalSyntheticLambda2
-                    @Override // java.lang.Runnable
-                    public final void run() {
-                        InstantNotificationService.this.m18x7f46ef73();
-                    }
-                });
-            }
+        if (!running) return;
+        if (!inFlight.compareAndSet(false, true)) {
+            immediateRequested = true;
+            return;
         }
+        AppExecutors.network().execute(new Runnable() {
+            @Override public void run() { performAdaptiveSync(); }
+        });
     }
 
-    /* JADX WARN: Removed duplicated region for block: B:26:0x007a A[RETURN] */
-    /* JADX WARN: Removed duplicated region for block: B:27:0x007b  */
-    /* renamed from: lambda$triggerSync$1$com-harleytg-forum-dev-InstantNotificationService, reason: not valid java name */
-    /*
-        Code decompiled incorrectly, please refer to instructions dump.
-        To view partially-correct add '--show-bad-code' argument
-    */
-    /* synthetic */ void m18x7f46ef73() {
-        /*
-            Method dump skipped, instructions count: 280
-            To view this dump add '--comments-level debug' option
-        */
-        throw new UnsupportedOperationException("Method not decompiled: com.harleytg.forum.dev.InstantNotificationService.m18x7f46ef73():void");
+    private void performAdaptiveSync() {
+        long nextDelay = 15000L;
+        try {
+            SharedPreferences prefs = getSharedPreferences("hcf_app", 0);
+            if (!prefs.getBoolean("background_notification_sync", true)) {
+                running = false;
+                stopSelf();
+                return;
+            }
+            String userId = prefs.getString("session_user_id", "");
+            if (userId == null || userId.trim().isEmpty()) {
+                running = false;
+                stopSelf();
+                return;
+            }
+            if (!RuntimeState.networkAvailable(this)) {
+                failures = 0;
+                nextDelay = PerformanceProfile.notificationPollInterval(this, prefs);
+            } else {
+                String host = prefs.getString("active_host", "forum.harleytg.com");
+                if (!ForumUrlRouter.isForumHost(host)) host = "forum.harleytg.com";
+                ForumNotificationSync.perform(this, host, userId.trim(), "adaptive");
+                failures = 0;
+                nextDelay = PerformanceProfile.notificationPollInterval(this, prefs);
+            }
+        } catch (Throwable t) {
+            failures = Math.min(failures + 1, 8);
+            int shift = Math.min(Math.max(failures - 1, 0), 4);
+            long retry = Math.min(FAILURE_MAX_MS, FAILURE_MIN_MS * (1L << shift));
+            try {
+                retry = Math.max(retry, PerformanceProfile.notificationPollInterval(this, getSharedPreferences("hcf_app", 0)));
+            } catch (Throwable ignored) {}
+            nextDelay = retry;
+            if (failures == 1 || failures == 2 || failures == 4 || failures == 8) {
+                AppLogger.warn(this, "instant_notification_poll", t.getClass().getSimpleName() + " | failures=" + failures + " | retry=" + retry + "ms");
+            }
+        } finally {
+            inFlight.set(false);
+            if (running) {
+                if (immediateRequested) {
+                    immediateRequested = false;
+                    scheduleNext(0L);
+                } else {
+                    scheduleNext(nextDelay);
+                }
+            }
+        }
     }
 
     private void registerNetworkCallback() {
-        if (this.networkCallbackRegistered) {
-            return;
-        }
+        if (networkCallbackRegistered) return;
         try {
-            ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService("connectivity");
-            if (connectivityManager == null) {
-                return;
-            }
-            ConnectivityManager.NetworkCallback networkCallback = new ConnectivityManager.NetworkCallback() { // from class: com.harleytg.forum.dev.InstantNotificationService.1
-                @Override // android.net.ConnectivityManager.NetworkCallback
-                public void onAvailable(Network network) {
-                    if (InstantNotificationService.this.running) {
-                        InstantNotificationService.this.failures = 0;
-                        InstantNotificationService.this.immediateRequested = true;
-                        InstantNotificationService.this.scheduleNext(0L);
+            ConnectivityManager cm = (ConnectivityManager) getSystemService("connectivity");
+            if (cm == null) return;
+            networkCallback = new ConnectivityManager.NetworkCallback() {
+                @Override public void onAvailable(Network network) {
+                    if (running) {
+                        failures = 0;
+                        immediateRequested = true;
+                        scheduleNext(0L);
                     }
                 }
             };
-            this.networkCallback = networkCallback;
-            connectivityManager.registerDefaultNetworkCallback(networkCallback);
-            this.networkCallbackRegistered = true;
-        } catch (Throwable th) {
-            AppLogger.warn(this, "notification_network_callback", th.getClass().getSimpleName());
+            cm.registerDefaultNetworkCallback(networkCallback);
+            networkCallbackRegistered = true;
+        } catch (Throwable t) {
+            AppLogger.warn(this, "notification_network_callback", t.getClass().getSimpleName());
         }
     }
 
     private void unregisterNetworkCallback() {
-        ConnectivityManager.NetworkCallback networkCallback;
-        if (this.networkCallbackRegistered) {
-            try {
-                ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService("connectivity");
-                if (connectivityManager != null && (networkCallback = this.networkCallback) != null) {
-                    connectivityManager.unregisterNetworkCallback(networkCallback);
-                }
-            } catch (Throwable unused) {
-            }
-            this.networkCallback = null;
-            this.networkCallbackRegistered = false;
-        }
+        if (!networkCallbackRegistered) return;
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService("connectivity");
+            if (cm != null && networkCallback != null) cm.unregisterNetworkCallback(networkCallback);
+        } catch (Throwable ignored) {}
+        networkCallback = null;
+        networkCallbackRegistered = false;
     }
 
-    @Override // android.app.Service
+    @Override
     public void onDestroy() {
-        this.running = false;
-        try {
-            stopForeground(1);
-        } catch (Throwable unused) {
-        }
-        synchronized (this.scheduleLock) {
-            ScheduledFuture<?> scheduledFuture = this.scheduled;
-            if (scheduledFuture != null) {
-                scheduledFuture.cancel(false);
-            }
-            this.scheduled = null;
+        running = false;
+        try { stopForeground(true); } catch (Throwable ignored) {}
+        synchronized (scheduleLock) {
+            if (scheduled != null) scheduled.cancel(false);
+            scheduled = null;
         }
         unregisterNetworkCallback();
         AppLogger.info(this, "instant_notification_service", "stopped");

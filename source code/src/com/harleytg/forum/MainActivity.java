@@ -250,7 +250,7 @@ public class MainActivity extends ThemedActivity {
             applyChromePreferences();
             scheduleFirstRunPermissionSetup();
             scheduleWhatsNew(z2);
-            AppLogger.info(this, "main_create", "1.0 | UA=HarleysClanForumApp/1.0");
+            AppLogger.info(this, "main_create", BuildInfo.VERSION_BUILD_LINE + " | UA=" + BuildInfo.USER_AGENT_MARKER);
             if (bundle != null) {
                 this.webView.restoreState(bundle);
                 Uri parse = Uri.parse(this.webView.getUrl() == null ? "" : this.webView.getUrl());
@@ -2347,7 +2347,7 @@ public class MainActivity extends ThemedActivity {
         }
         ReleaseNotes.markSeen(this.prefs);
         this.welcomeBanner.animate().cancel();
-        this.welcomeBanner.setText("✨  What's New • v1.0\nBeta/Dev v10000072 • Four-button theme selector  •  Tap to view");
+        this.welcomeBanner.setText("✨  What's New • v1.0\nBeta/Dev v" + BuildInfo.VERSION_CODE + " • Theme, notifications & stability update  •  Tap to view");
         this.welcomeBanner.setContentDescription("What's new in v1.0. Tap to view release notes.");
         this.welcomeBanner.setClickable(true);
         this.welcomeBanner.setFocusable(true);
@@ -2509,8 +2509,8 @@ public class MainActivity extends ThemedActivity {
     }
 
     private void requestNotificationPermissionOnFirstRun() {
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != 0 && this.prefs.getInt("notification_permission_prompt_version", 0) < 10000071) {
-            this.prefs.edit().putBoolean("notification_permission_asked", true).putInt("notification_permission_prompt_version", 10000071).apply();
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != 0 && this.prefs.getInt("notification_permission_prompt_version", 0) < BuildInfo.VERSION_CODE) {
+            this.prefs.edit().putBoolean("notification_permission_asked", true).putInt("notification_permission_prompt_version", BuildInfo.VERSION_CODE).apply();
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, NOTIFICATION_PERMISSION_REQUEST);
         }
     }
@@ -2529,7 +2529,7 @@ public class MainActivity extends ThemedActivity {
         if (release == null || isFinishing() || isDestroyed()) {
             return;
         }
-        new AlertDialog.Builder(this).setTitle("Beta Update Available").setMessage("A newer Harley's Clan Forum development build is ready.\n\nInstalled: v1.0 (10000072)\nAvailable: v" + UpdateChecker.displayVersion(release) + " (" + (release.versionCode > 0 ? Long.toString(release.versionCode) : "Checking build code") + ")\n\nChannel: Development / Beta\nUpdate when you're ready to test the latest build.").setNegativeButton("Later", (DialogInterface.OnClickListener) null).setPositiveButton("Update Now", new DialogInterface.OnClickListener() { // from class: com.harleytg.forum.dev.MainActivity$$ExternalSyntheticLambda12
+        new AlertDialog.Builder(this).setTitle("Beta Update Available").setMessage("A newer Harley's Clan Forum development build is ready.\n\nInstalled: v1.0 (" + BuildInfo.VERSION_CODE + ")\nAvailable: v" + UpdateChecker.displayVersion(release) + " (" + (release.versionCode > 0 ? Long.toString(release.versionCode) : "Checking build code") + ")\n\nChannel: Development / Beta\nUpdate when you're ready to test the latest build.").setNegativeButton("Later", (DialogInterface.OnClickListener) null).setPositiveButton("Update Now", new DialogInterface.OnClickListener() { // from class: com.harleytg.forum.dev.MainActivity$$ExternalSyntheticLambda12
             @Override // android.content.DialogInterface.OnClickListener
             public final void onClick(DialogInterface dialogInterface, int i) {
                 MainActivity.this.m86xf46525d5(dialogInterface, i);
@@ -2577,7 +2577,7 @@ public class MainActivity extends ThemedActivity {
             }
         });
         this.nativeUpdateDialog.show();
-        UpdateChecker.check(this, "dev", new UpdateChecker.Callback() { // from class: com.harleytg.forum.dev.MainActivity.4
+        UpdateChecker.check(this, "stable", new UpdateChecker.Callback() { // from class: com.harleytg.forum.dev.MainActivity.4
             @Override // com.harleytg.forum.dev.UpdateChecker.Callback
             public void onResult(UpdateChecker.Release release, boolean z) {
                 String str;
@@ -2587,7 +2587,7 @@ public class MainActivity extends ThemedActivity {
                 if (!z) {
                     if (UpdateChecker.compareReleaseToInstalled(release) < 0) {
                         TextView textView2 = textView;
-                        StringBuilder sb = new StringBuilder("Installed build 1.0 (10000072) is newer than the Development / Beta feed");
+                        StringBuilder sb = new StringBuilder("Installed build 1.0 (" + BuildInfo.VERSION_CODE + ") is newer than the Development / Beta feed");
                         if (release.versionCode > 0) {
                             str = " (" + release.versionCode + ")";
                         } else {
@@ -2597,7 +2597,7 @@ public class MainActivity extends ThemedActivity {
                         sb.append(". No downgrade will be installed.");
                         textView2.setText(sb.toString());
                     } else {
-                        textView.setText("You're on the newest Development / Beta build.\n\nInstalled: v1.0 (10000072)");
+                        textView.setText("You're on the newest Development / Beta build.\n\nInstalled: v1.0 (" + BuildInfo.VERSION_CODE + ")");
                     }
                     MainActivity.this.nativeUpdateFlowActive = false;
                     return;
@@ -2655,7 +2655,7 @@ public class MainActivity extends ThemedActivity {
         int dp = dp(20);
         linearLayout.setPadding(dp, dp(12), dp, dp(8));
         TextView textView = new TextView(this);
-        StringBuilder sb = new StringBuilder("Installed: v1.0 (10000072)\nAvailable: v");
+        StringBuilder sb = new StringBuilder("Installed: v1.0 (" + BuildInfo.VERSION_CODE + ")\nAvailable: v");
         sb.append(UpdateChecker.displayVersion(release));
         if (release.versionCode > 0) {
             str = " (" + release.versionCode + ")";
@@ -2899,13 +2899,12 @@ public class MainActivity extends ThemedActivity {
         this.webView.loadUrl(equivalentOnHost);
     }
 
-    private void showChecking(final String str) {
+    private void showChecking(final String requestedHost) {
         boolean z = true;
         final int i = this.connectionUiGeneration + 1;
         this.connectionUiGeneration = i;
-        if (str == null || str.trim().isEmpty()) {
-            str = "forum.harleytg.com";
-        }
+        final String str = (requestedHost == null || requestedHost.trim().isEmpty())
+                ? "forum.harleytg.com" : requestedHost;
         this.mainFrameLoadFailed = false;
         this.lastAppError = null;
         this.lastErrorUri = null;
@@ -2971,7 +2970,7 @@ public class MainActivity extends ThemedActivity {
     /* synthetic */ void m89lambda$showChecking$64$comharleytgforumdevMainActivity(int i, String str) {
         ErrorSystem.AppError connectionTimeout;
         SharedPreferences sharedPreferences;
-        String url;
+        String url = null;
         if (i == this.connectionUiGeneration && this.startupProgress.getVisibility() == 0) {
             Uri uri = null;
             try {
@@ -3206,7 +3205,7 @@ public class MainActivity extends ThemedActivity {
         sb.append(appError.code);
         sb.append("\nTitle: ");
         sb.append(appError.title);
-        sb.append("\nApp: 1.0 (10000072)\nServer: ");
+        sb.append("\nApp: 1.0 (" + BuildInfo.VERSION_CODE + ")\nServer: ");
         sb.append(str);
         sb.append("\nNetwork: ");
         sb.append(isNetworkAvailable() ? "connected" : "offline");
@@ -3745,7 +3744,7 @@ public class MainActivity extends ThemedActivity {
 
     /* renamed from: lambda$loadIdentityAvatar$71$com-harleytg-forum-dev-MainActivity, reason: not valid java name */
     /* synthetic */ void m77lambda$loadIdentityAvatar$71$comharleytgforumdevMainActivity(final String str) {
-        HttpsURLConnection httpsURLConnection;
+        HttpsURLConnection httpsURLConnection = null;
         HttpsURLConnection httpsURLConnection2 = null;
         try {
             httpsURLConnection = (HttpsURLConnection) new URL(str).openConnection();
@@ -3756,7 +3755,7 @@ public class MainActivity extends ThemedActivity {
             httpsURLConnection.setReadTimeout(6000);
             httpsURLConnection.setUseCaches(true);
             httpsURLConnection.setInstanceFollowRedirects(false);
-            httpsURLConnection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0");
+            httpsURLConnection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER);
             if (httpsURLConnection.getResponseCode() != 200) {
                 if (httpsURLConnection != null) {
                     httpsURLConnection.disconnect();
@@ -4076,7 +4075,7 @@ public class MainActivity extends ThemedActivity {
                     this.drawerSwipeStartY = motionEvent.getY();
                     this.drawerSwipeStartAt = System.currentTimeMillis();
                     int max = Math.max(dp(64), Math.round(getResources().getDisplayMetrics().widthPixels * 0.16f));
-                    if (this.drawerPanel.getVisibility() == 0 || this.drawerSwipeStartX < r0 - max) {
+                    if (this.drawerPanel.getVisibility() == 0 || this.drawerSwipeStartX < getResources().getDisplayMetrics().widthPixels - max) {
                         z = false;
                     }
                     this.drawerSwipeCandidate = z;
@@ -4193,108 +4192,35 @@ public class MainActivity extends ThemedActivity {
         Code decompiled incorrectly, please refer to instructions dump.
         To view partially-correct add '--show-bad-code' argument
     */
-    protected void onActivityResult(int r4, int r5, android.content.Intent r6) {
-        /*
-            r3 = this;
-            super.onActivityResult(r4, r5, r6)
-            r0 = 1409(0x581, float:1.974E-42)
-            r1 = 0
-            if (r4 != r0) goto L51
-            boolean r4 = com.harleytg.forum.dev.AppSecurity.canInstallUpdates(r3)
-            if (r4 == 0) goto L11
-            java.lang.String r5 = "allowed"
-            goto L13
-        L11:
-            java.lang.String r5 = "not-allowed"
-        L13:
-            java.lang.String r6 = "install_permission"
-            com.harleytg.forum.dev.AppLogger.info(r3, r6, r5)
-            android.content.SharedPreferences r5 = r3.prefs
-            android.content.SharedPreferences$Editor r5 = r5.edit()
-            java.lang.String r6 = "update_resume_after_permission"
-            android.content.SharedPreferences$Editor r5 = r5.remove(r6)
-            r5.apply()
-            if (r4 == 0) goto L2c
-            java.lang.String r5 = "Secure app updates are enabled."
-            goto L2e
-        L2c:
-            java.lang.String r5 = "Update installation permission was not enabled."
-        L2e:
-            android.widget.Toast r5 = android.widget.Toast.makeText(r3, r5, r1)
-            r5.show()
-            if (r4 == 0) goto L4e
-            long r4 = r3.nativeUpdateDownloadId
-            r0 = 0
-            int r6 = (r4 > r0 ? 1 : (r4 == r0 ? 0 : -1))
-            if (r6 <= 0) goto L40
-            goto L44
-        L40:
-            long r4 = com.harleytg.forum.dev.AppUpdateDownloader.downloadedId(r3)
-        L44:
-            int r6 = (r4 > r0 ? 1 : (r4 == r0 ? 0 : -1))
-            if (r6 <= 0) goto L50
-            java.lang.String r6 = "Previously downloaded update verified."
-            r3.continueInstallAfterVerification(r4, r6)
-            goto L50
-        L4e:
-            r3.nativeUpdateFlowActive = r1
-        L50:
-            return
-        L51:
-            r0 = 1407(0x57f, float:1.972E-42)
-            if (r4 != r0) goto Lb4
-            android.webkit.ValueCallback<android.net.Uri[]> r4 = r3.filePathCallback
-            if (r4 != 0) goto L5a
-            goto Lb4
-        L5a:
-            r4 = -1
-            r0 = 0
-            if (r5 != r4) goto L93
-            if (r6 == 0) goto L93
-            android.content.ClipData r4 = r6.getClipData()
-            if (r4 == 0) goto L83
-            android.content.ClipData r4 = r6.getClipData()
-            int r4 = r4.getItemCount()
-            android.net.Uri[] r5 = new android.net.Uri[r4]
-        L70:
-            if (r1 >= r4) goto L94
-            android.content.ClipData r2 = r6.getClipData()
-            android.content.ClipData$Item r2 = r2.getItemAt(r1)
-            android.net.Uri r2 = r2.getUri()
-            r5[r1] = r2
-            int r1 = r1 + 1
-            goto L70
-        L83:
-            android.net.Uri r4 = r6.getData()
-            if (r4 == 0) goto L93
-            r4 = 1
-            android.net.Uri[] r5 = new android.net.Uri[r4]
-            android.net.Uri r4 = r6.getData()
-            r5[r1] = r4
-            goto L94
-        L93:
-            r5 = r0
-        L94:
-            android.webkit.ValueCallback<android.net.Uri[]> r4 = r3.filePathCallback
-            r4.onReceiveValue(r5)
-            r3.filePathCallback = r0
-            if (r5 != 0) goto La0
-            java.lang.String r4 = "cancelled"
-            goto Laf
-        La0:
-            java.lang.StringBuilder r4 = new java.lang.StringBuilder
-            java.lang.String r6 = "selected="
-            r4.<init>(r6)
-            int r5 = r5.length
-            r4.append(r5)
-            java.lang.String r4 = r4.toString()
-        Laf:
-            java.lang.String r5 = "file_chooser_result"
-            com.harleytg.forum.dev.AppLogger.info(r3, r5, r4)
-        Lb4:
-            return
-        */
-        throw new UnsupportedOperationException("Method not decompiled: com.harleytg.forum.dev.MainActivity.onActivityResult(int, int, android.content.Intent):void");
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == UPDATE_INSTALL_PERMISSION_REQUEST) {
+            boolean allowed = AppSecurity.canInstallUpdates(this);
+            AppLogger.info(this, "install_permission", allowed ? "allowed" : "not-allowed");
+            prefs.edit().remove(AppPrefs.UPDATE_RESUME_AFTER_PERMISSION).apply();
+            Toast.makeText(this, allowed ? "Secure app updates are enabled." : "Update installation permission was not enabled.", Toast.LENGTH_SHORT).show();
+            if (allowed) {
+                long ready = nativeUpdateDownloadId > 0L ? nativeUpdateDownloadId : AppUpdateDownloader.downloadedId(this);
+                if (ready > 0L) continueInstallAfterVerification(ready, "Previously downloaded update verified.");
+            } else {
+                nativeUpdateFlowActive = false;
+            }
+            return;
+        }
+        if (requestCode != FILE_CHOOSER_REQUEST || filePathCallback == null) return;
+        Uri[] result = null;
+        if (resultCode == RESULT_OK && data != null) {
+            if (data.getClipData() != null) {
+                int count = data.getClipData().getItemCount();
+                result = new Uri[count];
+                for (int i = 0; i < count; i++) result[i] = data.getClipData().getItemAt(i).getUri();
+            } else if (data.getData() != null) {
+                result = new Uri[]{data.getData()};
+            }
+        }
+        filePathCallback.onReceiveValue(result);
+        filePathCallback = null;
+        AppLogger.info(this, "file_chooser_result", result == null ? "cancelled" : "selected=" + result.length);
     }
 
     @Override // android.app.Activity

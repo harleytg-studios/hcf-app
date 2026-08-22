@@ -655,6 +655,7 @@ public final class SettingsActivity extends ThemedActivity {
         });
         card.addView(sync);
         card.addView(text("Recommended: keep this ON so new forum alerts can be discovered when HCF is in the background.", 10, getColor(R.color.hcf_muted)));
+        card.addView(text("If Android delays background alerts, set HCF Beta battery usage to Unrestricted in Android Settings > Apps > HCF Beta > Battery.", 10, getColor(R.color.hcf_muted)));
 
         card.addView(settingsSubsectionHeader("Android access", "Permission and channel status", R.drawable.fa_shield));
         if (!permissionAllowed) {
@@ -1389,7 +1390,17 @@ public final class SettingsActivity extends ThemedActivity {
             boolean ready = NotificationHelper.canPost(this) && NotificationHelper.channelImportance(this) != 0;
             boolean background = prefs.getBoolean("background_notification_sync", true);
             String delivery = background ? "Background delivery ON" : "Background delivery paused";
-            notificationStatus.setText((ready ? "HCF Alerts ready" : NotificationHelper.status(this)) + " • " + delivery);
+            long lastSyncAt = prefs.getLong(AppPrefs.NOTIFICATION_LAST_SYNC_AT, 0L);
+            String lastSync;
+            if (lastSyncAt <= 0L) {
+                lastSync = "No background sync yet";
+            } else {
+                long ageSeconds = Math.max(0L, (System.currentTimeMillis() - lastSyncAt) / 1000L);
+                if (ageSeconds < 60L) lastSync = "Last sync <1 min ago";
+                else if (ageSeconds < 3600L) lastSync = "Last sync " + (ageSeconds / 60L) + " min ago";
+                else lastSync = "Last sync " + (ageSeconds / 3600L) + " hr ago";
+            }
+            notificationStatus.setText((ready ? "HCF Alerts ready" : NotificationHelper.status(this)) + " • " + delivery + " • " + lastSync);
             notificationStatus.setTextColor(getColor(ready ? R.color.hcf_accent_text : R.color.hcf_warning));
         }
         if (cookieStatus != null) cookieStatus.setText(cookieSummary());

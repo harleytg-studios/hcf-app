@@ -7,9 +7,9 @@ Development/Beta branch for the Harley's Clan Forum Android app.
 - App name: **Harley's Clan Forum [Beta]**
 - Branch: `dev`
 - Android package: `com.harleytg.forum.dev`
-- Version name: `1.0 (10000035)`
-- Version code: `10000035`
-- Internal build: `88`
+- Version name: `1.0 (10000090)`
+- Version code: `10000090`
+- Internal build: `110`
 - Minimum SDK: `26`
 - Target SDK: `34`
 - Source directory: [`source code/`](./source%20code)

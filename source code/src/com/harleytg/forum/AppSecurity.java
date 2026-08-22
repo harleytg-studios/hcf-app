@@ -10,7 +10,9 @@ import android.os.Build;
 import android.os.Environment;
 import java.io.File;
 import java.security.MessageDigest;
+import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Set;
 
 /* loaded from: classes.dex */
 final class AppSecurity {
@@ -79,10 +81,8 @@ final class AppSecurity {
                         if ((Build.VERSION.SDK_INT >= 28 ? packageArchiveInfo.getLongVersionCode() : packageArchiveInfo.versionCode) <= (Build.VERSION.SDK_INT >= 28 ? packageInfo.getLongVersionCode() : packageInfo.versionCode)) {
                             return new ApkVerification(false, "Blocked update: APK is not newer than the installed version.");
                         }
-                        String signingDigest = signingDigest(packageInfo);
-                        String signingDigest2 = signingDigest(packageArchiveInfo);
-                        if (!signingDigest.isEmpty() && !signingDigest2.isEmpty() && signingDigest.equals(signingDigest2)) {
-                            return new ApkVerification(true, "Verified package, version and signing certificate.");
+                        if (signaturesCompatible(packageInfo, packageArchiveInfo)) {
+                            return new ApkVerification(true, "Verified package, version and signing certificate lineage.");
                         }
                         return new ApkVerification(false, "Blocked update: signing certificate does not match the installed app.");
                     }
@@ -100,33 +100,65 @@ final class AppSecurity {
         return "HTTPS only • SSL errors blocked • mixed HTTP blocked\nThird-party cookies blocked • file URL access blocked\nWebView debugging off • app backup disabled\nUpdate APK signature verification on • installer permission: ".concat(canInstallUpdates(context) ? "Allowed" : "Needs approval");
     }
 
-    private static String signingDigest(PackageInfo packageInfo) throws Exception {
-        Signature[] signingCertificateHistory;
-        byte[] bArr = null;
+    private static boolean signaturesCompatible(PackageInfo installed, PackageInfo candidate) throws Exception {
+        Set<String> installedCurrent = currentSigningDigests(installed);
+        Set<String> candidateCurrent = currentSigningDigests(candidate);
+        if (installedCurrent.isEmpty() || candidateCurrent.isEmpty()) return false;
+
         if (Build.VERSION.SDK_INT >= 28) {
-            if (packageInfo.signingInfo == null) {
-                return "";
-            }
-            if (packageInfo.signingInfo.hasMultipleSigners()) {
-                signingCertificateHistory = packageInfo.signingInfo.getApkContentsSigners();
-            } else {
-                signingCertificateHistory = packageInfo.signingInfo.getSigningCertificateHistory();
-            }
-            if (signingCertificateHistory != null && signingCertificateHistory.length > 0) {
-                bArr = signingCertificateHistory[0].toByteArray();
-            }
-        } else if (packageInfo.signatures != null && packageInfo.signatures.length > 0) {
-            bArr = packageInfo.signatures[0].toByteArray();
+            boolean installedMulti = installed.signingInfo != null && installed.signingInfo.hasMultipleSigners();
+            boolean candidateMulti = candidate.signingInfo != null && candidate.signingInfo.hasMultipleSigners();
+            if (installedMulti || candidateMulti) return installedCurrent.equals(candidateCurrent);
+        } else {
+            return installedCurrent.equals(candidateCurrent);
         }
-        if (bArr == null) {
-            return "";
+
+        Set<String> installedHistory = signingHistoryDigests(installed);
+        Set<String> candidateHistory = signingHistoryDigests(candidate);
+        for (String digest : installedHistory) {
+            if (candidateHistory.contains(digest)) return true;
         }
-        byte[] digest = MessageDigest.getInstance("SHA-256").digest(bArr);
-        StringBuilder sb = new StringBuilder(digest.length * 2);
-        for (byte b : digest) {
-            sb.append(String.format(Locale.US, "%02x", Integer.valueOf(b & 255)));
+        return false;
+    }
+
+    private static Set<String> currentSigningDigests(PackageInfo info) throws Exception {
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        if (info == null) return out;
+        Signature[] signatures;
+        if (Build.VERSION.SDK_INT >= 28) {
+            if (info.signingInfo == null) return out;
+            signatures = info.signingInfo.getApkContentsSigners();
+        } else {
+            signatures = info.signatures;
         }
-        return sb.toString();
+        addDigests(out, signatures);
+        return out;
+    }
+
+    private static Set<String> signingHistoryDigests(PackageInfo info) throws Exception {
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        if (info == null) return out;
+        if (Build.VERSION.SDK_INT >= 28) {
+            if (info.signingInfo == null) return out;
+            Signature[] signatures = info.signingInfo.hasMultipleSigners()
+                    ? info.signingInfo.getApkContentsSigners()
+                    : info.signingInfo.getSigningCertificateHistory();
+            addDigests(out, signatures);
+        } else {
+            addDigests(out, info.signatures);
+        }
+        return out;
+    }
+
+    private static void addDigests(Set<String> out, Signature[] signatures) throws Exception {
+        if (signatures == null) return;
+        for (Signature signature : signatures) {
+            if (signature == null) continue;
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(signature.toByteArray());
+            StringBuilder sb = new StringBuilder(digest.length * 2);
+            for (byte value : digest) sb.append(String.format(Locale.US, "%02x", Integer.valueOf(value & 255)));
+            out.add(sb.toString());
+        }
     }
 
     private AppSecurity() {

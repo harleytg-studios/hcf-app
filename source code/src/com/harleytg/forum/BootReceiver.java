@@ -11,7 +11,7 @@ public final class BootReceiver extends BroadcastReceiver {
         if (intent != null && "android.intent.action.MY_PACKAGE_REPLACED".equals(intent.getAction())) {
             AppUpdateDownloader.cleanupAfterSuccessfulUpdate(context);
             AppUpdateDownloader.cleanupStaleUpdaterApks(context);
-            TelemetryService.sendEvent(context, "update_installed", "1.0");
+            TelemetryService.sendEvent(context, "update_installed", BuildInfo.installedVersionName());
         }
         NotificationSyncScheduler.apply(context);
         UpdateScheduler.apply(context);

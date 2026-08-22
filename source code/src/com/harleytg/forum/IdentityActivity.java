@@ -452,7 +452,7 @@ public final class IdentityActivity extends ThemedActivity {
 
     /* renamed from: lambda$loadIdentityAvatar$7$com-harleytg-forum-dev-IdentityActivity, reason: not valid java name */
     /* synthetic */ void m14x27753261(final String str) {
-        HttpsURLConnection httpsURLConnection;
+        HttpsURLConnection httpsURLConnection = null;
         HttpsURLConnection httpsURLConnection2 = null;
         try {
             httpsURLConnection = (HttpsURLConnection) new URL(str).openConnection();
