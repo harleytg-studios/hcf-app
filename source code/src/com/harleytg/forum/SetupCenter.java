@@ -19,7 +19,7 @@ import java.util.Map;
 /** Shared state and Android integration helpers for the versioned App Setup Center. */
 final class SetupCenter {
     static final int CURRENT_SETUP_VERSION = 2;
-    static final int CURRENT_WELCOME_VERSION = 1;
+    static final int CURRENT_WELCOME_VERSION = 2;
     static final String EXTRA_AUTO_LAUNCHED = "hcf_setup_auto_launched";
     static final String PRIMARY_FORUM_HOST = "forum.harleytg.com";
     static final String BACKUP_FORUM_HOST = "harleysclan.freeflarum.com";
