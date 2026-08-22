@@ -1,1 +1,2 @@
 Apply the complete Grok repair, final BuildInfo cleanup, direct-dev compilation, and verification for Beta v10000090.
+Retry after workflow registration.
