@@ -6,65 +6,73 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
 
-/* loaded from: classes.dex */
 final class NotificationSyncScheduler {
     private static final int JOB_ID = 41071;
-    private static final long PERIOD_MS = 900000;
+    private static final long PERIOD_MS = 900000L;
 
     static void apply(Context context) {
-        if (context == null) {
-            return;
-        }
+        if (context == null) return;
         try {
-            SharedPreferences sharedPreferences = context.getSharedPreferences("hcf_app", 0);
-            if (!sharedPreferences.getBoolean("background_notification_sync", true)) {
+            SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
+            if (!prefs.getBoolean("background_notification_sync", true)) {
                 InstantNotificationService.stop(context);
                 cancel(context);
+                AppLogger.info(context, "notification_sync_mode", "disabled");
                 return;
             }
-            String string = sharedPreferences.getString("session_user_id", "");
-            sharedPreferences.getBoolean("silence_background_service_notification", false);
-            if (string != null && !string.trim().isEmpty()) {
-                InstantNotificationService.start(context);
+
+            String userId = prefs.getString("session_user_id", "");
+            boolean silenceForegroundStatus = prefs.getBoolean("silence_background_service_notification", false);
+
+            if (userId != null && !userId.trim().isEmpty()) {
+                if (silenceForegroundStatus) {
+                    // Android requires a visible notification for a foreground service.
+                    // Honor the user's silence switch by stopping that foreground service.
+                    // Foreground WebSocket events can still request silent one-shot syncs,
+                    // while JobScheduler remains the background fallback.
+                    InstantNotificationService.stop(context);
+                    AppLogger.info(context, "notification_sync_mode", "silent fallback • foreground service stopped");
+                } else {
+                    InstantNotificationService.start(context);
+                    AppLogger.info(context, "notification_sync_mode", "foreground live sync");
+                }
             } else {
                 InstantNotificationService.stop(context);
+                AppLogger.info(context, "notification_sync_mode", "waiting for signed-in session");
             }
+
             schedule(context);
-        } catch (Throwable th) {
-            AppLogger.error(context, "notification_sync_apply", th.getClass().getSimpleName() + ": " + String.valueOf(th.getMessage()));
+        } catch (Throwable t) {
+            AppLogger.error(context, "notification_sync_apply", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));
         }
     }
 
     static void schedule(Context context) {
-        if (context == null) {
-            return;
-        }
+        if (context == null) return;
         try {
-            JobScheduler jobScheduler = (JobScheduler) context.getSystemService("jobscheduler");
-            if (jobScheduler == null) {
-                return;
-            }
-            AppLogger.info(context, "notification_sync_schedule", jobScheduler.schedule(new JobInfo.Builder(JOB_ID, new ComponentName(context, (Class<?>) NotificationSyncJobService.class)).setRequiredNetworkType(1).setPeriodic(PERIOD_MS).setPersisted(true).build()) == 1 ? "scheduled" : "failed");
-        } catch (Throwable th) {
-            AppLogger.error(context, "notification_sync_schedule", th.getClass().getSimpleName() + ": " + String.valueOf(th.getMessage()));
+            JobScheduler scheduler = (JobScheduler) context.getSystemService("jobscheduler");
+            if (scheduler == null) return;
+            JobInfo job = new JobInfo.Builder(JOB_ID, new ComponentName(context, NotificationSyncJobService.class))
+                    .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                    .setPeriodic(PERIOD_MS)
+                    .setPersisted(true)
+                    .build();
+            AppLogger.info(context, "notification_sync_schedule", scheduler.schedule(job) == JobScheduler.RESULT_SUCCESS ? "scheduled" : "failed");
+        } catch (Throwable t) {
+            AppLogger.error(context, "notification_sync_schedule", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));
         }
     }
 
     static void cancel(Context context) {
-        if (context == null) {
-            return;
-        }
+        if (context == null) return;
         try {
-            JobScheduler jobScheduler = (JobScheduler) context.getSystemService("jobscheduler");
-            if (jobScheduler != null) {
-                jobScheduler.cancel(JOB_ID);
-            }
+            JobScheduler scheduler = (JobScheduler) context.getSystemService("jobscheduler");
+            if (scheduler != null) scheduler.cancel(JOB_ID);
             AppLogger.info(context, "notification_sync_schedule", "cancelled");
-        } catch (Throwable th) {
-            AppLogger.error(context, "notification_sync_cancel", th.getClass().getSimpleName());
+        } catch (Throwable t) {
+            AppLogger.error(context, "notification_sync_cancel", t.getClass().getSimpleName());
         }
     }
 
-    private NotificationSyncScheduler() {
-    }
+    private NotificationSyncScheduler() {}
 }

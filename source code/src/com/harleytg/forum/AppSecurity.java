@@ -9,8 +9,12 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.security.MessageDigest;
+import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Set;
 
 /* loaded from: classes.dex */
 final class AppSecurity {
@@ -60,7 +64,8 @@ final class AppSecurity {
             return new ApkVerification(false, "Update file is unavailable.");
         }
         try {
-            String string = context.getSharedPreferences("hcf_app", 0).getString("update_download_name", "");
+            android.content.SharedPreferences prefs = context.getSharedPreferences(AppPrefs.FILE, 0);
+            String string = prefs.getString(AppPrefs.UPDATE_DOWNLOAD_NAME, "");
             if (string != null && !string.trim().isEmpty()) {
                 File externalFilesDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
                 File file = externalFilesDir == null ? null : new File(externalFilesDir, string);
@@ -76,13 +81,32 @@ final class AppSecurity {
                         if (!context.getPackageName().equals(packageArchiveInfo.packageName)) {
                             return new ApkVerification(false, "Blocked update: APK package name does not match this app.");
                         }
-                        if ((Build.VERSION.SDK_INT >= 28 ? packageArchiveInfo.getLongVersionCode() : packageArchiveInfo.versionCode) <= (Build.VERSION.SDK_INT >= 28 ? packageInfo.getLongVersionCode() : packageInfo.versionCode)) {
-                            return new ApkVerification(false, "Blocked update: APK is not newer than the installed version.");
+                        long candidateVersion = Build.VERSION.SDK_INT >= 28 ? packageArchiveInfo.getLongVersionCode() : packageArchiveInfo.versionCode;
+                        long installedVersion = Build.VERSION.SDK_INT >= 28 ? packageInfo.getLongVersionCode() : packageInfo.versionCode;
+                        long expectedVersion = prefs.getLong(AppPrefs.UPDATE_DOWNLOAD_VERSION_CODE, -1L);
+                        String expectedSha256 = prefs.getString(AppPrefs.UPDATE_DOWNLOAD_SHA256, "");
+                        if (candidateVersion != expectedVersion) {
+                            return new ApkVerification(false, "Blocked update: APK versionCode changed after the release check.");
                         }
-                        String signingDigest = signingDigest(packageInfo);
-                        String signingDigest2 = signingDigest(packageArchiveInfo);
-                        if (!signingDigest.isEmpty() && !signingDigest2.isEmpty() && signingDigest.equals(signingDigest2)) {
-                            return new ApkVerification(true, "Verified package, version and signing certificate.");
+                        if (!isSha256(expectedSha256)) {
+                            return new ApkVerification(false, "Blocked update: expected APK SHA-256 is missing.");
+                        }
+                        String downloadedSha256 = fileSha256(file);
+                        if (!expectedSha256.equalsIgnoreCase(downloadedSha256)) {
+                            return new ApkVerification(false, "Blocked update: APK SHA-256 does not match the checked release.");
+                        }
+                        if (candidateVersion < installedVersion) {
+                            return new ApkVerification(false, "Blocked update: APK versionCode is older than the installed version.");
+                        }
+                        if (candidateVersion == installedVersion) {
+                            String installedSha256 = installedApkSha256(context);
+                            if (!isSha256(installedSha256) || installedSha256.equalsIgnoreCase(downloadedSha256)) {
+                                return new ApkVerification(false, "Blocked update: this exact APK is already installed.");
+                            }
+                        }
+                        if (signaturesCompatible(packageInfo, packageArchiveInfo)) {
+                            String mode = candidateVersion == installedVersion ? "same-version hash revision" : "newer versionCode";
+                            return new ApkVerification(true, "Verified package, SHA-256, " + mode + " and signing certificate lineage.");
                         }
                         return new ApkVerification(false, "Blocked update: signing certificate does not match the installed app.");
                     }
@@ -100,33 +124,87 @@ final class AppSecurity {
         return "HTTPS only • SSL errors blocked • mixed HTTP blocked\nThird-party cookies blocked • file URL access blocked\nWebView debugging off • app backup disabled\nUpdate APK signature verification on • installer permission: ".concat(canInstallUpdates(context) ? "Allowed" : "Needs approval");
     }
 
-    private static String signingDigest(PackageInfo packageInfo) throws Exception {
-        Signature[] signingCertificateHistory;
-        byte[] bArr = null;
+    private static boolean signaturesCompatible(PackageInfo installed, PackageInfo candidate) throws Exception {
+        Set<String> installedCurrent = currentSigningDigests(installed);
+        Set<String> candidateCurrent = currentSigningDigests(candidate);
+        if (installedCurrent.isEmpty() || candidateCurrent.isEmpty()) return false;
+        if (installedCurrent.equals(candidateCurrent)) return true;
+
         if (Build.VERSION.SDK_INT >= 28) {
-            if (packageInfo.signingInfo == null) {
-                return "";
-            }
-            if (packageInfo.signingInfo.hasMultipleSigners()) {
-                signingCertificateHistory = packageInfo.signingInfo.getApkContentsSigners();
-            } else {
-                signingCertificateHistory = packageInfo.signingInfo.getSigningCertificateHistory();
-            }
-            if (signingCertificateHistory != null && signingCertificateHistory.length > 0) {
-                bArr = signingCertificateHistory[0].toByteArray();
-            }
-        } else if (packageInfo.signatures != null && packageInfo.signatures.length > 0) {
-            bArr = packageInfo.signatures[0].toByteArray();
+            boolean installedMulti = installed.signingInfo != null && installed.signingInfo.hasMultipleSigners();
+            boolean candidateMulti = candidate.signingInfo != null && candidate.signingInfo.hasMultipleSigners();
+            if (installedMulti || candidateMulti) return false;
+        } else {
+            return false;
         }
-        if (bArr == null) {
-            return "";
+
+        Set<String> candidateHistory = signingHistoryDigests(candidate);
+        return candidateHistory.containsAll(installedCurrent);
+    }
+
+    static String installedApkSha256(Context context) throws Exception {
+        if (context == null || context.getApplicationInfo() == null) return "";
+        String sourceDir = context.getApplicationInfo().sourceDir;
+        return sourceDir == null || sourceDir.trim().isEmpty() ? "" : fileSha256(new File(sourceDir));
+    }
+
+    static String fileSha256(File file) throws Exception {
+        if (file == null || !file.isFile()) return "";
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (InputStream input = new FileInputStream(file)) {
+            byte[] buffer = new byte[32768];
+            int read;
+            while ((read = input.read(buffer)) >= 0) {
+                if (read > 0) digest.update(buffer, 0, read);
+            }
         }
-        byte[] digest = MessageDigest.getInstance("SHA-256").digest(bArr);
-        StringBuilder sb = new StringBuilder(digest.length * 2);
-        for (byte b : digest) {
-            sb.append(String.format(Locale.US, "%02x", Integer.valueOf(b & 255)));
+        StringBuilder out = new StringBuilder(64);
+        for (byte value : digest.digest()) out.append(String.format(Locale.US, "%02x", Integer.valueOf(value & 255)));
+        return out.toString();
+    }
+
+    static boolean isSha256(String value) {
+        return value != null && value.matches("[0-9a-fA-F]{64}");
+    }
+
+    private static Set<String> currentSigningDigests(PackageInfo info) throws Exception {
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        if (info == null) return out;
+        Signature[] signatures;
+        if (Build.VERSION.SDK_INT >= 28) {
+            if (info.signingInfo == null) return out;
+            signatures = info.signingInfo.getApkContentsSigners();
+        } else {
+            signatures = info.signatures;
         }
-        return sb.toString();
+        addDigests(out, signatures);
+        return out;
+    }
+
+    private static Set<String> signingHistoryDigests(PackageInfo info) throws Exception {
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        if (info == null) return out;
+        if (Build.VERSION.SDK_INT >= 28) {
+            if (info.signingInfo == null) return out;
+            Signature[] signatures = info.signingInfo.hasMultipleSigners()
+                    ? info.signingInfo.getApkContentsSigners()
+                    : info.signingInfo.getSigningCertificateHistory();
+            addDigests(out, signatures);
+        } else {
+            addDigests(out, info.signatures);
+        }
+        return out;
+    }
+
+    private static void addDigests(Set<String> out, Signature[] signatures) throws Exception {
+        if (signatures == null) return;
+        for (Signature signature : signatures) {
+            if (signature == null) continue;
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(signature.toByteArray());
+            StringBuilder sb = new StringBuilder(digest.length * 2);
+            for (byte value : digest) sb.append(String.format(Locale.US, "%02x", Integer.valueOf(value & 255)));
+            out.add(sb.toString());
+        }
     }
 
     private AppSecurity() {

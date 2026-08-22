@@ -547,13 +547,6 @@ public final class LogsActivity extends ThemedActivity {
         }
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    /* JADX WARN: Removed duplicated region for block: B:62:0x0130  */
-    /* JADX WARN: Removed duplicated region for block: B:65:? A[RETURN, SYNTHETIC] */
-    /*
-        Code decompiled incorrectly, please refer to instructions dump.
-        To view partially-correct add '--show-bad-code' argument
-    */
     public void renderLogs() {
         if (contentText == null || !MODE_LOGS.equals(currentMode)) return;
         List<LogEntry> entries = parseLogs(rawLogs);
@@ -807,7 +800,7 @@ public final class LogsActivity extends ThemedActivity {
         if (safeUrl.trim().isEmpty()) {
             safeUrl = "Not recorded yet";
         }
-        StringBuilder sb = new StringBuilder("Harley's Clan Forum • Sanitized Diagnostic Report\n\nApp: 1.0 (10000072)\nPackage: ");
+        StringBuilder sb = new StringBuilder("Harley's Clan Forum • Sanitized Diagnostic Report\n\nApp: " + BuildInfo.installedVersionName() + "\nPackage: ");
         sb.append(getPackageName());
         sb.append("\nAndroid: SDK ");
         sb.append(Build.VERSION.SDK_INT);

@@ -15,22 +15,22 @@ public final class UpdateDownloadReceiver extends BroadcastReceiver {
         }
         long longExtra = intent.getLongExtra("extra_download_id", -1L);
         boolean installerOpened = false;
-        SharedPreferences sharedPreferences = context.getSharedPreferences("hcf_app", 0);
-        long expectedId = sharedPreferences.getLong("update_download_id", -1L);
+        SharedPreferences sharedPreferences = context.getSharedPreferences(AppPrefs.FILE, 0);
+        long expectedId = sharedPreferences.getLong(AppPrefs.UPDATE_DOWNLOAD_ID, -1L);
         if (longExtra <= 0 || longExtra != expectedId) {
             return;
         }
         int status = AppUpdateDownloader.status(context, longExtra);
-        String tag = sharedPreferences.getString("update_download_tag", "update");
+        String tag = sharedPreferences.getString(AppPrefs.UPDATE_DOWNLOAD_LABEL, "update");
         if (status == 8) {
             AppSecurity.ApkVerification verification = AppSecurity.verifyDownloadedUpdate(context, longExtra);
             if (verification.ok) {
-                boolean autoInstall = sharedPreferences.getBoolean("update_auto_install", true);
+                boolean autoInstall = sharedPreferences.getBoolean(AppPrefs.UPDATE_AUTO_INSTALL, true);
                 boolean foreground = RuntimeState.isForeground();
 
                 // Always remember that a verified APK is waiting. This survives Android
                 // blocking a background activity launch and lets Settings expose Install.
-                sharedPreferences.edit().putBoolean("update_install_pending", true).apply();
+                sharedPreferences.edit().putBoolean(AppPrefs.UPDATE_INSTALL_PENDING, true).apply();
 
                 // Android 10+ may block activities launched directly from a background
                 // DOWNLOAD_COMPLETE receiver. Only hand off immediately while HCF is

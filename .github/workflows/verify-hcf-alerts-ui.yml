@@ -1,0 +1,93 @@
+name: Verify Approved HCF Alerts UI
+
+on:
+  push:
+    branches: [stable]
+    paths:
+      - 'source code/src/com/harleytg/forum/SettingsActivity.java'
+      - 'source code/build-release.sh'
+      - '.github/scripts/verify-hcf-alerts-ui.py'
+      - '.github/workflows/verify-hcf-alerts-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-direct-stable-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Stable
+        uses: actions/checkout@v4
+        with:
+          ref: stable
+
+      - name: Reject obsolete HCF Alerts layouts
+        shell: bash
+        run: python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Compile and inspect direct Stable source
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-approved-alerts"
+          OUT="$GITHUB_WORKSPACE/out-approved-alerts"
+          VERSION_CODE="$(sed -n 's/.*android:versionCode="\([^"]*\)".*/\1/p' "$ROOT/AndroidManifest.xml" | head -1)"
+          rm -rf "$WORK" "$OUT"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
+
+          "$BT/aapt" package -f -m \
+            -J "$WORK/gen" \
+            -M "$ROOT/AndroidManifest.xml" \
+            -S "$ROOT/res" \
+            -A "$ROOT/assets" \
+            -I "$ANDROID_JAR" \
+            -F "$WORK/resources.apk"
+
+          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
+          mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
+
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
+          APK="$OUT/HCF-Stable-v${VERSION_CODE}-approved-alerts-aligned-unsigned.apk"
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$APK"
+          "$BT/zipalign" -c -p 4 "$APK"
+
+          unzip -p "$APK" classes.dex | strings > "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Background notification sync' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'HCF Alerts are the real forum alerts.' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'HCF Silent Alerts is only the silent service-status channel.' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Permission allowed' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'High priority' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Open Android settings' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'Open HCF Alerts Android Settings' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'Real forum alerts' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'Method not decompiled:' "$OUT/DEX-STRINGS.txt"
+
+          "$BT/aapt" dump badging "$APK" | head -1 | tee "$OUT/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum'" "$OUT/APK-BADGING.txt"
+          grep -q "versionCode='${VERSION_CODE}'" "$OUT/APK-BADGING.txt"
+          sha256sum "$APK" | tee "$OUT/SHA256SUMS.txt"
+
+      - name: Upload verified unsigned APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-Stable-Approved-HCF-Alerts-Unsigned
+          path: out-approved-alerts/
+          if-no-files-found: error
+          retention-days: 3

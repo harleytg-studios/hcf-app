@@ -51,7 +51,7 @@ public final class InstantNotificationService extends Service {
 
     static void start(Context context) {
         if (context == null) return;
-        if (!hasSession(context)) {
+        if (!hasSession(context) || NotificationHelper.silencePassiveEnabled(context)) {
             stop(context);
             return;
         }
@@ -96,6 +96,11 @@ public final class InstantNotificationService extends Service {
         SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
         if (!prefs.getBoolean("background_notification_sync", true) || !hasSession(context)) {
             stop(context);
+            return;
+        }
+        if (NotificationHelper.silencePassiveEnabled(context)) {
+            if (ACTION_SYNC_NOW.equals(action)) requestOneShotSync(context);
+            else stop(context);
             return;
         }
         try {

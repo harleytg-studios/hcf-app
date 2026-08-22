@@ -2,49 +2,53 @@
 
 Stable Android release branch for Harley's Clan Forum.
 
-## Stable identity
+## Current build
 
 - App name: **Harley's Clan Forum**
+- Branch: `stable`
 - Android package: `com.harleytg.forum`
-- Current Stable version: `1.0 (10000077)`
-- Android versionCode: `10000077`
-- GitHub tag: `v1.0`
-- Update channel: Stable only
-- Branding: original Stable logo/icon set
+- Version name: `1.0 (10000091)`
+- Version code: `10000091`
+- Internal build: `111`
+- Minimum SDK: `26`
+- Target SDK: `34`
+- Compile SDK: `35`
+- Source directory: [`source code/`](./source%20code)
 
-## Current Stable feature set
+This source promotes the current `dev` runtime and feature set from commit
+`2ea85ab` while retaining Stable identity. It does not alter the `dev` branch or
+replace its separate Development/Beta package, badges, updater, or signer.
 
-Stable v10000077 uses the current app UI generation with Stable production identity and runtime fixes. This includes Contact Support v2/default-collapsed behavior, account/identity fixes, Settings/theme improvements, notification history/routing, registered-domain routing, logs/diagnostics/error UI improvements, and performance/backoff work.
+## Stable identity boundaries
 
-The v10000077 notification patch also removes the foreground bridge cooldown, uses a 1-second live fallback/retry cap, keeps reconnect sync immediate, and does not stop the live notification service merely because Silent Alerts are silenced.
+- Stable launcher artwork: original blue/cyan HTG puppy badge.
+- Stable build label: `Harley's Clan Forum v1.0 [Stable]`.
+- Stable update feed: GitHub's latest official, non-prerelease release only.
+- Stable APK selection rejects Beta, Dev, Preview, Debug, and unsigned assets.
+- Stable package and updater are locked to `com.harleytg.forum`.
+- Stable signer alias: `hcf-stable-v2`.
+- Expected signer SHA-256:
+  `77:E0:E9:6C:11:77:84:2A:AA:31:1A:8F:C0:EB:EA:29:B9:2D:3C:D2:90:BB:81:5B:DB:86:AD:0E:0A:85:84:4F`.
 
-Features explicitly designated Beta/Dev-only remain outside the Stable promotion policy until separately approved.
+`build-release.sh` rejects another package or signing certificate. Never commit
+the Stable V2 private JKS, password, or other private signing material.
 
-## Forum domains
+## Update verification
 
-- Primary: `forum.harleytg.com`
-- Backup: `harleysclan.freeflarum.com`
-- Retired `.online` domains are not part of the Stable registry.
+The Stable updater compares the numeric Android `versionCode` read from the APK,
+not its filename or GitHub tag. It also checks the exact APK SHA-256. A release
+asset with the same versionCode is offered only when its SHA-256 differs from the
+installed APK. Before Android's installer opens, HCF rechecks the package,
+versionCode, SHA-256, and signing-certificate lineage.
 
-## Release artifacts
+## Source and release gates
 
-The matching Stable release artifact names are:
+The branch contains the active Android source, two read-only GitHub Actions
+verification workflows, and their static release gates. The v10000091 workflow
+compiles and aligns an unsigned APK, checks Stable package/version/channel
+identity, protects the approved HCF Alerts UI, and rejects Development/Beta badge
+leakage and incomplete/decompiler-stub source.
 
-- `HCF-Stable-v10000077.apk`
-- `HCF-Stable-v10000077-source.zip`
-- `HCF-Stable-v10000077-VERIFICATION.txt`
-- `STABLE-LATEST.json`
-
-The branch stores source and release metadata; private signing material is never stored here.
-
-## Stable V2 signing line
-
-Stable v10000077 uses the established **Stable V2** signing identity already used by the Stable v10000034 line.
-
-Certificate SHA-256:
-
-`77:E0:E9:6C:11:77:84:2A:AA:31:1A:8F:C0:EB:EA:29:B9:2D:3C:D2:90:BB:81:5B:DB:86:AD:0E:0A:85:84:4F`
-
-Stable installs already signed with Stable V2 can update in place to v10000077. Older Stable installs signed by a different certificate still require the normal one-time signer migration.
-
-**Never commit the Stable V2 private JKS, password, or other private signing material to this public repository.**
+Production signing remains local. The shared Stable + Dev Digital Asset Links
+source is [`configs/app-links/assetlinks.json`](./configs/app-links/assetlinks.json);
+its canonical location is the `main`-branch path `configs/app-links/assetlinks.json`.

@@ -250,7 +250,7 @@ public class MainActivity extends ThemedActivity {
             applyChromePreferences();
             scheduleFirstRunPermissionSetup();
             scheduleWhatsNew(z2);
-            AppLogger.info(this, "main_create", "1.0 | UA=HarleysClanForumApp/1.0");
+            AppLogger.info(this, "main_create", BuildInfo.VERSION_BUILD_LINE + " | UA=" + BuildInfo.USER_AGENT_MARKER);
             if (bundle != null) {
                 this.webView.restoreState(bundle);
                 Uri parse = Uri.parse(this.webView.getUrl() == null ? "" : this.webView.getUrl());
@@ -435,7 +435,7 @@ public class MainActivity extends ThemedActivity {
         if (!z || release == null || isFinishing() || isDestroyed()) {
             return;
         }
-        showBetaUpdateAvailableDialog(release);
+        showStableUpdateAvailableDialog(release);
     }
 
     private void showCrashSafeScreen(Throwable th) {
@@ -646,7 +646,7 @@ public class MainActivity extends ThemedActivity {
         TextView textView = (TextView) findViewById(R.id.drawerVersionText);
         this.drawerVersionText = textView;
         if (textView != null) {
-            textView.setText("Harley's Clan Forum v1.0 [Stable]");
+            textView.setText(BuildInfo.DEVELOPMENT_BUILD_LABEL);
         }
         this.startupProgress = (ProgressBar) findViewById(R.id.startupProgress);
     }
@@ -2333,7 +2333,7 @@ public class MainActivity extends ThemedActivity {
     /* renamed from: lambda$scheduleWhatsNew$46$com-harleytg-forum-dev-MainActivity, reason: not valid java name */
     /* synthetic */ void m85lambda$scheduleWhatsNew$46$comharleytgforumdevMainActivity() {
         try {
-            if (ReleaseNotes.shouldNotify(this.prefs)) {
+            if (hasWindowFocus() && ReleaseNotes.shouldNotify(this.prefs)) {
                 showWhatsNewNotification();
             }
         } catch (Throwable th) {
@@ -2347,7 +2347,7 @@ public class MainActivity extends ThemedActivity {
         }
         ReleaseNotes.markSeen(this.prefs);
         this.welcomeBanner.animate().cancel();
-        this.welcomeBanner.setText("✨  What's New • v1.0\nStable v10000072 • Four-button theme selector  •  Tap to view");
+        this.welcomeBanner.setText("✨  What's New • v1.0\nStable v" + BuildInfo.VERSION_CODE + " • Setup, secure updates & reliability  •  Tap to view");
         this.welcomeBanner.setContentDescription("What's new in v1.0. Tap to view release notes.");
         this.welcomeBanner.setClickable(true);
         this.welcomeBanner.setFocusable(true);
@@ -2509,8 +2509,8 @@ public class MainActivity extends ThemedActivity {
     }
 
     private void requestNotificationPermissionOnFirstRun() {
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != 0 && this.prefs.getInt("notification_permission_prompt_version", 0) < 10000072) {
-            this.prefs.edit().putBoolean("notification_permission_asked", true).putInt("notification_permission_prompt_version", 10000072).apply();
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != 0 && this.prefs.getInt("notification_permission_prompt_version", 0) < BuildInfo.VERSION_CODE) {
+            this.prefs.edit().putBoolean("notification_permission_asked", true).putInt("notification_permission_prompt_version", BuildInfo.VERSION_CODE).apply();
             requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, NOTIFICATION_PERMISSION_REQUEST);
         }
     }
@@ -2525,11 +2525,11 @@ public class MainActivity extends ThemedActivity {
         return "/install".equals(lowerCase) || lowerCase.startsWith("/install/");
     }
 
-    private void showBetaUpdateAvailableDialog(UpdateChecker.Release release) {
+    private void showStableUpdateAvailableDialog(UpdateChecker.Release release) {
         if (release == null || isFinishing() || isDestroyed()) {
             return;
         }
-        new AlertDialog.Builder(this).setTitle("Stable Update Available").setMessage("A newer Harley's Clan Forum Stable build is ready.\n\nInstalled: v1.0 (10000072)\nAvailable: v" + UpdateChecker.displayVersion(release) + " (" + (release.versionCode > 0 ? Long.toString(release.versionCode) : "Checking build code") + ")\n\nChannel: Stable\nUpdate when you're ready to test the latest build.").setNegativeButton("Later", (DialogInterface.OnClickListener) null).setPositiveButton("Update Now", new DialogInterface.OnClickListener() { // from class: com.harleytg.forum.MainActivity$$ExternalSyntheticLambda12
+        new AlertDialog.Builder(this).setTitle("Stable Update Available").setMessage("A newer Harley's Clan Forum Stable release is ready.\n\nInstalled: v1.0 (" + BuildInfo.VERSION_CODE + ")\nAvailable: v" + UpdateChecker.displayVersion(release) + " (" + (release.versionCode > 0 ? Long.toString(release.versionCode) : "Checking build code") + ")\nReason: " + UpdateChecker.updateReason(release) + "\n\nChannel: Stable\nUpdate when you're ready.").setNegativeButton("Later", (DialogInterface.OnClickListener) null).setPositiveButton("Update Now", new DialogInterface.OnClickListener() { // from class: com.harleytg.forum.MainActivity$$ExternalSyntheticLambda12
             @Override // android.content.DialogInterface.OnClickListener
             public final void onClick(DialogInterface dialogInterface, int i) {
                 MainActivity.this.m86xf46525d5(dialogInterface, i);
@@ -2537,7 +2537,7 @@ public class MainActivity extends ThemedActivity {
         }).show();
     }
 
-    /* renamed from: lambda$showBetaUpdateAvailableDialog$55$com-harleytg-forum-dev-MainActivity, reason: not valid java name */
+    /* renamed from: lambda$showStableUpdateAvailableDialog$55$com-harleytg-forum-MainActivity, reason: not valid java name */
     /* synthetic */ void m86xf46525d5(DialogInterface dialogInterface, int i) {
         startNativeUpdateFlow();
     }
@@ -2577,7 +2577,7 @@ public class MainActivity extends ThemedActivity {
             }
         });
         this.nativeUpdateDialog.show();
-        UpdateChecker.check(this, "stable", new UpdateChecker.Callback() { // from class: com.harleytg.forum.MainActivity.4
+        UpdateChecker.check(this, "dev", new UpdateChecker.Callback() { // from class: com.harleytg.forum.MainActivity.4
             @Override // com.harleytg.forum.UpdateChecker.Callback
             public void onResult(UpdateChecker.Release release, boolean z) {
                 String str;
@@ -2587,7 +2587,7 @@ public class MainActivity extends ThemedActivity {
                 if (!z) {
                     if (UpdateChecker.compareReleaseToInstalled(release) < 0) {
                         TextView textView2 = textView;
-                        StringBuilder sb = new StringBuilder("Installed build 1.0 (10000072) is newer than the Stable feed");
+                        StringBuilder sb = new StringBuilder("Installed build 1.0 (" + BuildInfo.VERSION_CODE + ") is newer than the Stable feed");
                         if (release.versionCode > 0) {
                             str = " (" + release.versionCode + ")";
                         } else {
@@ -2597,13 +2597,13 @@ public class MainActivity extends ThemedActivity {
                         sb.append(". No downgrade will be installed.");
                         textView2.setText(sb.toString());
                     } else {
-                        textView.setText("You're on the newest Stable build.\n\nInstalled: v1.0 (10000072)");
+                        textView.setText("You're on the newest Stable build.\n\nInstalled: v1.0 (" + BuildInfo.VERSION_CODE + ")");
                     }
                     MainActivity.this.nativeUpdateFlowActive = false;
                     return;
                 }
                 if (release.apkUrl == null || release.apkUrl.trim().isEmpty()) {
-                    textView.setText("A newer Stable build is published, but the release does not contain an installable APK.");
+                    textView.setText("A newer Stable release is published, but it does not contain an installable Stable APK.");
                     MainActivity.this.nativeUpdateFlowActive = false;
                     return;
                 }
@@ -2655,7 +2655,7 @@ public class MainActivity extends ThemedActivity {
         int dp = dp(20);
         linearLayout.setPadding(dp, dp(12), dp, dp(8));
         TextView textView = new TextView(this);
-        StringBuilder sb = new StringBuilder("Installed: v1.0 (10000072)\nAvailable: v");
+        StringBuilder sb = new StringBuilder("Installed: v1.0 (" + BuildInfo.VERSION_CODE + ")\nAvailable: v");
         sb.append(UpdateChecker.displayVersion(release));
         if (release.versionCode > 0) {
             str = " (" + release.versionCode + ")";
@@ -3205,7 +3205,7 @@ public class MainActivity extends ThemedActivity {
         sb.append(appError.code);
         sb.append("\nTitle: ");
         sb.append(appError.title);
-        sb.append("\nApp: 1.0 (10000072)\nServer: ");
+        sb.append("\nApp: 1.0 (" + BuildInfo.VERSION_CODE + ")\nServer: ");
         sb.append(str);
         sb.append("\nNetwork: ");
         sb.append(isNetworkAvailable() ? "connected" : "offline");
@@ -3509,7 +3509,7 @@ public class MainActivity extends ThemedActivity {
     /* JADX INFO: Access modifiers changed from: private */
     public void installForumBridge() {
         if (isTrustedForumPage()) {
-            this.webView.evaluateJavascript("(function(){if(window.__HCF_NATIVE_V040__){try{window.__HCF_NATIVE_V040__.sync();}catch(e){}return;}var VERSION='1.0';var WARNING='This browser does not support push notifications for progressive web apps.';var REPLACEMENT=\"Push notifications are handled by the Harley's Clan Forum Android app. Use App Settings to manage notifications.\";var lastIdentity='',lastSecurity='',lastRoute='';try{if(!window.__HCF_ORIGINAL_ALERT__)window.__HCF_ORIGINAL_ALERT__=window.alert.bind(window);window.alert=function(m){var x=String(m||'');var l=x.toLowerCase();if(l.indexOf('browser does not support push notifications')>=0||l.indexOf('push notifications are not supported')>=0){try{HCFNative.requestNotificationPermission();}catch(e){}return;}return window.__HCF_ORIGINAL_ALERT__(m);};}catch(e){}var send=function(t,b,u){try{HCFNative.notify(String(t||\"Harley's Clan Forum\"),String(b||''),String(u||location.href));}catch(e){}};window.HCFApp={isNative:true,platform:'android',version:VERSION,notify:send,openSettings:function(){try{HCFNative.openSettings();}catch(e){}}};try{var NativeNotification=function(title,opts){opts=opts||{};send(title,opts.body||'',(opts.data&&opts.data.url)||location.href);};Object.defineProperty(NativeNotification,'permission',{get:function(){try{return HCFNative.notificationsEnabled()?'granted':'default';}catch(e){return 'default';}}});NativeNotification.requestPermission=function(){try{HCFNative.requestNotificationPermission();}catch(e){} return Promise.resolve('default');};window.Notification=NativeNotification;}catch(e){}var iso=function(v){try{if(!v)return '';if(typeof v.toISOString==='function')return v.toISOString();if(v.$d&&typeof v.$d.toISOString==='function')return v.$d.toISOString();return String(v);}catch(e){return '';}};var val=function(o,n,d){try{var x=o&&o[n];return typeof x==='function'?x.call(o):(x===undefined?d:x);}catch(e){return d;}};var syncIdentity=function(){try{if(!window.app||!app.session){return;}var u=app.session.user;if(!u){var guest=JSON.stringify({loggedIn:false});if(guest!==lastIdentity){lastIdentity=guest;HCFNative.updateIdentity(guest,String(location.host||''));}return;}var gs=[];try{var groups=val(u,'groups',[])||[];for(var gi=0;gi<groups.length;gi++){var g=groups[gi];var gn=val(g,'nameSingular','');if(gn)gs.push(String(gn));}}catch(e){}var cs=[];var addc=function(x){x=String(x||'').trim();if(x&&cs.indexOf(x)<0)cs.push(x);};var email=String(val(u,'email','')||'');if(email)addc(!!val(u,'isEmailConfirmed',false)?'Email (verified)':'Email');try{var attrs=(u.data&&u.data.attributes)||{};var ks=Object.keys(attrs);var pm={discord:'Discord',google:'Google'};for(var ki=0;ki<ks.length;ki++){var lk=String(ks[ki]||'').toLowerCase();var av=attrs[ks[ki]];if(av===null||av===undefined||av===false||av==='')continue;for(var pk in pm){if(lk.indexOf(pk)>=0)addc(pm[pk]);}}}catch(e){}try{var rel=u.data&&u.data.relationships&&u.data.relationships.loginProviders&&u.data.relationships.loginProviders.data;if(rel&&rel.length){for(var ri=0;ri<rel.length;ri++){var pid=String((rel[ri]&&rel[ri].id)||'').toLowerCase();if(pid.indexOf('discord')>=0)addc('Discord');if(pid.indexOf('google')>=0)addc('Google');}}}catch(e){}var data={loggedIn:true,id:String(val(u,'id','')||''),username:String(val(u,'username','')||''),slug:String(val(u,'slug','')||''),displayName:String(val(u,'displayName','')||''),email:email,emailConfirmed:!!val(u,'isEmailConfirmed',false),avatarUrl:String(val(u,'avatarUrl','')||''),groups:gs,connections:cs,isAdmin:!!val(u,'isAdmin',false),joinTime:iso(val(u,'joinTime',null)),lastSeenAt:iso(val(u,'lastSeenAt',null)),unreadNotificationCount:Number(val(u,'unreadNotificationCount',0)||0),newNotificationCount:Number(val(u,'newNotificationCount',0)||0),discussionCount:Number(val(u,'discussionCount',0)||0),commentCount:Number(val(u,'commentCount',0)||0)};var payload=JSON.stringify(data);if(payload!==lastIdentity){lastIdentity=payload;HCFNative.updateIdentity(payload,String(location.host||''));}}catch(e){}};var syncSecurity=function(){try{if(!window.app||!app.session||!app.session.user||!document.body)return;var path=String(location.pathname||'').replace(/\\/+$/,'');if(path.indexOf('/u/')!==0||path.slice(-9)!='/security')return;var bodyText=String(document.body.innerText||'').toLowerCase();var providers=[];var addp=function(x){x=String(x||'').trim();if(x&&providers.indexOf(x)<0)providers.push(x);};var nodes=document.querySelectorAll('button,a,li,.Form-group,.Setting,.LoginProvider');var pm={discord:'Discord',google:'Google'};for(var ni=0;ni<nodes.length;ni++){var nt=String(nodes[ni].innerText||nodes[ni].textContent||'').toLowerCase();if(!(nt.indexOf('disconnect')>=0||nt.indexOf('connected')>=0||nt.indexOf('unlink')>=0||nt.indexOf('linked')>=0))continue;for(var pk in pm){if(nt.indexOf(pk)>=0)addp(pm[pk]);}}var sessions=document.querySelectorAll('.AccessTokensList-item').length;var activeSessions=document.querySelectorAll('.AccessTokensList-item--active').length;var data={seen:true,path:path,sessionCount:Number(sessions||0),activeSessionCount:Number(activeSessions||0),providers:providers,passwordControls:(bodyText.indexOf('password')>=0),emailControls:(bodyText.indexOf('email')>=0),twoFactorControls:(bodyText.indexOf('two-factor')>=0||bodyText.indexOf('two factor')>=0||bodyText.indexOf('2fa')>=0||bodyText.indexOf('authenticator')>=0)};var payload=JSON.stringify(data);if(payload!==lastSecurity){lastSecurity=payload;HCFNative.updateSecuritySummary(payload,String(location.host||''));}}catch(e){}};var reportRoute=function(){try{var u=String(location.href||'');if(u!==lastRoute){lastRoute=u;HCFNative.routeChanged(u);}}catch(e){}};try{if(!window.__HCF_MUTATION_HOOK__&&window.XMLHttpRequest){window.__HCF_MUTATION_HOOK__=true;var XO=XMLHttpRequest.prototype.open,XS=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__hcfM=String(m||'GET').toUpperCase();this.__hcfU=String(u||'');return XO.apply(this,arguments);};XMLHttpRequest.prototype.send=function(){try{if((this.__hcfM==='POST'||this.__hcfM==='PATCH'||this.__hcfM==='DELETE')&&this.__hcfU.indexOf('/api/')>=0){this.addEventListener('load',function(){try{if(this.status>=200&&this.status<300)HCFNative.forumMutation(String(this.__hcfU||''));}catch(e){}});}}catch(e){}return XS.apply(this,arguments);};}}catch(e){}var fixText=function(root){try{if(!root)return;if(root.nodeType===3){var v=root.nodeValue||'';if(v.indexOf(WARNING)>=0)root.nodeValue=v.split(WARNING).join(REPLACEMENT);return;}var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);var n,c=0;while((n=w.nextNode())&&c++<500){var v=n.nodeValue||'';if(v.indexOf(WARNING)>=0)n.nodeValue=v.split(WARNING).join(REPLACEMENT);}}catch(e){}};var fixSecurityLabels=function(){try{if(String(location.pathname||'').indexOf('/security')<0)return;var active=document.querySelectorAll('.AccessTokensList-item--active .AccessTokensList-item-title-main');for(var i=0;i<active.length;i++){var t=(active[i].textContent||'').trim();if(t&&t.indexOf(\"Harley's Clan Forum App\")<0)active[i].textContent=\"Harley's Clan Forum App on AndroidOS\";}}catch(e){}};var sync=function(){reportRoute();syncIdentity();syncSecurity();fixSecurityLabels();};try{if(!window.__HCF_ROUTE_HOOK__){window.__HCF_ROUTE_HOOK__=true;['pushState','replaceState'].forEach(function(k){var old=history[k];if(typeof old!=='function')return;history[k]=function(){var r=old.apply(this,arguments);setTimeout(reportRoute,0);return r;};});window.addEventListener('popstate',reportRoute);window.addEventListener('hashchange',reportRoute);}}catch(e){}if(document.body){fixText(document.body);window.__HCF_NATIVE_OBSERVER__=new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){var added=ms[i].addedNodes||[];for(var j=0;j<added.length;j++)fixText(added[j]);}try{clearTimeout(window.__HCF_SYNC_TIMER__);}catch(e){}window.__HCF_SYNC_TIMER__=setTimeout(sync,75);});window.__HCF_NATIVE_OBSERVER__.observe(document.body,{childList:true,subtree:true});}window.__HCF_NATIVE_V040__={sync:sync};sync();if(!window.__HCF_NATIVE_TIMER__){window.__HCF_NATIVE_TIMER__=setInterval(sync,1000);}try{window.dispatchEvent(new CustomEvent('hcf-app-ready',{detail:{platform:'android',version:VERSION}}));}catch(e){}})();", null);
+            this.webView.evaluateJavascript("(function(){if(window.__HCF_NATIVE_V040__){try{window.__HCF_NATIVE_V040__.sync();}catch(e){}return;}var VERSION='1.0';var WARNING='This browser does not support push notifications for progressive web apps.';var REPLACEMENT=\"Push notifications are handled by the Harley's Clan Forum Android app. Use App Settings to manage notifications.\";var lastIdentity='',lastSecurity='',lastRoute='',lastAutoSecurityAt=0,lastAutoSecurityKey='',autoSecurityBusy=false;try{if(!window.__HCF_ORIGINAL_ALERT__)window.__HCF_ORIGINAL_ALERT__=window.alert.bind(window);window.alert=function(m){var x=String(m||'');var l=x.toLowerCase();if(l.indexOf('browser does not support push notifications')>=0||l.indexOf('push notifications are not supported')>=0){try{HCFNative.requestNotificationPermission();}catch(e){}return;}return window.__HCF_ORIGINAL_ALERT__(m);};}catch(e){}var send=function(t,b,u){try{HCFNative.notify(String(t||\"Harley's Clan Forum\"),String(b||''),String(u||location.href));}catch(e){}};window.HCFApp={isNative:true,platform:'android',version:VERSION,notify:send,openSettings:function(){try{HCFNative.openSettings();}catch(e){}}};try{var NativeNotification=function(title,opts){opts=opts||{};send(title,opts.body||'',(opts.data&&opts.data.url)||location.href);};Object.defineProperty(NativeNotification,'permission',{get:function(){try{return HCFNative.notificationsEnabled()?'granted':'default';}catch(e){return 'default';}}});NativeNotification.requestPermission=function(){try{HCFNative.requestNotificationPermission();}catch(e){} return Promise.resolve('default');};window.Notification=NativeNotification;}catch(e){}var iso=function(v){try{if(!v)return '';if(typeof v.toISOString==='function')return v.toISOString();if(v.$d&&typeof v.$d.toISOString==='function')return v.$d.toISOString();return String(v);}catch(e){return '';}};var val=function(o,n,d){try{var x=o&&o[n];return typeof x==='function'?x.call(o):(x===undefined?d:x);}catch(e){return d;}};var syncIdentity=function(){try{if(!window.app||!app.session){return;}var u=app.session.user;if(!u){var guest=JSON.stringify({loggedIn:false});if(guest!==lastIdentity){lastIdentity=guest;HCFNative.updateIdentity(guest,String(location.host||''));}return;}var gs=[];try{var groups=val(u,'groups',[])||[];for(var gi=0;gi<groups.length;gi++){var g=groups[gi];var gn=val(g,'nameSingular','');if(gn)gs.push(String(gn));}}catch(e){}var cs=[];var addc=function(x){x=String(x||'').trim();if(x&&cs.indexOf(x)<0)cs.push(x);};var email=String(val(u,'email','')||'');if(email)addc(!!val(u,'isEmailConfirmed',false)?'Email (verified)':'Email');try{var attrs=(u.data&&u.data.attributes)||{};var ks=Object.keys(attrs);var pm={discord:'Discord',google:'Google'};for(var ki=0;ki<ks.length;ki++){var lk=String(ks[ki]||'').toLowerCase();var av=attrs[ks[ki]];if(av===null||av===undefined||av===false||av==='')continue;for(var pk in pm){if(lk.indexOf(pk)>=0)addc(pm[pk]);}}}catch(e){}try{var rel=u.data&&u.data.relationships&&u.data.relationships.loginProviders&&u.data.relationships.loginProviders.data;if(rel&&rel.length){for(var ri=0;ri<rel.length;ri++){var pid=String((rel[ri]&&rel[ri].id)||'').toLowerCase();if(pid.indexOf('discord')>=0)addc('Discord');if(pid.indexOf('google')>=0)addc('Google');}}}catch(e){}var data={loggedIn:true,id:String(val(u,'id','')||''),username:String(val(u,'username','')||''),slug:String(val(u,'slug','')||''),displayName:String(val(u,'displayName','')||''),email:email,emailConfirmed:!!val(u,'isEmailConfirmed',false),avatarUrl:String(val(u,'avatarUrl','')||''),groups:gs,connections:cs,isAdmin:!!val(u,'isAdmin',false),joinTime:iso(val(u,'joinTime',null)),lastSeenAt:iso(val(u,'lastSeenAt',null)),unreadNotificationCount:Number(val(u,'unreadNotificationCount',0)||0),newNotificationCount:Number(val(u,'newNotificationCount',0)||0),discussionCount:Number(val(u,'discussionCount',0)||0),commentCount:Number(val(u,'commentCount',0)||0)};var payload=JSON.stringify(data);if(payload!==lastIdentity){lastIdentity=payload;HCFNative.updateIdentity(payload,String(location.host||''));}}catch(e){}};var syncSecurity=function(){try{if(!window.app||!app.session||!app.session.user||!document.body)return;var path=String(location.pathname||'').replace(/\\/+$/,'');if(path.indexOf('/u/')!==0||path.slice(-9)!='/security')return;var bodyText=String(document.body.innerText||'').toLowerCase();var providers=[];var addp=function(x){x=String(x||'').trim();if(x&&providers.indexOf(x)<0)providers.push(x);};var nodes=document.querySelectorAll('button,a,li,.Form-group,.Setting,.LoginProvider');var pm={discord:'Discord',google:'Google'};for(var ni=0;ni<nodes.length;ni++){var nt=String(nodes[ni].innerText||nodes[ni].textContent||'').toLowerCase();if(!(nt.indexOf('disconnect')>=0||nt.indexOf('connected')>=0||nt.indexOf('unlink')>=0||nt.indexOf('linked')>=0))continue;for(var pk in pm){if(nt.indexOf(pk)>=0)addp(pm[pk]);}}var sessions=document.querySelectorAll('.AccessTokensList-item').length;var activeSessions=document.querySelectorAll('.AccessTokensList-item--active').length;var data={seen:true,path:path,sessionCount:Number(sessions||0),activeSessionCount:Number(activeSessions||0),providers:providers,passwordControls:(bodyText.indexOf('password')>=0),emailControls:(bodyText.indexOf('email')>=0),twoFactorControls:(bodyText.indexOf('two-factor')>=0||bodyText.indexOf('two factor')>=0||bodyText.indexOf('2fa')>=0||bodyText.indexOf('authenticator')>=0)};var payload=JSON.stringify(data);if(payload!==lastSecurity){lastSecurity=payload;HCFNative.updateSecuritySummary(payload,String(location.host||''));}}catch(e){}};var autoSecurity=function(){try{if(autoSecurityBusy||!window.app||!app.session||!app.session.user||!document.body)return;var cp=String(location.pathname||'');if(cp.indexOf('/u/')===0&&cp.indexOf('/security')===cp.length-9)return;var u=app.session.user,slug=String(val(u,'slug','')||val(u,'username','')||'').trim();if(!slug)return;var key=String(val(u,'id','')||slug)+'@'+String(location.host||'');var now=Date.now();if(key===lastAutoSecurityKey&&now-lastAutoSecurityAt<600000)return;lastAutoSecurityKey=key;lastAutoSecurityAt=now;autoSecurityBusy=true;var f=document.createElement('iframe');f.setAttribute('aria-hidden','true');f.tabIndex=-1;f.style.cssText='position:fixed!important;left:-10000px!important;top:-10000px!important;width:1px!important;height:1px!important;border:0!important;opacity:0!important;pointer-events:none!important;';f.src='/u/'+encodeURIComponent(slug)+'/security?hcf_native_sync=1';var done=false,tries=0;var finish=function(ok){if(done)return;done=true;autoSecurityBusy=false;if(!ok)lastAutoSecurityAt=Date.now()-540000;try{if(f.parentNode)f.parentNode.removeChild(f);}catch(e){}};var read=function(){try{tries++;var d=f.contentDocument||(f.contentWindow&&f.contentWindow.document);if(!d||!d.body){if(tries<24)setTimeout(read,400);else finish(false);return;}var page=d.querySelector('.UserSecurityPage');if(!page||tries<6){if(tries<24)setTimeout(read,400);else finish(false);return;}var bodyText=String(d.body.innerText||'').toLowerCase();var providers=[];var addp=function(x){x=String(x||'').trim();if(x&&providers.indexOf(x)<0)providers.push(x);};var nodes=d.querySelectorAll('button,a,li,.Form-group,.Setting,.LoginProvider');var pm={discord:'Discord',google:'Google',github:'GitHub',microsoft:'Microsoft',apple:'Apple',facebook:'Facebook',twitter:'Twitter',steam:'Steam'};for(var ni=0;ni<nodes.length;ni++){var nt=String(nodes[ni].innerText||nodes[ni].textContent||'').toLowerCase();if(!(nt.indexOf('disconnect')>=0||nt.indexOf('connected')>=0||nt.indexOf('unlink')>=0||nt.indexOf('linked')>=0))continue;for(var pk in pm){if(nt.indexOf(pk)>=0)addp(pm[pk]);}}var sessions=d.querySelectorAll('.AccessTokensList-item').length;var activeSessions=d.querySelectorAll('.AccessTokensList-item--active').length;var data={seen:true,path:'/u/'+slug+'/security',sessionCount:Number(sessions||0),activeSessionCount:Number(activeSessions||0),providers:providers,passwordControls:(bodyText.indexOf('password')>=0),emailControls:(bodyText.indexOf('email')>=0),twoFactorControls:(bodyText.indexOf('two-factor')>=0||bodyText.indexOf('two factor')>=0||bodyText.indexOf('2fa')>=0||bodyText.indexOf('authenticator')>=0)};HCFNative.updateSecuritySummary(JSON.stringify(data),String(location.host||''));finish(true);}catch(e){if(tries<24)setTimeout(read,400);else finish(false);}};f.onload=function(){setTimeout(read,500);};document.body.appendChild(f);setTimeout(function(){if(!done)read();},1500);setTimeout(function(){if(!done)finish(false);},14000);}catch(e){autoSecurityBusy=false;}};var reportRoute=function(){try{var u=String(location.href||'');if(u!==lastRoute){lastRoute=u;HCFNative.routeChanged(u);}}catch(e){}};try{if(!window.__HCF_MUTATION_HOOK__&&window.XMLHttpRequest){window.__HCF_MUTATION_HOOK__=true;var XO=XMLHttpRequest.prototype.open,XS=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.open=function(m,u){this.__hcfM=String(m||'GET').toUpperCase();this.__hcfU=String(u||'');return XO.apply(this,arguments);};XMLHttpRequest.prototype.send=function(){try{if((this.__hcfM==='POST'||this.__hcfM==='PATCH'||this.__hcfM==='DELETE')&&this.__hcfU.indexOf('/api/')>=0){this.addEventListener('load',function(){try{if(this.status>=200&&this.status<300)HCFNative.forumMutation(String(this.__hcfU||''));}catch(e){}});}}catch(e){}return XS.apply(this,arguments);};}}catch(e){}var fixText=function(root){try{if(!root)return;if(root.nodeType===3){var v=root.nodeValue||'';if(v.indexOf(WARNING)>=0)root.nodeValue=v.split(WARNING).join(REPLACEMENT);return;}var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);var n,c=0;while((n=w.nextNode())&&c++<500){var v=n.nodeValue||'';if(v.indexOf(WARNING)>=0)n.nodeValue=v.split(WARNING).join(REPLACEMENT);}}catch(e){}};var fixSecurityLabels=function(){try{if(String(location.pathname||'').indexOf('/security')<0)return;var active=document.querySelectorAll('.AccessTokensList-item--active .AccessTokensList-item-title-main');for(var i=0;i<active.length;i++){var t=(active[i].textContent||'').trim();if(t&&t.indexOf(\"Harley's Clan Forum App\")<0)active[i].textContent=\"Harley's Clan Forum App on AndroidOS\";}}catch(e){}};var sync=function(){reportRoute();syncIdentity();syncSecurity();autoSecurity();fixSecurityLabels();};try{if(!window.__HCF_ROUTE_HOOK__){window.__HCF_ROUTE_HOOK__=true;['pushState','replaceState'].forEach(function(k){var old=history[k];if(typeof old!=='function')return;history[k]=function(){var r=old.apply(this,arguments);setTimeout(reportRoute,0);return r;};});window.addEventListener('popstate',reportRoute);window.addEventListener('hashchange',reportRoute);}}catch(e){}if(document.body){fixText(document.body);window.__HCF_NATIVE_OBSERVER__=new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){var added=ms[i].addedNodes||[];for(var j=0;j<added.length;j++)fixText(added[j]);}try{clearTimeout(window.__HCF_SYNC_TIMER__);}catch(e){}window.__HCF_SYNC_TIMER__=setTimeout(sync,75);});window.__HCF_NATIVE_OBSERVER__.observe(document.body,{childList:true,subtree:true});}window.__HCF_NATIVE_V040__={sync:sync};sync();if(!window.__HCF_NATIVE_TIMER__){window.__HCF_NATIVE_TIMER__=setInterval(sync,1000);}try{window.dispatchEvent(new CustomEvent('hcf-app-ready',{detail:{platform:'android',version:VERSION}}));}catch(e){}})();", null);
             installPerformanceCss();
             installWebThemeBridge();
             installNativeMediaAndAccentHooks();
@@ -3755,7 +3755,7 @@ public class MainActivity extends ThemedActivity {
             httpsURLConnection.setReadTimeout(6000);
             httpsURLConnection.setUseCaches(true);
             httpsURLConnection.setInstanceFollowRedirects(false);
-            httpsURLConnection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0");
+            httpsURLConnection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER);
             if (httpsURLConnection.getResponseCode() != 200) {
                 if (httpsURLConnection != null) {
                     httpsURLConnection.disconnect();
@@ -3971,6 +3971,9 @@ public class MainActivity extends ThemedActivity {
         super.onResume();
         this.appliedThemeSignature = ThemeManager.signature(this);
         resumeUpdateInstallPermissionIfNeeded();
+        // SetupActivity may temporarily cover MainActivity during an upgrade.
+        // Re-schedule without marking seen so What's New appears after setup returns.
+        scheduleWhatsNew(true);
         if (this.launchFailed || (webView = this.webView) == null) {
             return;
         }
@@ -4185,13 +4188,7 @@ public class MainActivity extends ThemedActivity {
         super.onDestroy();
     }
 
-    /* JADX WARN: Removed duplicated region for block: B:39:0x009d  */
-    /* JADX WARN: Removed duplicated region for block: B:42:0x00a0  */
     @Override // android.app.Activity
-    /*
-        Code decompiled incorrectly, please refer to instructions dump.
-        To view partially-correct add '--show-bad-code' argument
-    */
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == UPDATE_INSTALL_PERMISSION_REQUEST) {

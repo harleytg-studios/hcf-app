@@ -1,59 +1,38 @@
-# Harley's Clan Forum 1.0 — Stable v10000077
+# Harley's Clan Forum 1.0 — Stable v10000091
 
-Stable release metadata for the Harley's Clan Forum Android app.
+Stable source-preparation metadata for the Harley's Clan Forum Android app.
 
 ## Release identity
 
 - App name: **Harley's Clan Forum**
 - Package: `com.harleytg.forum`
-- Version: `1.0 (10000077)`
-- Android versionCode: `10000077`
-- GitHub tag: `v1.0`
+- Version: `1.0 (10000091)`
+- Android versionCode: `10000091`
+- Internal build: `111`
 - Channel: **Stable**
 - Target SDK: `34`
-- Stable branding: original Stable logo/icon set
+- Compile SDK: `35`
+- Branding: original blue/cyan Stable logo and `[Stable]` build badge
 
-## Stable-eligible feature promotion
+## Promotion boundary
 
-v10000077 carries forward the non-Beta/Dev user-facing work while retaining the Stable package, branding, update channel, and production defaults.
+The active runtime and feature source is promoted from `dev` commit `2ea85ab`
+without changing the Development/Beta branch. Stable-specific identity is locked
+through the manifest, Java package, resources, updater, local release script, and
+CI release gates.
 
-Included Stable items include:
+The Stable updater uses the official non-prerelease GitHub release endpoint. It
+rejects Beta, Dev, Preview, Debug, and unsigned APK assets, then verifies the APK
+versionCode, exact SHA-256, package name, and signing-certificate lineage. A
+different APK hash can identify a revised release with the same versionCode.
 
-- Contact Support v2 with all four support sections collapsed each time it opens.
-- Account and Forum Identity presentation/fit fixes.
-- Settings and light/dark native UI refinements that are not Dev-only.
-- Notification history and normal notification controls.
-- Lower-latency notification runtime behavior: no foreground bridge cooldown, 1000 ms live fallback interval, 1000 ms effective failure-retry cap, immediate reconnect sync, and live service continuity when Silent Alerts are silenced.
-- Registered HCF domain routing for `forum.harleytg.com` and `harleysclan.freeflarum.com`.
-- Logs/diagnostics/error UI cleanup and reliability improvements.
-- Performance/backoff improvements for background, screen-off, Battery Saver, and constrained-device conditions.
-- Stable-only release-channel behavior; Dev/Beta test UI remains disabled for Stable identity.
+## Stable signing line
 
-## Beta / Dev-only items
+- Key alias: `hcf-stable-v2`
+- Certificate SHA-256:
+  `77:E0:E9:6C:11:77:84:2A:AA:31:1A:8F:C0:EB:EA:29:B9:2D:3C:D2:90:BB:81:5B:DB:86:AD:0E:0A:85:84:4F`
+- Signing compatibility: v1 + v2 + v3, with v4 sidecar generation
 
-Features explicitly designated Beta/Dev-only are **not promoted as Stable features**. In particular, the experimental update/install feature set remains outside the Stable promotion list until separately approved:
-
-- automatic installer handoff experiments
-- Allow-from-this-source resume experiments
-- experimental downloaded-APK verification flow
-- experimental install-ready fallback flow
-
-## Release artifacts
-
-- `HCF-Stable-v10000077.apk`
-  - SHA-256: `6db249c8b0e53df8ac7ff3f378287ad1fe5b3f329731246e16a5d9c6ac726de5`
-- `HCF-Stable-v10000077-source.zip`
-  - SHA-256: `524595ace6704433e684f39549c3b653391c5499168011e141611baf79dc9836`
-- `HCF-Stable-v10000077-VERIFICATION.txt`
-
-The source ZIP is the exact local reconstruction/build bundle corresponding to the supplied Beta v10000077 payload after Stable package/branding promotion. The maintained Java source/reference tree remains under `source code/`.
-
-## Stable V2 signing line
-
-The v10000077 Stable APK is signed by the established Stable V2 certificate:
-
-`77:E0:E9:6C:11:77:84:2A:AA:31:1A:8F:C0:EB:EA:29:B9:2D:3C:D2:90:BB:81:5B:DB:86:AD:0E:0A:85:84:4F`
-
-This is the same Stable V2 signing identity used by Stable v10000034, so Stable V2 installs can update in place. Builds on older, different Stable signing identities still require a one-time signer migration.
-
-The Stable V2 private key and password must never be committed to this public repository.
+The private Stable key is not stored in this repository. APK and source hashes
+remain pending until the production artifacts are generated and signed; this
+source update does not fabricate release hashes or publish an APK.

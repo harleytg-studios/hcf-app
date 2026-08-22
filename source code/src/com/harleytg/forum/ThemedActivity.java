@@ -16,16 +16,36 @@ abstract class ThemedActivity extends Activity implements SharedPreferences.OnSh
 
     @Override // android.app.Activity, android.view.ContextThemeWrapper, android.content.ContextWrapper
     protected void attachBaseContext(Context context) {
-        super.attachBaseContext(ThemeManager.wrap(context));
+        Context wrapped = context;
+        try {
+            Context candidate = ThemeManager.wrap(context);
+            if (candidate != null) wrapped = candidate;
+        } catch (Throwable unused) {
+        }
+        super.attachBaseContext(wrapped);
     }
 
     @Override // android.app.Activity
     protected void onCreate(Bundle bundle) {
-        ThemeManager.prepare(this);
+        try {
+            ThemeManager.prepare(this);
+        } catch (Throwable unused) {
+        }
         super.onCreate(bundle);
-        ThemeManager.applySystemBars(this);
-        this.appliedThemeSignature = ThemeManager.signature(this);
-        this.themePrefs = getSharedPreferences("hcf_app", 0);
+        try {
+            ThemeManager.applySystemBars(this);
+        } catch (Throwable unused2) {
+        }
+        try {
+            this.appliedThemeSignature = ThemeManager.signature(this);
+        } catch (Throwable unused3) {
+            this.appliedThemeSignature = "auto_forum";
+        }
+        try {
+            this.themePrefs = getSharedPreferences("hcf_app", 0);
+        } catch (Throwable unused4) {
+            this.themePrefs = null;
+        }
     }
 
     @Override // android.app.Activity
@@ -33,7 +53,10 @@ abstract class ThemedActivity extends Activity implements SharedPreferences.OnSh
         super.onStart();
         SharedPreferences sharedPreferences = this.themePrefs;
         if (sharedPreferences != null) {
-            sharedPreferences.registerOnSharedPreferenceChangeListener(this);
+            try {
+                sharedPreferences.registerOnSharedPreferenceChangeListener(this);
+            } catch (Throwable unused) {
+            }
         }
         recreateForThemeIfNeeded();
     }
@@ -48,7 +71,10 @@ abstract class ThemedActivity extends Activity implements SharedPreferences.OnSh
     protected void onStop() {
         SharedPreferences sharedPreferences = this.themePrefs;
         if (sharedPreferences != null) {
-            sharedPreferences.unregisterOnSharedPreferenceChangeListener(this);
+            try {
+                sharedPreferences.unregisterOnSharedPreferenceChangeListener(this);
+            } catch (Throwable unused) {
+            }
         }
         super.onStop();
     }
@@ -60,16 +86,19 @@ abstract class ThemedActivity extends Activity implements SharedPreferences.OnSh
     }
 
     private void recreateForThemeIfNeeded() {
-        if (this.themeRecreatePending || isFinishing() || isDestroyed() || !ThemeManager.changedSince(this, this.appliedThemeSignature)) {
-            return;
-        }
-        this.themeRecreatePending = true;
-        getWindow().getDecorView().postDelayed(new Runnable() { // from class: com.harleytg.forum.ThemedActivity$$ExternalSyntheticLambda0
-            @Override // java.lang.Runnable
-            public final void run() {
-                ThemedActivity.this.m210xc87fab7b();
+        try {
+            if (this.themeRecreatePending || isFinishing() || isDestroyed() || !ThemeManager.changedSince(this, this.appliedThemeSignature)) {
+                return;
             }
-        }, 90L);
+            this.themeRecreatePending = true;
+            getWindow().getDecorView().postDelayed(new Runnable() { // from class: com.harleytg.forum.ThemedActivity$$ExternalSyntheticLambda0
+                @Override // java.lang.Runnable
+                public final void run() {
+                    ThemedActivity.this.m210xc87fab7b();
+                }
+            }, 90L);
+        } catch (Throwable unused) {
+        }
     }
 
     /* renamed from: lambda$recreateForThemeIfNeeded$0$com-harleytg-forum-dev-ThemedActivity, reason: not valid java name */
@@ -77,6 +106,10 @@ abstract class ThemedActivity extends Activity implements SharedPreferences.OnSh
         if (isFinishing() || isDestroyed()) {
             return;
         }
-        recreate();
+        try {
+            recreate();
+        } catch (Throwable unused) {
+            this.themeRecreatePending = false;
+        }
     }
 }

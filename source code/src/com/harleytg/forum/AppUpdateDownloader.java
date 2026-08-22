@@ -46,7 +46,6 @@ final class AppUpdateDownloader {
     }
 
     static long enqueue(Context context, UpdateChecker.Release release, boolean z) {
-        int status;
         if (context == null || release == null || release.apkUrl == null || release.apkUrl.isEmpty()) {
             return -1L;
         }
@@ -54,26 +53,29 @@ final class AppUpdateDownloader {
             AppLogger.warn(context, "update_download_blocked", "untrusted release URL");
             return -1L;
         }
-        Context applicationContext = context.getApplicationContext();
-        SharedPreferences sharedPreferences = applicationContext.getSharedPreferences("hcf_app", 0);
-        long j = sharedPreferences.getLong("update_download_id", -1L);
-        String str = "";
-        String string = sharedPreferences.getString("update_download_tag", "");
-        String assetKey = release.assetKey();
-        if (j <= 0 || string == null || string.isEmpty() || assetKey.equals(string) || (status = status(applicationContext, j)) == 1 || status == 2 || status == 4) {
-            str = string;
-        } else {
-            cleanupAfterSuccessfulUpdate(applicationContext);
-            j = -1;
+        if (release.versionCode <= 0L || !AppSecurity.isSha256(release.sha256)) {
+            AppLogger.warn(context, "update_download_blocked", "release version or SHA-256 was not verified");
+            return -1L;
         }
-        if (assetKey.equals(str) && j > 0) {
-            int status2 = status(applicationContext, j);
-            if (status2 != 1 && status2 != 2 && status2 != 4) {
-                if (status2 == 8) {
-                    NotificationHelper.postUpdateReady(applicationContext, release.tag, j);
-                }
+        Context applicationContext = context.getApplicationContext();
+        SharedPreferences sharedPreferences = applicationContext.getSharedPreferences(AppPrefs.FILE, 0);
+        long existingId = sharedPreferences.getLong(AppPrefs.UPDATE_DOWNLOAD_ID, -1L);
+        String existingKey = sharedPreferences.getString(AppPrefs.UPDATE_DOWNLOAD_TAG, "");
+        String assetKey = release.assetKey();
+        if (existingId > 0L) {
+            int existingStatus = status(applicationContext, existingId);
+            if (assetKey.equals(existingKey)
+                    && (existingStatus == DownloadManager.STATUS_PENDING
+                    || existingStatus == DownloadManager.STATUS_RUNNING
+                    || existingStatus == DownloadManager.STATUS_PAUSED)) {
+                return existingId;
             }
-            return j;
+            if (assetKey.equals(existingKey) && existingStatus == DownloadManager.STATUS_SUCCESSFUL) {
+                NotificationHelper.postUpdateReady(applicationContext, release.tag, existingId);
+                return existingId;
+            }
+            // Failed, missing, or superseded downloads must never block a retry.
+            cleanupAfterSuccessfulUpdate(applicationContext);
         }
         try {
             DownloadManager downloadManager = (DownloadManager) applicationContext.getSystemService("download");
@@ -94,7 +96,14 @@ final class AppUpdateDownloader {
             }
             request.setDestinationInExternalFilesDir(applicationContext, Environment.DIRECTORY_DOWNLOADS, safeApkName);
             long enqueue = downloadManager.enqueue(request);
-            sharedPreferences.edit().putLong("update_download_id", enqueue).putString("update_download_tag", assetKey).putString("update_download_name", safeApkName).apply();
+            sharedPreferences.edit()
+                    .putLong(AppPrefs.UPDATE_DOWNLOAD_ID, enqueue)
+                    .putString(AppPrefs.UPDATE_DOWNLOAD_TAG, assetKey)
+                    .putString(AppPrefs.UPDATE_DOWNLOAD_LABEL, release.tag)
+                    .putString(AppPrefs.UPDATE_DOWNLOAD_NAME, safeApkName)
+                    .putLong(AppPrefs.UPDATE_DOWNLOAD_VERSION_CODE, release.versionCode)
+                    .putString(AppPrefs.UPDATE_DOWNLOAD_SHA256, release.sha256.toLowerCase(Locale.US))
+                    .apply();
             AppLogger.info(applicationContext, "update_download", release.tag + " | id=" + enqueue + " | " + safeApkName);
             return enqueue;
         } catch (Throwable th) {
@@ -114,12 +123,12 @@ final class AppUpdateDownloader {
     }
 
     static boolean isDownloaded(Context context) {
-        long j = context.getSharedPreferences("hcf_app", 0).getLong("update_download_id", -1L);
+        long j = context.getSharedPreferences(AppPrefs.FILE, 0).getLong(AppPrefs.UPDATE_DOWNLOAD_ID, -1L);
         return j > 0 && status(context, j) == 8;
     }
 
     static long downloadedId(Context context) {
-        long j = context.getSharedPreferences("hcf_app", 0).getLong("update_download_id", -1L);
+        long j = context.getSharedPreferences(AppPrefs.FILE, 0).getLong(AppPrefs.UPDATE_DOWNLOAD_ID, -1L);
         if (j <= 0 || status(context, j) != 8) {
             return -1L;
         }
@@ -139,8 +148,8 @@ final class AppUpdateDownloader {
                 return false;
             }
             AppLogger.info(context, "update_verify", verifyDownloadedUpdate.message);
-            SharedPreferences sharedPreferences = context.getSharedPreferences("hcf_app", 0);
-            String string = sharedPreferences.getString("update_download_name", "");
+            SharedPreferences sharedPreferences = context.getSharedPreferences(AppPrefs.FILE, 0);
+            String string = sharedPreferences.getString(AppPrefs.UPDATE_DOWNLOAD_NAME, "");
             File externalFilesDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
             File file = (externalFilesDir == null || string == null || string.trim().isEmpty()) ? null : new File(externalFilesDir, string);
             if (file != null && file.isFile()) {
@@ -205,27 +214,6 @@ final class AppUpdateDownloader {
         }
     }
 
-    /* JADX WARN: Code restructure failed: missing block: B:34:0x0084, code lost:
-    
-        if (r3 != null) goto L36;
-     */
-    /* JADX WARN: Code restructure failed: missing block: B:36:0x0098, code lost:
-    
-        return new com.harleytg.forum.AppUpdateDownloader.ProgressSnapshot(0, 0, -1, 0);
-     */
-    /* JADX WARN: Code restructure failed: missing block: B:37:0x0089, code lost:
-    
-        r3.close();
-     */
-    /* JADX WARN: Code restructure failed: missing block: B:38:0x0087, code lost:
-    
-        if (r3 != null) goto L36;
-     */
-    /*
-        Code decompiled incorrectly, please refer to instructions dump.
-        To view partially-correct add '--show-bad-code' argument
-    */
-
     static ProgressSnapshot progress(Context context, long id) {
         if (context == null || id <= 0L) return new ProgressSnapshot(0, 0L, -1L, 0);
         DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
@@ -251,27 +239,6 @@ final class AppUpdateDownloader {
         return new ProgressSnapshot(0, 0L, -1L, 0);
     }
 
-    /* JADX WARN: Code restructure failed: missing block: B:21:0x0040, code lost:
-    
-        if (r0 != null) goto L22;
-     */
-    /* JADX WARN: Code restructure failed: missing block: B:22:0x0048, code lost:
-    
-        return 0;
-     */
-    /* JADX WARN: Code restructure failed: missing block: B:23:0x0045, code lost:
-    
-        r0.close();
-     */
-    /* JADX WARN: Code restructure failed: missing block: B:24:0x0043, code lost:
-    
-        if (r0 != null) goto L22;
-     */
-    /*
-        Code decompiled incorrectly, please refer to instructions dump.
-        To view partially-correct add '--show-bad-code' argument
-    */
-
     static int status(Context context, long id) {
         if (id <= 0L) return 0;
         DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
@@ -289,21 +256,6 @@ final class AppUpdateDownloader {
         }
         return 0;
     }
-
-    /* JADX WARN: Can't wrap try/catch for region: R(8:5|(3:45|46|(7:48|49|8|9|(3:15|(3:17|(2:24|(3:28|29|(2:31|32)(1:33)))|23)|40)|41|42))|7|8|9|(5:11|13|15|(0)|40)|41|42) */
-    /* JADX WARN: Code restructure failed: missing block: B:43:0x0085, code lost:
-    
-        r0 = move-exception;
-     */
-    /* JADX WARN: Code restructure failed: missing block: B:44:0x0086, code lost:
-    
-        com.harleytg.forum.AppLogger.warn(r10, "update_cleanup_files", r0.getClass().getSimpleName());
-     */
-    /* JADX WARN: Removed duplicated region for block: B:17:0x0056 A[Catch: all -> 0x0085, TryCatch #2 {all -> 0x0085, blocks: (B:9:0x003f, B:11:0x0047, B:13:0x004d, B:15:0x0053, B:17:0x0056, B:19:0x005a, B:24:0x0061, B:26:0x0073), top: B:8:0x003f }] */
-    /*
-        Code decompiled incorrectly, please refer to instructions dump.
-        To view partially-correct add '--show-bad-code' argument
-    */
 
     static boolean cleanupAfterSuccessfulUpdate(Context context) {
         if (context == null) return false;
@@ -346,8 +298,11 @@ final class AppUpdateDownloader {
 
         prefs.edit()
                 .remove(AppPrefs.UPDATE_DOWNLOAD_ID)
+                .remove(AppPrefs.UPDATE_DOWNLOAD_LABEL)
                 .remove(AppPrefs.UPDATE_DOWNLOAD_TAG)
                 .remove(AppPrefs.UPDATE_DOWNLOAD_NAME)
+                .remove(AppPrefs.UPDATE_DOWNLOAD_SHA256)
+                .remove(AppPrefs.UPDATE_DOWNLOAD_VERSION_CODE)
                 .remove(AppPrefs.UPDATE_INSTALL_PENDING)
                 .remove(AppPrefs.UPDATE_RESUME_AFTER_PERMISSION)
                 .putString(AppPrefs.UPDATE_CHANNEL, BuildInfo.DEFAULT_UPDATE_CHANNEL)
@@ -357,40 +312,40 @@ final class AppUpdateDownloader {
     }
 
     static void cleanupIfCurrentVersionWasDownloaded(Context context) {
-        if (context == null) {
-            return;
+        if (context == null) return;
+        SharedPreferences prefs = context.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
+        long downloadedVersion = prefs.getLong(AppPrefs.UPDATE_DOWNLOAD_VERSION_CODE, -1L);
+        long installedVersion = installedVersionCode(context);
+        boolean installedDownload = downloadedVersion > 0L && downloadedVersion < installedVersion;
+        if (downloadedVersion > 0L && downloadedVersion == installedVersion) {
+            String expectedSha256 = prefs.getString(AppPrefs.UPDATE_DOWNLOAD_SHA256, "");
+            try {
+                String installedSha256 = AppSecurity.installedApkSha256(context);
+                installedDownload = AppSecurity.isSha256(expectedSha256)
+                        && expectedSha256.equalsIgnoreCase(installedSha256);
+            } catch (Throwable error) {
+                AppLogger.warn(context, "update_cleanup_hash", error.getClass().getSimpleName());
+            }
         }
-        String string = context.getSharedPreferences("hcf_app", 0).getString("update_download_tag", "");
-        if (string != null && !string.trim().isEmpty()) {
-            String trim = string.trim();
-            if (trim.startsWith("v") || trim.startsWith("V")) {
-                trim = trim.substring(1);
-            }
-            if ("1.0".equalsIgnoreCase(trim)) {
-                cleanupAfterSuccessfulUpdate(context);
-            }
+        if (installedDownload) {
+            cleanupAfterSuccessfulUpdate(context);
         }
         cleanupStaleUpdaterApks(context);
     }
-
-    /* JADX WARN: Multi-variable type inference failed */
-    /* JADX WARN: Removed duplicated region for block: B:82:0x00d2  */
-    /* JADX WARN: Type inference failed for: r13v4 */
-    /*
-        Code decompiled incorrectly, please refer to instructions dump.
-        To view partially-correct add '--show-bad-code' argument
-    */
 
     static boolean cleanupStaleUpdaterApks(Context context) {
         if (context == null) return false;
         Context app = context.getApplicationContext();
         boolean removed = false;
-        long activeId = app.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE)
-                .getLong(AppPrefs.UPDATE_DOWNLOAD_ID, -1L);
+        SharedPreferences prefs = app.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
+        long activeId = prefs.getLong(AppPrefs.UPDATE_DOWNLOAD_ID, -1L);
+        String activeName = prefs.getString(AppPrefs.UPDATE_DOWNLOAD_NAME, "");
+        activeName = activeName == null ? "" : activeName.toLowerCase(Locale.US);
         int activeStatus = activeId > 0L ? status(app, activeId) : 0;
         boolean activeDownload = activeStatus == DownloadManager.STATUS_PENDING
                 || activeStatus == DownloadManager.STATUS_RUNNING
-                || activeStatus == DownloadManager.STATUS_PAUSED;
+                || activeStatus == DownloadManager.STATUS_PAUSED
+                || activeStatus == DownloadManager.STATUS_SUCCESSFUL;
         long installedVersion = installedVersionCode(app);
         if (installedVersion <= 0L) installedVersion = BuildInfo.VERSION_CODE;
         try {
@@ -406,10 +361,10 @@ final class AppUpdateDownloader {
                         || name.startsWith("harleysclanforum-stable-")
                         || name.startsWith("harleysclanforum-");
                 if (!updaterApk || !name.endsWith(".apk")) continue;
+                if (activeDownload && name.equals(activeName)) continue;
                 PackageInfo archive = pm.getPackageArchiveInfo(file.getAbsolutePath(), 0);
                 if (archive == null || archive.packageName == null || !app.getPackageName().equals(archive.packageName)) continue;
                 long archiveVersion = archiveVersionCode(archive);
-                if (activeDownload && archiveVersion > installedVersion) continue;
                 if (archiveVersion > 0L && archiveVersion <= installedVersion) {
                     try { if (file.delete()) removed = true; } catch (Throwable ignored) {}
                 }
@@ -425,7 +380,7 @@ final class AppUpdateDownloader {
         try {
             return archiveVersionCode(context.getPackageManager().getPackageInfo(context.getPackageName(), 0));
         } catch (Throwable unused) {
-            return 10000072L;
+            return BuildInfo.VERSION_CODE;
         }
     }
 

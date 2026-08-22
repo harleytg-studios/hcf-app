@@ -1,11 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
     android:height="24dp"
+    android:width="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <path android:fillColor="#FFFFFFFF" android:pathData="M12,10.6C8.9,10.6 6.2,13.3 6.2,16.1C6.2,18.5 8.1,20.2 10.4,20.2H13.6C15.9,20.2 17.8,18.5 17.8,16.1C17.8,13.3 15.1,10.6 12,10.6Z"/>
-    <path android:fillColor="#FFFFFFFF" android:pathData="M7.1,4.2C5.7,4.2 4.6,5.6 4.6,7.3C4.6,9 5.7,10.3 7.1,10.3C8.5,10.3 9.6,9 9.6,7.3C9.6,5.6 8.5,4.2 7.1,4.2Z"/>
-    <path android:fillColor="#FFFFFFFF" android:pathData="M16.9,4.2C15.5,4.2 14.4,5.6 14.4,7.3C14.4,9 15.5,10.3 16.9,10.3C18.3,10.3 19.4,9 19.4,7.3C19.4,5.6 18.3,4.2 16.9,4.2Z"/>
-    <path android:fillColor="#FFFFFFFF" android:pathData="M11.3,2.6C10,2.6 9,3.9 9,5.5C9,7.1 10,8.4 11.3,8.4C12.6,8.4 13.6,7.1 13.6,5.5C13.6,3.9 12.6,2.6 11.3,2.6Z"/>
-    <path android:fillColor="#FFFFFFFF" android:pathData="M20.1,7.2C18.9,7.2 18,8.4 18,9.8C18,11.3 18.9,12.4 20.1,12.4C21.3,12.4 22.2,11.3 22.2,9.8C22.2,8.4 21.3,7.2 20.1,7.2Z"/>
+    <path
+        android:fillColor="#ffffffff"
+        android:pathData="M12,10.6C8.9,10.6 6.2,13.3 6.2,16.1C6.2,18.5 8.1,20.2 10.4,20.2H13.6C15.9,20.2 17.8,18.5 17.8,16.1C17.8,13.3 15.1,10.6 12,10.6Z"/>
+    <path
+        android:fillColor="#ffffffff"
+        android:pathData="M7.1,4.2C5.7,4.2 4.6,5.6 4.6,7.3C4.6,9 5.7,10.3 7.1,10.3C8.5,10.3 9.6,9 9.6,7.3C9.6,5.6 8.5,4.2 7.1,4.2Z"/>
+    <path
+        android:fillColor="#ffffffff"
+        android:pathData="M16.9,4.2C15.5,4.2 14.4,5.6 14.4,7.3C14.4,9 15.5,10.3 16.9,10.3C18.3,10.3 19.4,9 19.4,7.3C19.4,5.6 18.3,4.2 16.9,4.2Z"/>
+    <path
+        android:fillColor="#ffffffff"
+        android:pathData="M11.3,2.6C10,2.6 9,3.9 9,5.5C9,7.1 10,8.4 11.3,8.4C12.6,8.4 13.6,7.1 13.6,5.5C13.6,3.9 12.6,2.6 11.3,2.6Z"/>
+    <path
+        android:fillColor="#ffffffff"
+        android:pathData="M20.1,7.2C18.9,7.2 18,8.4 18,9.8C18,11.3 18.9,12.4 20.1,12.4C21.3,12.4 22.2,11.3 22.2,9.8C22.2,8.4 21.3,7.2 20.1,7.2Z"/>
 </vector>

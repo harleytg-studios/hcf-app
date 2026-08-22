@@ -66,6 +66,9 @@ final class AppPrefs {
     static final String RENDERER_RECOVERY_COUNT = "renderer_recovery_count";
     static final String SAFE_LINKS_SEEN_DOMAINS = "safe_links_seen_domains";
     static final String SESSION_USER_ID = "session_user_id";
+    static final String SETUP_COMPLETED = "setup_completed";
+    static final String SETUP_SEEN = "setup_seen";
+    static final String SETUP_VERSION = "setup_version";
     static final String SHOW_BOTTOM_NAV = "show_bottom_nav";
     static final String SHOW_STARTUP_SCREEN = "show_startup_screen";
     static final String SHOW_URL_BAR = "show_url_bar";
@@ -91,8 +94,11 @@ final class AppPrefs {
     static final String UPDATE_AUTO_INSTALL = "update_auto_install";
     static final String UPDATE_CHANNEL = "update_channel";
     static final String UPDATE_DOWNLOAD_ID = "update_download_id";
+    static final String UPDATE_DOWNLOAD_LABEL = "update_download_label";
     static final String UPDATE_DOWNLOAD_NAME = "update_download_name";
+    static final String UPDATE_DOWNLOAD_SHA256 = "update_download_sha256";
     static final String UPDATE_DOWNLOAD_TAG = "update_download_tag";
+    static final String UPDATE_DOWNLOAD_VERSION_CODE = "update_download_version_code";
     static final String UPDATE_INSTALL_PENDING = "update_install_pending";
     static final String UPDATE_LAST_AVAILABLE_TAG = "update_last_available_tag";
     static final String UPDATE_LAST_CHECK = "update_last_check";

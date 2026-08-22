@@ -88,7 +88,7 @@ public final class UpdateFileProvider extends ContentProvider {
         }
         try {
             return ParcelFileDescriptor.open(fileForUri(context, uri), 268435456);
-        } catch (java.io.IOException e) {
+        } catch (IOException e) {
             FileNotFoundException fnf = new FileNotFoundException(e.getMessage());
             fnf.initCause(e);
             throw fnf;
@@ -124,6 +124,6 @@ public final class UpdateFileProvider extends ContentProvider {
 
     @Override // android.content.ContentProvider
     public Uri insert(Uri uri, ContentValues contentValues) {
-        throw new UnsupportedOperationException("Read only");
+        throw new SecurityException("UpdateFileProvider is read-only");
     }
 }

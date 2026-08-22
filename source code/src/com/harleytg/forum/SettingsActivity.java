@@ -287,8 +287,8 @@ public final class SettingsActivity extends ThemedActivity {
             new SettingTarget("open_forum_profile", "Open My Forum Profile", "profile account user", "account_security", "account_controls"),
             new SettingTarget("open_account_security", "Open Account Security", "password email two factor 2fa sessions security", "account_security", "account_controls"),
             new SettingTarget("allow_android_notification_permission", "Allow Android Notification Permission", "notification alerts permission android", "notifications", "hcf_alerts"),
-            new SettingTarget("background_notification_sync", "Background notification sync", "notification sync background silent alerts", "notifications", "silent_alerts"),
-            new SettingTarget("silence_hcf_silent_alerts", "Silence HCF Silent Alerts", "silent background notification alerts", "notifications", "silent_alerts"),
+            new SettingTarget("background_notification_sync", "Background notification sync", "notification sync background HCF Alerts real forum alerts outside app closed app", "notifications", "hcf_alerts"),
+            new SettingTarget("silence_hcf_silent_alerts", "Disable HCF Silent Alerts", "silent service status background notification", "notifications", "silent_alerts"),
             new SettingTarget("open_developer_tools", "Open Developer Tools", "notification test developer", "notifications", "test_alerts"),
             new SettingTarget("theme", "Theme", "forum auto phone auto dark light appearance", "appearance", "appearance_performance"),
             new SettingTarget("performance_profile", "Performance Profile", "performance balanced quality animation motion", "appearance", "appearance_performance"),
@@ -427,9 +427,9 @@ public final class SettingsActivity extends ThemedActivity {
                 settingsContent.addView(connectedSettingsPanel("Account Controls", "Profile, password, email and session security shortcuts", accountControlsCard(), shouldExpand("account_controls", false)));
                 break;
             case "notifications":
-                settingsContent.addView(connectedSettingsPanel("HCF Alerts", "Required main alerts • messages, mentions, replies and important activity", mainAlertsCard(), shouldExpand("hcf_alerts", true)));
-                settingsContent.addView(connectedSettingsPanel("HCF Silent Alerts", "Background sync, service status and passive notifications", silentAlertsCard(), shouldExpand("silent_alerts", false)));
-                settingsContent.addView(connectedSettingsPanel("HCF Test Alerts", channelDisplayName(effectiveUpdateChannel()) + " test channel • controls live in Developer Tools", testAlertsInfoCard(), shouldExpand("test_alerts", false)));
+                settingsContent.addView(connectedSettingsPanel("HCF Alerts", "Real forum notifications • background delivery", mainAlertsCard(), shouldExpand("hcf_alerts", true)));
+                settingsContent.addView(connectedSettingsPanel("HCF Silent Alerts", "Silent service-status channel only", silentAlertsCard(), shouldExpand("silent_alerts", false)));
+                settingsContent.addView(connectedSettingsPanel("HCF Test Alerts", "Stable diagnostics only", testAlertsInfoCard(), shouldExpand("test_alerts", false)));
                 break;
             case "appearance":
                 settingsContent.addView(connectedSettingsPanel("Appearance & Performance", "Theme, interface and rendering preferences", interfaceCard(), shouldExpand("appearance_performance", true)));
@@ -609,52 +609,404 @@ public final class SettingsActivity extends ThemedActivity {
         finish();
     }
 
+    // HCF_ALERTS_RENDER_V3 — dedicated layout matching the selected second render.
+    // HCF_ALERTS_RENDER_FINAL_V10000090 — selected newer expanded HCF Alerts design.
     private View mainAlertsCard() {
-        LinearLayout card = card();
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.TRANSPARENT);
         NotificationHelper.createChannel(this);
-        notificationStatus = text("Checking HCF Alerts status…", 12, getColor(R.color.hcf_muted));
-        card.addView(notificationStatus);
-        card.addView(notificationChannelStatusRow("HCF Alerts", "Required • audible • heads-up capable • not affected by HCF silence controls", "hcf_alerts_v1"));
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != 0) {
-            card.addView(target(actionButton("Allow Android Notification Permission", v -> requestNotificationPermissionIfNeeded()), "allow_android_notification_permission"));
+
+        final int green = android.graphics.Color.parseColor("#55E13B");
+        final int yellow = android.graphics.Color.parseColor("#FFC21A");
+        final int red = android.graphics.Color.parseColor("#FF4D57");
+
+        final boolean runtimePermission = NotificationHelper.hasRuntimePermission(this);
+        final boolean appNotificationsEnabled = NotificationHelper.areAppNotificationsEnabled(this);
+        final int channelImportance = NotificationHelper.channelImportance(this, NotificationHelper.CHANNEL_ID);
+        final boolean channelEnabled = channelImportance > 0;
+        final boolean canPost = NotificationHelper.canPost(this);
+
+        String alertState;
+        int alertColor;
+        if (!canPost) {
+            alertState = "Blocked";
+            alertColor = red;
+        } else if (channelImportance < 4) {
+            alertState = "Limited";
+            alertColor = yellow;
         } else {
-            TextView granted = text("Android notification permission is allowed.", 10, getColor(R.color.hcf_muted));
-            target(granted, "allow_android_notification_permission");
-            card.addView(granted);
+            alertState = "Ready";
+            alertColor = green;
         }
-        card.addView(text("HCF Alerts carries direct messages, mentions, replies and important forum/app alerts. Android remains the final owner of notification permission and channel controls.", 10, getColor(R.color.hcf_muted)));
-        return card;
+
+        final boolean backgroundEnabled = prefs.getBoolean(AppPrefs.BACKGROUND_NOTIFICATION_SYNC, true);
+        final boolean silentStatusDisabled = prefs.getBoolean(AppPrefs.SILENCE_BACKGROUND_SERVICE_NOTIFICATION, false);
+        String sessionUserId = prefs.getString(AppPrefs.SESSION_USER_ID, "");
+        final boolean signedIn = sessionUserId != null && !sessionUserId.trim().isEmpty();
+        final String lastSyncStatus = prefs.getString(AppPrefs.NOTIFICATION_LAST_SYNC_STATUS, "");
+        final String normalizedSyncStatus = lastSyncStatus == null ? "" : lastSyncStatus.toLowerCase(Locale.US);
+        final boolean syncStatusSucceeded = normalizedSyncStatus.contains("synced");
+        final boolean syncStatusWaiting = normalizedSyncStatus.contains("waiting") || normalizedSyncStatus.contains("unavailable");
+        final boolean syncStatusFailed = normalizedSyncStatus.contains("failed") || normalizedSyncStatus.contains("error");
+
+        String backgroundState;
+        int backgroundColor;
+        if (!backgroundEnabled) {
+            backgroundState = "Off";
+            backgroundColor = red;
+        } else if (!signedIn) {
+            backgroundState = "Waiting";
+            backgroundColor = yellow;
+        } else if (silentStatusDisabled || syncStatusWaiting || syncStatusFailed) {
+            backgroundState = "Delayed";
+            backgroundColor = yellow;
+        } else {
+            backgroundState = "Live";
+            backgroundColor = green;
+        }
+
+        long lastSyncAt = prefs.getLong(AppPrefs.NOTIFICATION_LAST_SYNC_AT, 0L);
+        long syncAgeSeconds = lastSyncAt <= 0L ? Long.MAX_VALUE : Math.max(0L, (System.currentTimeMillis() - lastSyncAt) / 1000L);
+        String syncState;
+        String syncDetail;
+        int syncColor;
+        if (!backgroundEnabled) {
+            syncState = "Paused";
+            syncDetail = "Sync off";
+            syncColor = red;
+        } else if (lastSyncAt <= 0L) {
+            syncState = "Waiting";
+            syncDetail = "No sync yet";
+            syncColor = yellow;
+        } else if (syncStatusFailed) {
+            syncState = "Failed";
+            syncDetail = hcfAlertSyncAge(syncAgeSeconds);
+            syncColor = red;
+        } else if (syncStatusWaiting) {
+            syncState = "Waiting";
+            syncDetail = hcfAlertSyncAge(syncAgeSeconds);
+            syncColor = yellow;
+        } else if (syncStatusSucceeded && syncAgeSeconds < 120L) {
+            syncState = "Synced";
+            syncDetail = hcfAlertSyncAge(syncAgeSeconds);
+            syncColor = green;
+        } else if (syncStatusSucceeded && syncAgeSeconds < 900L) {
+            syncState = "Recent";
+            syncDetail = hcfAlertSyncAge(syncAgeSeconds);
+            syncColor = yellow;
+        } else if (syncAgeSeconds >= 900L) {
+            syncState = "Stale";
+            syncDetail = hcfAlertSyncAge(syncAgeSeconds);
+            syncColor = red;
+        } else {
+            syncState = "Recent";
+            syncDetail = hcfAlertSyncAge(syncAgeSeconds);
+            syncColor = yellow;
+        }
+
+        // Newer reference: one grouped container with three equal status tiles.
+        LinearLayout statusShell = new LinearLayout(this);
+        statusShell.setOrientation(LinearLayout.HORIZONTAL);
+        statusShell.setGravity(17);
+        statusShell.setBackground(hcfAlertsPanelDrawable("#0C151B", "#29404B", 18, 1));
+        statusShell.setPadding(dp(6), dp(8), dp(6), dp(8));
+        LinearLayout.LayoutParams shellLp = new LinearLayout.LayoutParams(-1, -2);
+        shellLp.bottomMargin = dp(14);
+        root.addView(statusShell, shellLp);
+
+        LinearLayout.LayoutParams tileLp = new LinearLayout.LayoutParams(0, dp(compact() ? 96 : 110), 1.0f);
+        tileLp.setMargins(dp(3), 0, dp(3), 0);
+        statusShell.addView(hcfAlertStatusTile(alertState, "Alerts", "", alertColor), tileLp);
+        statusShell.addView(hcfAlertStatusTile(backgroundState, "Background", "", backgroundColor), tileLp);
+        statusShell.addView(hcfAlertStatusTile(syncState, "Last sync", syncDetail, syncColor), tileLp);
+
+        // Background delivery.
+        root.addView(hcfAlertsSectionHeader("Background delivery", R.drawable.fa_bell));
+
+        LinearLayout deliveryCard = new LinearLayout(this);
+        deliveryCard.setOrientation(LinearLayout.VERTICAL);
+        deliveryCard.setBackground(hcfAlertsPanelDrawable("#0E171E", "#29404B", 17, 1));
+        deliveryCard.setPadding(dp(13), dp(11), dp(13), dp(11));
+        LinearLayout.LayoutParams deliveryLp = new LinearLayout.LayoutParams(-1, -2);
+        deliveryLp.bottomMargin = dp(14);
+        root.addView(deliveryCard, deliveryLp);
+
+        LinearLayout switchRow = new LinearLayout(this);
+        switchRow.setOrientation(LinearLayout.HORIZONTAL);
+        switchRow.setGravity(16);
+        TextView syncLabel = text("Background notification sync", 14, getColor(R.color.hcf_text));
+        syncLabel.setTypeface(null, 1);
+        switchRow.addView(syncLabel, new LinearLayout.LayoutParams(0, -2, 1.0f));
+        Switch sync = target(toggle("", backgroundEnabled), "background_notification_sync");
+        sync.setShowText(false);
+        LinearLayout.LayoutParams switchLp = new LinearLayout.LayoutParams(dp(58), dp(40));
+        switchRow.addView(sync, switchLp);
+        deliveryCard.addView(switchRow);
+
+        TextView deliveryText = text("Keep real HCF Alerts checking while the app is not open.", 10, getColor(R.color.hcf_muted));
+        deliveryText.setPadding(0, dp(3), 0, dp(9));
+        deliveryCard.addView(deliveryText);
+
+        LinearLayout batteryTip = new LinearLayout(this);
+        batteryTip.setOrientation(LinearLayout.HORIZONTAL);
+        batteryTip.setGravity(16);
+        batteryTip.setBackground(hcfAlertsPanelDrawable("#0A1319", "#203640", 14, 1));
+        batteryTip.setPadding(dp(10), dp(8), dp(10), dp(8));
+        TextView bolt = text("⚡", 17, getColor(R.color.hcf_text));
+        bolt.setGravity(17);
+        LinearLayout.LayoutParams boltLp = new LinearLayout.LayoutParams(dp(32), -2);
+        boltLp.rightMargin = dp(7);
+        batteryTip.addView(bolt, boltLp);
+
+        final String batteryMessage = "For best reliability, set battery usage to Unrestricted in Android Settings > Apps > Harley's Clan Forum > Battery.";
+        android.text.SpannableString batteryStyled = new android.text.SpannableString(batteryMessage);
+        int unrestrictedStart = batteryMessage.indexOf("Unrestricted");
+        if (unrestrictedStart >= 0) {
+            int unrestrictedEnd = unrestrictedStart + "Unrestricted".length();
+            batteryStyled.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), unrestrictedStart, unrestrictedEnd, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            batteryStyled.setSpan(new android.text.style.ForegroundColorSpan(getColor(R.color.hcf_accent_text)), unrestrictedStart, unrestrictedEnd, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        TextView batteryText = text("", 10, getColor(R.color.hcf_muted));
+        batteryText.setText(batteryStyled);
+        batteryText.setLineSpacing(0.0f, 1.05f);
+        batteryTip.addView(batteryText, new LinearLayout.LayoutParams(0, -2, 1.0f));
+        deliveryCard.addView(batteryTip);
+
+        sync.setOnCheckedChangeListener((button, checked) -> {
+            prefs.edit().putBoolean(AppPrefs.BACKGROUND_NOTIFICATION_SYNC, checked).apply();
+            NotificationSyncScheduler.apply(this);
+            AppLogger.info(this, "setting_background_sync", Boolean.toString(checked));
+            Toast.makeText(this,
+                    checked ? "Background HCF Alerts enabled." : "Background checking paused. HCF Alerts channel stays available.",
+                    Toast.LENGTH_SHORT).show();
+            showSettingsSection("notifications");
+        });
+
+        // Android access compact status panel.
+        root.addView(hcfAlertsSectionHeader("Android access", R.drawable.fa_shield));
+
+        LinearLayout accessCard = new LinearLayout(this);
+        accessCard.setOrientation(LinearLayout.VERTICAL);
+        accessCard.setBackground(hcfAlertsPanelDrawable("#0E171E", "#29404B", 17, 1));
+        accessCard.setPadding(dp(11), dp(5), dp(11), dp(10));
+        root.addView(accessCard, new LinearLayout.LayoutParams(-1, -2));
+
+        String permissionStatus;
+        int permissionColor;
+        if (!runtimePermission) {
+            permissionStatus = "Permission denied";
+            permissionColor = red;
+        } else if (!appNotificationsEnabled) {
+            permissionStatus = "Blocked by Android";
+            permissionColor = red;
+        } else {
+            permissionStatus = "Permission allowed";
+            permissionColor = green;
+        }
+        accessCard.addView(hcfAlertAccessRow(R.drawable.fa_shield, "Permission", permissionStatus, permissionColor));
+        accessCard.addView(hcfAlertDivider());
+
+        String channelStatus;
+        int channelColor;
+        if (!channelEnabled) {
+            channelStatus = "Blocked / off";
+            channelColor = red;
+        } else if (channelImportance >= 4) {
+            channelStatus = "High priority";
+            channelColor = green;
+        } else if (channelImportance >= 3) {
+            channelStatus = "Normal priority";
+            channelColor = yellow;
+        } else {
+            channelStatus = "Low priority";
+            channelColor = yellow;
+        }
+        accessCard.addView(hcfAlertAccessRow(R.drawable.fa_bell, "Notification channel", channelStatus, channelColor));
+
+        TextView openSettings = target(hcfAlertsActionRow("Open Android settings", R.drawable.fa_gear), "open_hcf_alerts_android_settings");
+        openSettings.setOnClickListener(v -> NotificationHelper.openChannelSettings(this));
+        LinearLayout.LayoutParams openLp = new LinearLayout.LayoutParams(-1, dp(compact() ? 48 : 52));
+        openLp.topMargin = dp(9);
+        accessCard.addView(openSettings, openLp);
+
+        // Informational footer above HCF Silent Alerts.
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.HORIZONTAL);
+        info.setGravity(16);
+        info.setBackground(hcfAlertsPanelDrawable("#0A1319", "#203640", 14, 1));
+        info.setPadding(dp(12), dp(9), dp(12), dp(9));
+        LinearLayout.LayoutParams infoLp = new LinearLayout.LayoutParams(-1, -2);
+        infoLp.topMargin = dp(11);
+        root.addView(info, infoLp);
+        ImageView infoIcon = settingsSectionIcon(R.drawable.fa_circle_info);
+        LinearLayout.LayoutParams infoIconLp = new LinearLayout.LayoutParams(dp(22), dp(22));
+        infoIconLp.rightMargin = dp(10);
+        info.addView(infoIcon, infoIconLp);
+        TextView infoText = text("HCF Alerts are the real forum alerts.\nHCF Silent Alerts is only the silent service-status channel.", 10, getColor(R.color.hcf_muted));
+        infoText.setLineSpacing(0.0f, 1.07f);
+        info.addView(infoText, new LinearLayout.LayoutParams(0, -2, 1.0f));
+
+        return root;
+    }
+
+    private String hcfAlertSyncAge(long syncAgeSeconds) {
+        if (syncAgeSeconds == Long.MAX_VALUE) return "No sync yet";
+        if (syncAgeSeconds < 60L) return "<1 min ago";
+        long minutes = syncAgeSeconds / 60L;
+        if (minutes < 60L) return minutes + (minutes == 1L ? " min ago" : " min ago");
+        long hours = minutes / 60L;
+        return hours + (hours == 1L ? " hr ago" : " hr ago");
+    }
+
+    private LinearLayout hcfAlertStatusTile(String state, String label, String detail, int color) {
+        LinearLayout tile = new LinearLayout(this);
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setGravity(17);
+        tile.setBackground(hcfAlertsPanelDrawable("#101A21", "#314A56", 15, 1));
+        tile.setPadding(dp(4), dp(8), dp(4), dp(7));
+
+        View light = hcfAlertStatusLight(color);
+        LinearLayout.LayoutParams lightLp = new LinearLayout.LayoutParams(dp(11), dp(11));
+        lightLp.bottomMargin = dp(6);
+        tile.addView(light, lightLp);
+
+        TextView stateText = text(state, compact() ? 12 : 14, color);
+        stateText.setTypeface(null, 1);
+        stateText.setGravity(17);
+        stateText.setSingleLine(true);
+        tile.addView(stateText);
+
+        TextView labelText = text(label, compact() ? 9 : 10, getColor(R.color.hcf_muted));
+        labelText.setGravity(17);
+        labelText.setPadding(0, dp(3), 0, 0);
+        labelText.setSingleLine(true);
+        tile.addView(labelText);
+
+        if (detail != null && !detail.isEmpty()) {
+            TextView detailText = text(detail, 9, getColor(R.color.hcf_muted));
+            detailText.setGravity(17);
+            detailText.setSingleLine(true);
+            tile.addView(detailText);
+        }
+        return tile;
+    }
+
+    private View hcfAlertStatusLight(int color) {
+        View light = new View(this);
+        android.graphics.drawable.GradientDrawable dot = new android.graphics.drawable.GradientDrawable();
+        dot.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        dot.setColor(color);
+        light.setBackground(dot);
+        if (Build.VERSION.SDK_INT >= 21) {
+            light.setElevation(dp(5));
+            light.setTranslationZ(dp(2));
+        }
+        return light;
+    }
+
+    private View hcfAlertsSectionHeader(String title, int iconRes) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(16);
+        row.setPadding(dp(5), dp(4), dp(5), dp(8));
+        ImageView icon = settingsSectionIcon(iconRes);
+        LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(20), dp(20));
+        iconLp.rightMargin = dp(10);
+        row.addView(icon, iconLp);
+        TextView titleView = text(title, 14, getColor(R.color.hcf_accent_text));
+        titleView.setTypeface(null, 1);
+        row.addView(titleView, new LinearLayout.LayoutParams(0, -2, 1.0f));
+        return row;
+    }
+
+    private LinearLayout hcfAlertAccessRow(int iconRes, String label, String status, int color) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(16);
+        row.setPadding(dp(2), dp(10), dp(2), dp(10));
+
+        ImageView icon = settingsSectionIcon(iconRes);
+        LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(22), dp(22));
+        iconLp.rightMargin = dp(10);
+        row.addView(icon, iconLp);
+
+        TextView labelText = text(label, 11, getColor(R.color.hcf_text));
+        labelText.setMaxLines(2);
+        row.addView(labelText, new LinearLayout.LayoutParams(0, -2, 1.0f));
+
+        LinearLayout statusWrap = new LinearLayout(this);
+        statusWrap.setOrientation(LinearLayout.HORIZONTAL);
+        statusWrap.setGravity(16);
+        View light = hcfAlertStatusLight(color);
+        LinearLayout.LayoutParams lightLp = new LinearLayout.LayoutParams(dp(9), dp(9));
+        lightLp.rightMargin = dp(7);
+        statusWrap.addView(light, lightLp);
+        TextView statusText = text(status, 10, getColor(R.color.hcf_muted));
+        statusText.setGravity(17);
+        statusText.setMaxLines(2);
+        statusWrap.addView(statusText, new LinearLayout.LayoutParams(-2, -2));
+        row.addView(statusWrap, new LinearLayout.LayoutParams(-2, -2));
+        return row;
+    }
+
+    private View hcfAlertDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(android.graphics.Color.parseColor("#29404B"));
+        divider.setAlpha(0.85f);
+        divider.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(1)));
+        return divider;
+    }
+
+    private TextView hcfAlertsActionRow(String label, int iconRes) {
+        TextView action = text(label, 13, getColor(R.color.hcf_accent_text));
+        action.setGravity(17);
+        action.setClickable(true);
+        action.setFocusable(true);
+        action.setCompoundDrawablesWithIntrinsicBounds(iconRes, 0, 0, 0);
+        action.setCompoundDrawablePadding(dp(10));
+        action.setBackground(hcfAlertsPanelDrawable("#0D171E", "#00B8F0", 22, 1));
+        action.setPadding(dp(14), 0, dp(14), 0);
+        return action;
+    }
+
+    private android.graphics.drawable.GradientDrawable hcfAlertsPanelDrawable(String fill, String stroke, int radiusDp, int strokeDp) {
+        android.graphics.drawable.GradientDrawable background = new android.graphics.drawable.GradientDrawable();
+        background.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+        background.setColor(android.graphics.Color.parseColor(fill));
+        background.setCornerRadius(dp(radiusDp));
+        if (stroke != null && strokeDp > 0) background.setStroke(dp(strokeDp), android.graphics.Color.parseColor(stroke));
+        return background;
     }
 
     private View silentAlertsCard() {
         LinearLayout card = card();
         NotificationHelper.createChannel(this);
-        Switch sync = target(toggle("Background notification sync", prefs.getBoolean("background_notification_sync", true)), "background_notification_sync");
-        sync.setOnCheckedChangeListener((button, checked) -> {
-            prefs.edit().putBoolean("background_notification_sync", checked).apply();
-            NotificationSyncScheduler.apply(this);
-            AppLogger.info(this, "setting_background_sync", Boolean.toString(checked));
-        });
-        card.addView(sync);
-        Switch silence = target(toggle("Silence HCF Silent Alerts", prefs.getBoolean("silence_background_service_notification", false)), "silence_hcf_silent_alerts");
+        card.addView(settingsInfoCard("Service-status channel",
+                "HCF Silent Alerts only carries quiet background-service status. It never carries direct messages, mentions or replies.",
+                R.drawable.fa_bell));
+        Switch silence = target(toggle("Disable HCF Silent Alerts", prefs.getBoolean("silence_background_service_notification", false)), "silence_hcf_silent_alerts");
         silence.setOnCheckedChangeListener((button, checked) -> {
             prefs.edit().putBoolean("silence_background_service_notification", checked).apply();
             NotificationHelper.refreshChannels(this);
             NotificationSyncScheduler.apply(this);
             AppLogger.info(this, "setting_silence_passive_notifications", Boolean.toString(checked));
-            Toast.makeText(this, "Updated • Passive notification silence", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, checked ? "HCF Silent Alerts disabled. Real HCF Alerts stay on; background delivery may be delayed." : "HCF Silent Alerts enabled • live background delivery available.", Toast.LENGTH_LONG).show();
         });
         card.addView(silence);
-        card.addView(notificationChannelRow("HCF Silent Alerts", "Silent/background channel • hidden when Silence HCF Silent Alerts is enabled", "hcf_silent_alerts_v1"));
+        card.addView(text("This never disables HCF Alerts. When this switch is ON, the continuous foreground sync service stops because Android requires a visible service notification; fallback background checks remain scheduled.", 10, getColor(R.color.hcf_muted)));
+        card.addView(notificationChannelRow("HCF Silent Alerts", "Silent • service status only", "hcf_silent_alerts_v1"));
         return card;
     }
 
     private View testAlertsInfoCard() {
         LinearLayout card = card();
         NotificationHelper.createChannel(this);
-        card.addView(notificationChannelRow("HCF Test Alerts", channelDisplayName(effectiveUpdateChannel()) + " test notifications • isolated from real HCF Alerts", "hcf_test_alerts_v1"));
-        card.addView(text("This channel is reserved for HCF notification diagnostics and test delivery. It never carries normal forum messages, mentions, replies or background-service status.", 10, getColor(R.color.hcf_muted)));
-        card.addView(target(actionButton("Open Developer Tools", v -> navigateToSettingKey("notification_test_console")), "open_developer_tools"));
+        card.addView(settingsInfoCard("Developer test channel",
+                "Use this only to test notification delivery. It never carries real forum alerts or background-service status.",
+                R.drawable.fa_bug));
+        card.addView(notificationChannelRow("HCF Test Alerts", "Stable notification tests", "hcf_test_alerts_v1"));
+        card.addView(target(actionButton("Open Developer Notification Tools", v -> navigateToSettingKey("notification_test_console")), "open_developer_tools"));
         return card;
     }
 
@@ -663,22 +1015,35 @@ public final class SettingsActivity extends ThemedActivity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(0, dp(4), 0, dp(2));
         root.setTag(TARGET_TAG_PREFIX + "theme");
+
         LinearLayout first = new LinearLayout(this);
         first.setOrientation(LinearLayout.HORIZONTAL);
         first.setWeightSum(2.0f);
         LinearLayout second = new LinearLayout(this);
         second.setOrientation(LinearLayout.HORIZONTAL);
         second.setWeightSum(2.0f);
+        LinearLayout third = new LinearLayout(this);
+        third.setOrientation(LinearLayout.HORIZONTAL);
+        third.setWeightSum(1.0f);
+
         String mode = ThemeManager.mode(this);
         first.addView(themeChoiceButton("Forum Auto", "auto_forum", "auto_forum".equals(mode)), themeChoiceParams(false));
         first.addView(themeChoiceButton("Phone Auto", "auto_phone", "auto_phone".equals(mode)), themeChoiceParams(true));
-        boolean dark = "dark".equals(mode) || "amoled".equals(mode);
         second.addView(themeChoiceButton("Light", "light", "light".equals(mode)), themeChoiceParams(false));
-        second.addView(themeChoiceButton("Dark", "dark", dark), themeChoiceParams(true));
+        second.addView(themeChoiceButton("Dark", "dark", "dark".equals(mode)), themeChoiceParams(true));
+        third.addView(themeChoiceButton("AMOLED", "amoled", "amoled".equals(mode)), themeChoiceParams(false));
+
         root.addView(first);
         LinearLayout.LayoutParams secondLp = new LinearLayout.LayoutParams(-1, -2);
         secondLp.topMargin = dp(8);
         root.addView(second, secondLp);
+        LinearLayout.LayoutParams thirdLp = new LinearLayout.LayoutParams(-1, -2);
+        thirdLp.topMargin = dp(8);
+        root.addView(third, thirdLp);
+
+        TextView live = text(ThemeManager.autoSourceLabel(this), 10, getColor(R.color.hcf_cyan));
+        live.setPadding(dp(2), dp(8), dp(2), 0);
+        root.addView(live);
         return root;
     }
 
@@ -716,7 +1081,10 @@ public final class SettingsActivity extends ThemedActivity {
         theme.setTypeface(null, 1);
         card.addView(theme);
         card.addView(themeModeSelector());
-        card.addView(text("Forum Auto follows your forum Night Mode setting; Phone Auto follows Android directly.", 10, getColor(R.color.hcf_muted)));
+        card.addView(text(
+                "Forum Auto follows Flarum Night Mode (uses last known value on startup). "
+                        + "Phone Auto follows Android. Light / Dark / AMOLED force the app chrome immediately.",
+                10, getColor(R.color.hcf_muted)));
         Button performance = target(actionButton("Performance Profile: " + PerformanceProfile.settingLabel(this, prefs), null), "performance_profile");
         performance.setContentDescription("Choose app performance profile");
         performance.setOnClickListener(v -> showPerformanceProfileDialog(performance));
@@ -871,7 +1239,7 @@ public final class SettingsActivity extends ThemedActivity {
         updateInstallButton = actionButton("Install Downloaded Update", v -> installDownloadedUpdate());
         updateInstallButton.setVisibility(AppUpdateDownloader.isDownloaded(this) ? View.VISIBLE : View.GONE);
         card.addView(updateInstallButton);
-        TextView verification = target(text("APK verification: HCF checks the downloaded package name, Android versionCode, and signing certificate before opening Android's installer. Android still requires your confirmation to install.", 10, getColor(R.color.hcf_muted)), "apk_verification");
+        TextView verification = target(text("APK verification: HCF checks the downloaded package name, Android versionCode, exact SHA-256 file hash, and signing-certificate lineage before opening Android's installer. A changed SHA-256 can also identify a revised APK with the same versionCode. Android still requires your confirmation to install.", 10, getColor(R.color.hcf_muted)), "apk_verification");
         verification.setPadding(0, dp(8), 0, 0);
         card.addView(verification);
         return card;
@@ -895,7 +1263,7 @@ public final class SettingsActivity extends ThemedActivity {
     }
 
     private String updateChannelLine(String channel) {
-        return "stable".equalsIgnoreCase(channel) ? "Channel: Stable • Official Releases" : "Channel: Dev • Development / Beta Releases";
+        return "Channel: Stable • Official Releases";
     }
 
     private String effectiveUpdateChannel() {
@@ -903,7 +1271,7 @@ public final class SettingsActivity extends ThemedActivity {
     }
 
     private String channelDisplayName(String channel) {
-        return "stable".equalsIgnoreCase(channel) ? "Stable" : "Dev/Beta";
+        return "Stable";
     }
 
     private void checkForUpdates(final boolean userInitiated) {
@@ -922,7 +1290,7 @@ public final class SettingsActivity extends ThemedActivity {
                 String releaseType = release.prerelease ? "Pre-release" : "Official release";
                 String installed = "v" + BuildInfo.VERSION + " (" + installedVersionCode() + ")";
                 if (newer) {
-                    updateStatus.setText(channelDisplayName(channel) + " Update Available\nInstalled: " + installed + "\nLatest available: " + remote + "\n" + releaseType + " • " + asset);
+                    updateStatus.setText(channelDisplayName(channel) + " Update Available\nInstalled: " + installed + "\nLatest available: " + remote + "\nReason: " + UpdateChecker.updateReason(release) + "\n" + releaseType + " • " + asset);
                     updateStatus.setTextColor(getColor(R.color.hcf_accent_text));
                     if (updateDownloadButton != null && release.apkUrl != null && !release.apkUrl.isEmpty()) updateDownloadButton.setVisibility(View.VISIBLE);
                     if (prefs.getBoolean("update_auto_download", false) && release.apkUrl != null && !release.apkUrl.isEmpty()) {
@@ -932,7 +1300,9 @@ public final class SettingsActivity extends ThemedActivity {
                             watchUpdateDownloadForAutoInstall(id);
                         }
                     }
-                    if (userInitiated) Toast.makeText(SettingsActivity.this, channelDisplayName(channel) + " update available" + (release.versionCode > 0 ? " • build " + release.versionCode : ""), Toast.LENGTH_LONG).show();
+                    if (userInitiated) Toast.makeText(SettingsActivity.this, release.sameVersionHashUpdate
+                            ? "Revised Stable APK available • SHA-256 changed"
+                            : channelDisplayName(channel) + " update available" + (release.versionCode > 0 ? " • build " + release.versionCode : ""), Toast.LENGTH_LONG).show();
                 } else if (UpdateChecker.compareReleaseToInstalled(release) < 0) {
                     updateStatus.setText("Installed build is newer\nInstalled: " + installed + "\nLatest published: " + remote + " • " + asset);
                     updateStatus.setTextColor(getColor(R.color.hcf_meta));
@@ -1186,8 +1556,8 @@ public final class SettingsActivity extends ThemedActivity {
 
     private View developerToolsCard() {
         LinearLayout card = card();
-        String environmentTitle = "stable".equals(effectiveUpdateChannel()) ? "Stable environment" : "Dev/Beta environment";
-        String toolLabel = "stable".equals(effectiveUpdateChannel()) ? "Stable test tools" : "Development/Beta test tools";
+        String environmentTitle = "Stable environment";
+        String toolLabel = "Stable test tools";
         View environment = target(settingsInfoCard(environmentTitle,
                 toolLabel + "\nPackage: " + getPackageName()
                         + "\nBuild " + installedVersionCode()
@@ -1205,7 +1575,7 @@ public final class SettingsActivity extends ThemedActivity {
     }
 
     private String developerToolsSubtitle() {
-        return "stable".equals(effectiveUpdateChannel()) ? "Stable test tools" : "Dev/Beta test controls";
+        return "Stable test tools";
     }
 
     private void showNotificationTestConsole() {
@@ -1327,8 +1697,8 @@ public final class SettingsActivity extends ThemedActivity {
     public void refreshStatusLabels() {
         if (notificationStatus != null) {
             NotificationHelper.createChannel(this);
-            boolean ready = NotificationHelper.canPost(this) && NotificationHelper.headsUpChannelReady(this);
-            notificationStatus.setText("Status: " + NotificationHelper.status(this) + " • channel importance=" + NotificationHelper.channelImportance(this));
+            boolean ready = NotificationHelper.canPost(this) && NotificationHelper.channelImportance(this) >= 4;
+            notificationStatus.setText(NotificationHelper.status(this));
             notificationStatus.setTextColor(getColor(ready ? R.color.hcf_accent_text : R.color.hcf_warning));
         }
         if (cookieStatus != null) cookieStatus.setText(cookieSummary());

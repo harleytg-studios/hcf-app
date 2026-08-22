@@ -37,14 +37,14 @@ final class ForumSecurity {
 
         String sessionLabel() {
             if (!this.seen) {
-                return "Open Account Security to sync";
+                return "Syncing automatically";
             }
             int i = this.sessionCount;
             return i <= 0 ? "No session list detected" : Integer.toString(i);
         }
 
         String currentSessionLabel() {
-            return !this.seen ? "Not synced yet" : this.activeSessionCount > 0 ? "Current app/browser session detected" : "Not identified";
+            return !this.seen ? "Waiting for automatic sync" : this.activeSessionCount > 0 ? "Current app/browser session detected" : "Not identified";
         }
     }
 

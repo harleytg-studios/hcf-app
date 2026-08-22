@@ -1,0 +1,14 @@
+# Generated Android build artifacts
+/build-output/
+source code/.build-generated/
+source code/out/
+source code/classes/
+source code/classes.dex
+source code/*.apk
+source code/*.ap_
+source code/*-unsigned.apk
+source code/*-aligned.apk
+
+# Local Python verifier cache
+__pycache__/
+*.py[cod]

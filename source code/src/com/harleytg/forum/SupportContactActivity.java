@@ -184,7 +184,7 @@ public final class SupportContactActivity extends ThemedActivity {
         LinearLayout bodyContainer = bodyContainer();
         String activeHost = activeHost();
         String currentRoute = currentRoute();
-        addLockedRow(bodyContainer, "App", "Harley's Clan Forum v1.0 • build 10000072");
+        addLockedRow(bodyContainer, "App", "Harley's Clan Forum v" + BuildInfo.VERSION + " • build " + BuildInfo.VERSION_CODE);
         addLockedRow(bodyContainer, "Package", getPackageName());
         addLockedRow(bodyContainer, "Android", Build.VERSION.RELEASE + " • API " + Build.VERSION.SDK_INT);
         addLockedRow(bodyContainer, "Device", Build.MANUFACTURER + " " + Build.MODEL);
@@ -528,7 +528,7 @@ public final class SupportContactActivity extends ThemedActivity {
         }
         CheckBox checkBox2 = this.includeDiagnostics;
         if (checkBox2 != null && checkBox2.isChecked()) {
-            sb.append("\n--- Sanitized Diagnostics ---\nApp: Harley's Clan Forum v1.0\nVersion code: 10000072\nPackage: ");
+            sb.append("\n--- Sanitized Diagnostics ---\nApp: Harley's Clan Forum v" + BuildInfo.VERSION + "\nVersion code: " + BuildInfo.VERSION_CODE + "\nPackage: ");
             sb.append(getPackageName());
             sb.append("\nAndroid: ");
             sb.append(Build.VERSION.RELEASE);

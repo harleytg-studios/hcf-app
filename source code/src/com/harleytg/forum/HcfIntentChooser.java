@@ -409,9 +409,13 @@ final class HcfIntentChooser {
 
     private static String resolveLabel(PackageManager packageManager, ResolveInfo resolveInfo) {
         CharSequence loadLabel = null;
-        if (resolveInfo != null) {
-            try { loadLabel = resolveInfo.loadLabel(packageManager); }
-            catch (Throwable unused) { loadLabel = null; }
+        if (resolveInfo == null) {
+            loadLabel = null;
+        } else {
+            try {
+                loadLabel = resolveInfo.loadLabel(packageManager);
+            } catch (Throwable unused) {
+            }
         }
         if (loadLabel != null && !loadLabel.toString().trim().isEmpty()) {
             return loadLabel.toString().trim();
