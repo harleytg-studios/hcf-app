@@ -15,20 +15,20 @@ for path in list((root / "src").rglob("*.java")) + [root / "AndroidManifest.xml"
     text = path.read_text(encoding="utf-8")
     path.write_text(text.replace("com.harleytg.forum", "com.harleytg.forum.dev"), encoding="utf-8")
 
-# Build identity.
+# Replacement build keeps v10000089 because the prior v10000089 was not installed.
 manifest = root / "AndroidManifest.xml"
 text = manifest.read_text(encoding="utf-8")
 text = text.replace('android:value="stable"', 'android:value="dev"')
-text = re.sub(r'android:versionCode="\d+"', 'android:versionCode="10000090"', text, count=1)
-text = re.sub(r'android:versionName="[^"]+"', 'android:versionName="1.0 (10000090)"', text, count=1)
+text = re.sub(r'android:versionCode="\d+"', 'android:versionCode="10000089"', text, count=1)
+text = re.sub(r'android:versionName="[^"]+"', 'android:versionName="1.0 (10000089)"', text, count=1)
 text = re.sub(
     r'(<meta-data\s+android:name="com\.harleytg\.APP_VERSION"\s+android:value=")[^"]+("/>)',
-    r'\g<1>1.0 (10000090)\2',
+    r'\g<1>1.0 (10000089)\2',
     text,
 )
 text = re.sub(
     r'(<meta-data\s+android:name="com\.harleytg\.APP_VERSION_CODE"\s+android:value=")[^"]+("/>)',
-    r'\g<1>10000090\2',
+    r'\g<1>10000089\2',
     text,
 )
 manifest.write_text(text, encoding="utf-8")
@@ -108,8 +108,8 @@ scheduler_text = (root / "src/com/harleytg/forum/NotificationSyncScheduler.java"
 live_text = (root / "src/com/harleytg/forum/LiveForumUpdater.java").read_text(encoding="utf-8")
 
 checks = [
-    ("VERSION_CODE = 10000090" in build_info, "BuildInfo versionCode"),
-    ("HCF-Beta-v10000090.apk" in build_info, "BuildInfo APK filename"),
+    ("VERSION_CODE = 10000089" in build_info, "BuildInfo versionCode"),
+    ("HCF-Beta-v10000089.apk" in build_info, "BuildInfo APK filename"),
     ("Harley's Clan Forum v1.0 [Development Build / Beta]" in build_info, "Beta development label"),
     ("textView.setText(BuildInfo.DEVELOPMENT_BUILD_LABEL);" in main_text, "drawer footer uses BuildInfo"),
     ("Harley's Clan Forum v1.0 [Stable]" not in main_text, "no Stable drawer footer"),
@@ -122,5 +122,5 @@ for passed, label in checks:
     if not passed:
         raise SystemExit("validation failed: " + label)
 
-print("v10000090 Beta runtime prepared successfully")
+print("replacement v10000089 Beta runtime prepared successfully")
 print("footer=Harley's Clan Forum v1.0 [Development Build / Beta]")
