@@ -1,2 +1,3 @@
 Apply the complete Grok repair, final BuildInfo cleanup, direct-dev compilation, and verification for Beta v10000090.
 Retry after workflow registration.
+Retry after fixing ForumNotificationClient checked JSON parsing and remaining BuildInfo drift.
