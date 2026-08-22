@@ -20,7 +20,7 @@ jobs:
         with:
           ref: dev
 
-      - name: Apply automatic security sync patch
+      - name: Apply automatic security and Notifications UI patch
         shell: bash
         run: |
           set -euo pipefail
@@ -31,6 +31,10 @@ jobs:
           grep -q 'hcf_native_sync=1' 'source code/src/com/harleytg/forum/MainActivity.java'
           grep -Fq "Harley's Clan Forum v1.0 [Development Build / Beta]" 'source code/src/com/harleytg/forum/BuildInfo.java'
           ! grep -Fq 'Open Account Security once to sync linked sign-in providers.' 'source code/src/com/harleytg/forum/IdentityActivity.java'
+          grep -Fq 'Real forum alerts' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -Fq 'Background notification sync' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -Fq 'Service-status channel' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -Fq 'Developer test channel' 'source code/src/com/harleytg/forum/SettingsActivity.java'
 
       - name: Commit Dev source
         shell: bash
@@ -40,10 +44,11 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -- 'source code/src/com/harleytg/forum/MainActivity.java' \
                      'source code/src/com/harleytg/forum/IdentityActivity.java' \
-                     'source code/src/com/harleytg/forum/ForumSecurity.java'
+                     'source code/src/com/harleytg/forum/ForumSecurity.java' \
+                     'source code/src/com/harleytg/forum/SettingsActivity.java'
           if git diff --cached --quiet; then
             echo 'Source already patched.'
           else
-            git commit -m 'Auto-sync linked account security data in Beta v10000089'
+            git commit -m 'Redesign Notifications UI and preserve automatic security sync'
             git push origin HEAD:dev
           fi
