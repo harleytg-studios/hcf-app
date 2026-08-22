@@ -1,4 +1,4 @@
-name: HCF Beta v10000090 Grok Full Fix v2
+name: HCF Beta v10000090 Final Release Gate
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  repair-build:
+  release-gate:
     runs-on: ubuntu-latest
     steps:
       - name: Record run ID
@@ -30,7 +30,7 @@ jobs:
             }
             await github.rest.repos.createOrUpdateFileContents({
               owner, repo, path, branch: 'dev', sha,
-              message: '[skip ci] Record Beta v10000090 Grok full-fix v2 run',
+              message: '[skip ci] Record Beta v10000090 final release-gate run',
               content: Buffer.from(String(context.runId) + '\n').toString('base64')
             });
 
@@ -40,29 +40,10 @@ jobs:
           ref: dev
           fetch-depth: 1
 
-      - name: Checkout known-good Stable recovery source
-        uses: actions/checkout@v4
-        with:
-          ref: stable
-          path: stable-repo
-          fetch-depth: 1
-
-      - name: Apply repair and final identity cleanup
+      - name: Apply final Dev-only cleanup and audits
         shell: bash
         run: |
           set -euo pipefail
-          set +e
-          repair_output="$(python3 .github/scripts/fix-grok-guide-v10000090.py \
-            "$GITHUB_WORKSPACE/source code" \
-            "$GITHUB_WORKSPACE/stable-repo/source code" 2>&1)"
-          repair_rc=$?
-          set -e
-          printf '%s\n' "$repair_output"
-          if [[ $repair_rc -ne 0 ]] && ! grep -Fq 'validation failed: no old MainActivity build 10000072' <<<"$repair_output"; then
-            echo "Base repair failed unexpectedly (exit $repair_rc)." >&2
-            exit "$repair_rc"
-          fi
-
           python3 .github/scripts/fix-grok-guide-v10000090-post.py "$GITHUB_WORKSPACE/source code"
 
           echo '--- zero-stub audit ---'
@@ -78,21 +59,24 @@ jobs:
           grep -n 'android:versionCode="10000090"' 'source code/AndroidManifest.xml'
           grep -n 'android:versionName="1.0 (10000090)"' 'source code/AndroidManifest.xml'
           grep -n 'Version code: `10000090`' README.md
-          ! grep -n '10000072' 'source code/src/com/harleytg/forum/MainActivity.java'
-          ! grep -n '10000071L' 'source code/src/com/harleytg/forum/AppUpdateDownloader.java'
-          ! grep -n 'v10000047' 'source code/src/com/harleytg/forum/InstantNotificationService.java'
+          ! grep -R -nE '10000072|10000071|v10000047' 'source code/src/com/harleytg/forum' --include='*.java'
 
           echo '--- repaired runtime audit ---'
           grep -n 'recordForumNotificationCount(Context context' 'source code/src/com/harleytg/forum/NotificationHelper.java'
           grep -n 'performAdaptiveSync()' 'source code/src/com/harleytg/forum/InstantNotificationService.java'
           grep -n 'protected void onActivityResult(int requestCode' 'source code/src/com/harleytg/forum/MainActivity.java'
           grep -n 'BuildInfo.VERSION_CODE' 'source code/src/com/harleytg/forum/MainActivity.java' | head
-          grep -n 'Background delivery' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -n 'Background delivery live' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -n 'Background delivery delayed' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -n 'This never disables HCF Alerts.' 'source code/src/com/harleytg/forum/SettingsActivity.java'
           grep -n 'Last sync' 'source code/src/com/harleytg/forum/SettingsActivity.java'
           grep -n 'signaturesCompatible' 'source code/src/com/harleytg/forum/AppSecurity.java'
           grep -n 'live_update_state' 'source code/src/com/harleytg/forum/LiveForumUpdater.java'
           grep -n 'saveBaseline' 'source code/src/com/harleytg/forum/LiveForumUpdater.java'
           grep -n 'IDN.USE_STD3_ASCII_RULES' 'source code/src/com/harleytg/forum/RemoteDomainConfig.java'
+          grep -n 'ThemeManager.applyToApplication(this)' 'source code/src/com/harleytg/forum/HcfApplication.java'
+          grep -n 'themeChoiceButton("AMOLED"' 'source code/src/com/harleytg/forum/SettingsActivity.java'
+          grep -n 'HCF Alerts background delivery' 'source code/src/com/harleytg/forum/ReleaseNotes.java'
           test ! -e 'source code/res/values/public.xml'
           python3 -m json.tool app-links/assetlinks.json >/dev/null
           test -s docs/background-push-requirements.md
@@ -146,13 +130,18 @@ jobs:
           unzip -p "$OUT/HCF-Beta-v10000090-aligned-unsigned.apk" classes.dex | strings > "$OUT/DEX-STRINGS.txt"
           ! grep -q 'Method not decompiled:' "$OUT/DEX-STRINGS.txt"
           ! grep -q '10000072' "$OUT/DEX-STRINGS.txt"
+          ! grep -q '10000071' "$OUT/DEX-STRINGS.txt"
           ! grep -q 'v10000047' "$OUT/DEX-STRINGS.txt"
           grep -Fq "Harley's Clan Forum v1.0 [Development Build / Beta]" "$OUT/DEX-STRINGS.txt"
           grep -q 'HCF-Beta-v10000090.apk' "$OUT/DEX-STRINGS.txt"
-          grep -q 'Background delivery ON' "$OUT/DEX-STRINGS.txt"
+          grep -q 'Background delivery live' "$OUT/DEX-STRINGS.txt"
+          grep -q 'Background delivery delayed' "$OUT/DEX-STRINGS.txt"
+          grep -q 'This never disables HCF Alerts.' "$OUT/DEX-STRINGS.txt"
           grep -q 'private-user' "$OUT/DEX-STRINGS.txt"
           grep -q 'live_update_state' "$OUT/DEX-STRINGS.txt"
           grep -q 'Verified package, version and signing certificate lineage' "$OUT/DEX-STRINGS.txt"
+          grep -q 'AMOLED' "$OUT/DEX-STRINGS.txt"
+          grep -q 'HCF Alerts background delivery' "$OUT/DEX-STRINGS.txt"
 
           cp "$BT/lib/apksigner.jar" "$OUT/apksigner.jar"
           sha256sum "$OUT/HCF-Beta-v10000090-aligned-unsigned.apk" | tee "$OUT/SHA256SUMS.txt"
@@ -166,63 +155,64 @@ jobs:
           grep -q '93D49BF9A877C7CFB1B37F9064BD955CD67BD7DD8DB73A9E3F766B59C4BCCE63' 'source code/build-release.sh'
           grep -q -- '--v4-signing-enabled true' 'source code/build-release.sh'
 
-      - name: Write Grok verification report
+      - name: Write release verification report
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build-output
           cat > build-output/V10000090-GROK-FIX-REPORT.md <<'EOF'
-          # HCF Beta v10000090 — Grok Guide Repair Verification
+          # HCF Beta v10000090 — Final Release Verification
 
-          ## Completed in source
+          ## Completed in Dev source
           - Direct `dev` source compilation: PASS
+          - Package: `com.harleytg.forum.dev`
+          - BuildInfo/manifest identity: `1.0 (10000090)` / versionCode `10000090`: PASS
           - `Method not decompiled` runtime stubs: 0
           - decompiler `UnsupportedOperationException` runtime stubs: 0
           - Update progress/status/cleanup methods restored: PASS
           - Notification delta/badge implementation restored: PASS
           - Foreground notification-service sync implementation restored: PASS
           - File chooser + install-permission result flow restored: PASS
-          - BuildInfo/manifest identity unified at versionCode 10000090: PASS
-          - README current build identity updated: PASS
           - HCF Alerts remains app-required; Android owns permission/channel blocking: PASS
-          - Background notification sync belongs to HCF Alerts UI: PASS
+          - Background notification sync is under HCF Alerts: PASS
+          - Background state reports live / delayed / waiting / paused accurately: PASS
+          - HCF Silent Alerts remains a separate service-status channel: PASS
           - Last background sync age is shown in Notifications UI: PASS
-          - Silent Alerts service-status behavior remains separate: PASS
-          - Update package/version/signing verification preserved and signer-lineage policy added: PASS
-          - Remote domain host validation preserved: PASS
-          - Live updater state logging + persistent route fingerprint baseline: PASS
-          - App Links assetlinks deployment payload generated for Dev and Stable: PASS
+          - Update package/version/signing verification and signer-lineage policy: PASS
+          - Realtime Pusher transport and live-update diagnostics: PASS
+          - Remote domain host validation: PASS
+          - Cold-start theme application and remembered Forum Auto state: PASS
+          - Separate AMOLED appearance mode and live theme status: PASS
+          - App Links `assetlinks.json` deployment payload generated: PASS
           - Stale decompiler `public.xml` removed: PASS
-          - build-release.sh rejects version drift/stubs and pins Beta signer: PASS
-          - Direct-source APK package: com.harleytg.forum.dev
+          - `build-release.sh` rejects version drift/stubs and pins Beta signer: PASS
 
-          ## External deployment still required
-          - `assetlinks.json` must be served from both forum hosts at `/.well-known/assetlinks.json`.
+          ## External infrastructure still required
+          - `assetlinks.json` must be served from each forum host at `/.well-known/assetlinks.json` for Android App Links verification.
           - Native FCM remains disabled until a Firebase Android app config, trusted server sender, token lifecycle, and native receiver are deployed. Web Firebase config alone is not native FCM.
 
           ## Architectural follow-up
-          Grok recommends incrementally splitting MainActivity. The repaired source is now suitable for that refactor, but a large class split is intentionally not mixed into this runtime-stability build because it would add unrelated regression risk.
+          - MainActivity can be split incrementally in a later refactor. It is intentionally not mixed into this release-stability build.
           EOF
 
-      - name: Commit repaired Dev source
+      - name: Commit final Dev source
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf stable-repo
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A -- 'source code' README.md app-links docs build-output/V10000090-GROK-FIX-REPORT.md
           if git diff --cached --quiet; then
             echo 'No source changes to commit.'
           else
-            git commit -m 'Fully repair Dev source from Grok diagnostics for v10000090'
+            git commit -m 'Finalize Dev v10000090 release source'
             git push origin HEAD:dev
           fi
 
       - name: Upload unsigned direct-source Beta artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HCF-Beta-v10000090-GrokFullFix-Unsigned
+          name: HCF-Beta-v10000090-Final-Unsigned
           path: out/
           if-no-files-found: error
           retention-days: 1
