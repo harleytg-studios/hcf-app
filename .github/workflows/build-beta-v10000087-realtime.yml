@@ -74,10 +74,88 @@ jobs:
           rm -rf "$WORK" "$OUT"
           mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
 
-          # Decompiled APK sources can carry stale public resource IDs. They are
-          # generated metadata, not runtime resources, and the known-good HCF
-          # build path removes this file before invoking aapt.
+          # Decompiled APK sources carry a few known reconstruction artifacts.
+          # Repair them only in the CI workspace; the app's unrelated source
+          # files and runtime behavior are not changed by these build fixes.
           rm -f "$ROOT/res/values/public.xml"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+
+          root = Path(os.environ['GITHUB_WORKSPACE']) / 'source code' / 'src' / 'com' / 'harleytg' / 'forum'
+
+          logs = root / 'LogsActivity.java'
+          text = logs.read_text(encoding='utf-8')
+          start = text.index('    @Override // android.app.Activity\n    protected void onActivityResult')
+          end = text.index('    private View buildRecoveryView', start)
+          fixed = '''    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != EXPORT_TEXT || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        pendingExportUri = data.getData();
+        String text = visiblePlainText == null ? "" : visiblePlainText;
+        try (OutputStream out = getContentResolver().openOutputStream(pendingExportUri, "w")) {
+            if (out == null) throw new IllegalStateException("No output stream");
+            out.write(text.getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            AppLogger.info(this, MODE_DIAGNOSTICS.equals(currentMode) ? "diagnostics_exported" : "logs_exported", "document-provider");
+            Toast.makeText(this, "Export complete.", Toast.LENGTH_SHORT).show();
+        } catch (Throwable t) {
+            Toast.makeText(this, "Export failed.", Toast.LENGTH_LONG).show();
+            AppLogger.error(this, "logs_export_failed", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));
+        }
+    }
+
+'''
+          logs.write_text(text[:start] + fixed + text[end:], encoding='utf-8')
+
+          firebase = root / 'FirebaseConfigLoader.java'
+          text = firebase.read_text(encoding='utf-8')
+          start = text.index('    static /* synthetic */ void lambda$refresh$1')
+          end = text.index('    static void clearRemoteCache', start)
+          fixed = '''    static /* synthetic */ void lambda$refresh$1(String urlText, SharedPreferences sharedPreferences, Context context, final Callback callback) {
+        Config result;
+        String message;
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(urlText).openConnection();
+            connection.setConnectTimeout(8000);
+            connection.setReadTimeout(8000);
+            connection.setInstanceFollowRedirects(true);
+            connection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 FirebaseConfig");
+            int code = connection.getResponseCode();
+            if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);
+            String raw = readAll(connection.getInputStream());
+            Config parsed = parse(raw, "HTTPS config");
+            if (parsed == null || !parsed.isValid()) throw new IllegalStateException("Invalid Firebase config");
+            sharedPreferences.edit().putString("firebase_config_cache", raw).putString("firebase_config_source", "HTTPS config").apply();
+            result = parsed;
+            message = "Firebase config refreshed from HTTPS.";
+        } catch (Throwable t) {
+            result = load(context);
+            message = "Remote refresh failed; kept " + (result == null ? "no config" : result.source) + ".";
+            AppLogger.error(context, "firebase_config_refresh", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+        final Config callbackConfig = result;
+        final String callbackMessage = message;
+        new Handler(Looper.getMainLooper()).post(new Runnable() {
+            @Override public void run() { callback.onResult(callbackConfig, callbackMessage); }
+        });
+    }
+
+'''
+          firebase.write_text(text[:start] + fixed + text[end:], encoding='utf-8')
+
+          main = root / 'MainActivity.java'
+          text = main.read_text(encoding='utf-8')
+          old = 'this.drawerSwipeStartX < r0 - max'
+          new = 'this.drawerSwipeStartX < getResources().getDisplayMetrics().widthPixels - max'
+          if old not in text:
+              raise SystemExit('Expected MainActivity decompiler artifact not found')
+          main.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
 
           "$BT/aapt" package -f -m \
             -J "$WORK/gen" \
