@@ -1,0 +1,1 @@
+Print every remaining decompiler stub after the full repair patch is applied.
