@@ -610,6 +610,7 @@ public final class SettingsActivity extends ThemedActivity {
     }
 
     // HCF_ALERTS_STATUS_TILES_V2 — organized dashboard-style HCF Alerts sub-settings.
+    // HCF_ALERTS_STATUS_TILES_V2 — organized dashboard-style HCF Alerts sub-settings.
     private View mainAlertsCard() {
         LinearLayout card = card();
         NotificationHelper.createChannel(this);
