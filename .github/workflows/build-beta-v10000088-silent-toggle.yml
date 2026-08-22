@@ -38,7 +38,7 @@ jobs:
           ref: stable
           path: app-repo
 
-      - name: Checkout Dev realtime overlay
+      - name: Checkout Dev realtime and silent-toggle overlay
         uses: actions/checkout@v4
         with:
           ref: dev
@@ -55,7 +55,7 @@ jobs:
             source code/src/com/harleytg/forum/HcfApplication.java
           sparse-checkout-cone-mode: false
 
-      - name: Convert runtime and apply Silent Alerts status UI
+      - name: Convert runtime and overlay Beta fixes
         shell: bash
         run: |
           set -euo pipefail
@@ -78,37 +78,6 @@ jobs:
           text = re.sub(r'(<meta-data\s+android:name="com\.harleytg\.APP_VERSION"\s+android:value=")[^"]+("/>)', r'\g<1>1.0 (10000089)\2', text)
           text = re.sub(r'(<meta-data\s+android:name="com\.harleytg\.APP_VERSION_CODE"\s+android:value=")[^"]+("/>)', r'\g<1>10000089\2', text)
           manifest.write_text(text, encoding='utf-8')
-
-          helper = root / 'src/com/harleytg/forum/NotificationHelper.java'
-          text = helper.read_text(encoding='utf-8')
-          old = '''        if (SILENT_CHANNEL_ID.equals(str)) {
-            return "On • Silent";
-        }'''
-          new = '''        if (SILENT_CHANNEL_ID.equals(str)) {
-            return silencePassiveEnabled(context) ? "Disabled by app setting" : "Enabled • Silent";
-        }'''
-          if old not in text:
-              raise SystemExit('NotificationHelper channelStatus pattern not found')
-          text = text.replace(old, new, 1)
-          old = '''    static boolean canPostOnChannel(Context context, String str) {
-        return isEnabledByUser(context) && hasRuntimePermission(context) && areAppNotificationsEnabled(context) && channelImportance(context, str) != 0;
-    }'''
-          new = '''    static boolean canPostOnChannel(Context context, String str) {
-        if (SILENT_CHANNEL_ID.equals(str) && silencePassiveEnabled(context)) {
-            return false;
-        }
-        return isEnabledByUser(context) && hasRuntimePermission(context) && areAppNotificationsEnabled(context) && channelImportance(context, str) != 0;
-    }'''
-          if old not in text:
-              raise SystemExit('NotificationHelper canPostOnChannel pattern not found')
-          helper.write_text(text.replace(old, new, 1), encoding='utf-8')
-
-          settings = root / 'src/com/harleytg/forum/SettingsActivity.java'
-          text = settings.read_text(encoding='utf-8')
-          text = text.replace('"Silence HCF Silent Alerts"', '"Disable HCF Silent Alerts"')
-          text = text.replace('"Silent/background channel • hidden when Silence HCF Silent Alerts is enabled"', '"Silent/background channel • status below shows whether the app has disabled it"')
-          text = text.replace('Toast.makeText(this, "Updated • Passive notification silence", Toast.LENGTH_LONG).show();', 'Toast.makeText(this, checked ? "HCF Silent Alerts disabled." : "HCF Silent Alerts enabled • silent.", Toast.LENGTH_LONG).show();')
-          settings.write_text(text, encoding='utf-8')
           PY
 
           cp -a "$META/res/." "$ROOT/res/"
@@ -117,14 +86,19 @@ jobs:
             cp "$META/src/com/harleytg/forum/$f" "$ROOT/src/com/harleytg/forum/$f"
           done
 
+          sed -i 's/"Silence HCF Silent Alerts"/"Disable HCF Silent Alerts"/g' "$ROOT/src/com/harleytg/forum/SettingsActivity.java"
+          sed -i 's/return "On • Silent";/return silencePassiveEnabled(context) ? "Disabled by app setting" : "Enabled • Silent";/' "$ROOT/src/com/harleytg/forum/NotificationHelper.java"
+
           grep -q 'package="com.harleytg.forum.dev"' "$ROOT/AndroidManifest.xml"
           grep -q 'android:versionCode="10000089"' "$ROOT/AndroidManifest.xml"
           grep -q 'android:versionName="1.0 (10000089)"' "$ROOT/AndroidManifest.xml"
           grep -q 'VERSION_CODE = 10000089' "$ROOT/src/com/harleytg/forum/BuildInfo.java"
-          grep -q 'Disabled by app setting' "$ROOT/src/com/harleytg/forum/NotificationHelper.java"
-          grep -q 'Disable HCF Silent Alerts' "$ROOT/src/com/harleytg/forum/SettingsActivity.java"
           grep -q 'private-user' "$ROOT/src/com/harleytg/forum/LiveForumUpdater.java"
+          grep -q 'pusherKey' "$ROOT/src/com/harleytg/forum/LiveForumUpdater.java"
+          grep -q 'notificationPollInterval' "$ROOT/src/com/harleytg/forum/PerformanceProfile.java"
           grep -q 'foreground service stopped' "$ROOT/src/com/harleytg/forum/NotificationSyncScheduler.java"
+          grep -q 'Disable HCF Silent Alerts' "$ROOT/src/com/harleytg/forum/SettingsActivity.java"
+          grep -q 'Disabled by app setting' "$ROOT/src/com/harleytg/forum/NotificationHelper.java"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
