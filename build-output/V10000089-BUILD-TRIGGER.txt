@@ -1,2 +1,2 @@
-Build HCF Beta v10000089 with explicit HCF Silent Alerts enabled/disabled status.
-Retry 2.
+Build replacement HCF Beta v10000089.
+Includes automatic linked-account/security sync, corrected [Development Build / Beta] footer, realtime Pusher updates, and HCF Silent Alerts status/disable behavior.
