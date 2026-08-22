@@ -4,6 +4,9 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -73,18 +76,19 @@ public final class WelcomeActivity extends ThemedActivity {
         eyebrowLp.topMargin = dp(10);
         hero.addView(eyebrow, eyebrowLp);
 
-        TextView title = text("Welcome to Harley's Clan Forum", 23, getColor(R.color.hcf_text));
+        TextView title = text("", 23, getColor(R.color.hcf_text));
         title.setGravity(Gravity.CENTER);
         title.setTypeface(null, 1);
+        title.setText(welcomeTitle());
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(-1, -2);
         titleLp.topMargin = dp(4);
         hero.addView(title, titleLp);
 
         if (isDevelopmentBuild()) {
-            TextView badge = text("Development Build / Beta", 10, getColor(R.color.hcf_on_accent));
+            TextView badge = text("Development Build / Beta", 10, Color.rgb(10, 14, 18));
             badge.setGravity(Gravity.CENTER);
             badge.setTypeface(null, 1);
-            badge.setBackgroundResource(R.drawable.dev_badge_background);
+            badge.setBackgroundResource(R.drawable.welcome_dev_badge_background);
             badge.setPadding(dp(12), dp(5), dp(12), dp(5));
             LinearLayout.LayoutParams badgeLp = new LinearLayout.LayoutParams(-2, -2);
             badgeLp.topMargin = dp(10);
@@ -120,18 +124,6 @@ public final class WelcomeActivity extends ThemedActivity {
         bodyLp.topMargin = dp(8);
         setupInfo.addView(setupBody, bodyLp);
 
-        Button startSetup = primaryButton("Start App Setup");
-        startSetup.setOnClickListener(v -> startAppSetup());
-        LinearLayout.LayoutParams startLp = new LinearLayout.LayoutParams(-1, dp(52));
-        startLp.topMargin = dp(18);
-        page.addView(startSetup, startLp);
-
-        Button continueButton = secondaryButton("Continue Without App Setup");
-        continueButton.setOnClickListener(v -> continueWithoutSetup("button"));
-        LinearLayout.LayoutParams continueLp = new LinearLayout.LayoutParams(-1, dp(50));
-        continueLp.topMargin = dp(9);
-        page.addView(continueButton, continueLp);
-
         TextView note = text(
                 "🐾 No worries — you can always open App Setup later from the app drawer → App Setup.",
                 11, getColor(R.color.hcf_hint));
@@ -141,6 +133,18 @@ public final class WelcomeActivity extends ThemedActivity {
         noteLp.topMargin = dp(14);
         page.addView(note, noteLp);
 
+        Button startSetup = primaryButton("Start App Setup");
+        startSetup.setOnClickListener(v -> startAppSetup());
+        LinearLayout.LayoutParams startLp = new LinearLayout.LayoutParams(-1, dp(52));
+        startLp.topMargin = dp(16);
+        page.addView(startSetup, startLp);
+
+        Button continueButton = secondaryButton("Continue Without App Setup");
+        continueButton.setOnClickListener(v -> continueWithoutSetup("button"));
+        LinearLayout.LayoutParams continueLp = new LinearLayout.LayoutParams(-1, dp(50));
+        continueLp.topMargin = dp(9);
+        page.addView(continueButton, continueLp);
+
         TextView footer = text(BuildInfo.VERSION_BUILD_LINE, 9, getColor(R.color.hcf_hint));
         footer.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams footerLp = new LinearLayout.LayoutParams(-1, -2);
@@ -148,6 +152,22 @@ public final class WelcomeActivity extends ThemedActivity {
         page.addView(footer, footerLp);
 
         return scroll;
+    }
+
+    private CharSequence welcomeTitle() {
+        String value = "Welcome to Harley's Clan Forum";
+        SpannableString styled = new SpannableString(value);
+        String forum = "Harley's Clan Forum";
+        int start = value.indexOf(forum);
+        if (start >= 0) {
+            styled.setSpan(
+                    new ForegroundColorSpan(getColor(R.color.hcf_cyan)),
+                    start,
+                    start + forum.length(),
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            );
+        }
+        return styled;
     }
 
     private void startAppSetup() {
