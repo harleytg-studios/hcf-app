@@ -3,3 +3,4 @@ Retry after workflow registration.
 Retry after fixing ForumNotificationClient checked JSON parsing and remaining BuildInfo drift.
 Run with exact SupportContact BuildInfo replacement commit 8dcf6a3.
 Final release run after idempotent SupportContact diagnostics + AMOLED release-note cleanup, post script commit 44353b5.
+Retry after HcfIntentChooser definite-assignment repair, post script commit daa1372.
