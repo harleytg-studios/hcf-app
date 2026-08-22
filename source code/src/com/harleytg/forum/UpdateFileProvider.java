@@ -124,6 +124,6 @@ public final class UpdateFileProvider extends ContentProvider {
 
     @Override // android.content.ContentProvider
     public Uri insert(Uri uri, ContentValues contentValues) {
-        throw new UnsupportedOperationException("Read only");
+        throw new SecurityException("UpdateFileProvider is read-only");
     }
 }
