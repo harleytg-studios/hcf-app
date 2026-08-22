@@ -24,23 +24,6 @@
 - Stale decompiler `public.xml` removed: PASS
 - `build-release.sh` rejects version drift/stubs and pins Beta signer: PASS
 
-## Final release-gate build
-- GitHub Actions run: `32550166550`: PASS
-- Final unsigned artifact: `HCF-Beta-v10000090-Final-Unsigned` (artifact `9469797805`)
-- Direct-source package/version badging: `com.harleytg.forum.dev` / `10000090` / `1.0 (10000090)`: PASS
-- Final DEX audit contains required Beta branding, background-delivery states, realtime/Pusher markers, signer-lineage verification, AMOLED theme support, and updated release notes: PASS
-- Final DEX audit contains no `Method not decompiled`, `10000072`, `10000071`, or `v10000047`: PASS
-
-## Signed APK verification
-- APK: `HCF-Beta-v10000090.apk`
-- SHA-256: `7305580c927ee82030d71d1dfe344317c158bc1594b2e0d404ed184e166a5374`
-- APK Signature Scheme v2: PASS
-- APK Signature Scheme v3: PASS
-- APK Signature Scheme v4 sidecar (`.idsig`): generated
-- Signer: `CN=Harley's Clan Forum Beta v2, OU=Development Signing, O=Harley's Studios, C=US`
-- Signer certificate SHA-256: `93d49bf9a877c7cfb1b37f9064bd955cd67bd7dd8db73a9e3f766b59c4bcce63`
-- RSA key size: 4096 bits
-
 ## External infrastructure still required
 - `assetlinks.json` must be served from each forum host at `/.well-known/assetlinks.json` for Android App Links verification.
 - Native FCM remains disabled until a Firebase Android app config, trusted server sender, token lifecycle, and native receiver are deployed. Web Firebase config alone is not native FCM.
