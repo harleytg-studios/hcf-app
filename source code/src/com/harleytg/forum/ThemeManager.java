@@ -162,15 +162,15 @@ final class ThemeManager {
 
     static String mode(Context context) {
         if (context == null) {
-            return AUTO_FORUM;
+            return DARK;
         }
         SharedPreferences sharedPreferences = null;
         try {
             sharedPreferences = context.getSharedPreferences("hcf_app", 0);
-            String string = sharedPreferences.getString("app_theme", AUTO_FORUM);
+            String string = sharedPreferences.getString("app_theme", DARK);
             if (!LEGACY_SYSTEM.equals(string)) {
                 return (AUTO_FORUM.equals(string) || AUTO_PHONE.equals(string) || LIGHT.equals(string)
-                        || DARK.equals(string) || AMOLED.equals(string)) ? string : AUTO_FORUM;
+                        || DARK.equals(string) || AMOLED.equals(string)) ? string : DARK;
             }
             sharedPreferences.edit().putString("app_theme", AUTO_FORUM).apply();
             return AUTO_FORUM;
@@ -181,7 +181,7 @@ final class ThemeManager {
                 } catch (Throwable unused2) {
                 }
             }
-            return AUTO_FORUM;
+            return DARK;
         }
     }
 
