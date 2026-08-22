@@ -7,9 +7,9 @@ Stable Android release branch for Harley's Clan Forum.
 - App name: **Harley's Clan Forum**
 - Branch: `stable`
 - Android package: `com.harleytg.forum`
-- Version name: `1.0 (10000091)`
-- Version code: `10000091`
-- Internal build: `111`
+- Version name: `1.0 (10000092)`
+- Version code: `10000092`
+- Internal build: `112`
 - Minimum SDK: `26`
 - Target SDK: `34`
 - Compile SDK: `35`
@@ -44,7 +44,7 @@ versionCode, SHA-256, and signing-certificate lineage.
 ## Source and release gates
 
 The branch contains the active Android source, two read-only GitHub Actions
-verification workflows, and their static release gates. The v10000091 workflow
+verification workflows, and their static release gates. The v10000092 workflow
 compiles and aligns an unsigned APK, checks Stable package/version/channel
 identity, protects the approved HCF Alerts UI, and rejects Development/Beta badge
 leakage and incomplete/decompiler-stub source.

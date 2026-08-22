@@ -7,8 +7,8 @@ import re
 import sys
 
 
-EXPECTED_VERSION_CODE = 10000091
-EXPECTED_INTERNAL_BUILD = 111
+EXPECTED_VERSION_CODE = 10000092
+EXPECTED_INTERNAL_BUILD = 112
 EXPECTED_PACKAGE = "com.harleytg.forum"
 EXPECTED_SIGNER = "77:E0:E9:6C:11:77:84:2A:AA:31:1A:8F:C0:EB:EA:29:B9:2D:3C:D2:90:BB:81:5B:DB:86:AD:0E:0A:85:84:4F"
 EXPECTED_DEV_PACKAGE = "com.harleytg.forum.dev"
@@ -153,7 +153,7 @@ require("v4 signature sidecar check missing", "Missing APK Signature Scheme v4 s
 require("release gate is not called by build", "verify-release-readiness.py" in build_script)
 require("Stable build script accepts another package", "com.harleytg.forum.dev" not in build_script)
 require("Stable build script contains Beta signing identity", "hcf-beta" not in build_script.lower())
-require("canonical v10000091 workflow missing", any(path.name == "build-stable-v10000091.yml" for path in workflows))
+require("canonical v10000092 workflow missing", any(path.name == "build-stable-v10000092.yml" for path in workflows))
 for path in workflows:
     require(f"release workflow must not write repository contents: {path.name}", "contents: write" not in text(path))
 
