@@ -1,10 +1,11 @@
-name: HCF Beta v10000089 Silent Alert Status Build
+name: HCF Beta v10000089 Replacement Build
 
 on:
   push:
-    branches: [dev]
+    branches:
+      - dev
     paths:
-      - 'build-output/V10000089-BUILD-TRIGGER.txt'
+      - build-output/V10000089-BUILD-TRIGGER.txt
   workflow_dispatch:
 
 permissions:
@@ -14,89 +15,29 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Dev source
-        uses: actions/checkout@v4
+      - name: Record run ID
+        uses: actions/github-script@v7
         with:
-          ref: dev
-          path: beta-meta
-
-      - name: Patch Dev source and bump v10000089
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import os, re
-          repo = Path(os.environ['GITHUB_WORKSPACE']) / 'beta-meta'
-          src = repo / 'source code'
-
-          build = src / 'src/com/harleytg/forum/BuildInfo.java'
-          text = build.read_text(encoding='utf-8')
-          text = text.replace('HCF-Beta-v10000088.apk', 'HCF-Beta-v10000089.apk')
-          text = text.replace('INTERNAL_BUILD = 108', 'INTERNAL_BUILD = 109')
-          text = text.replace('Build/10000088', 'Build/10000089')
-          text = text.replace('VERSION_CODE = 10000088', 'VERSION_CODE = 10000089')
-          build.write_text(text, encoding='utf-8')
-
-          manifest = src / 'AndroidManifest.xml'
-          text = manifest.read_text(encoding='utf-8')
-          text = text.replace('android:versionCode="10000088"', 'android:versionCode="10000089"')
-          text = text.replace('android:versionName="1.0 (10000088)"', 'android:versionName="1.0 (10000089)"')
-          text = text.replace('android:value="1.0 (10000088)"', 'android:value="1.0 (10000089)"')
-          text = text.replace('android:value="10000088"', 'android:value="10000089"')
-          manifest.write_text(text, encoding='utf-8')
-
-          helper = src / 'src/com/harleytg/forum/NotificationHelper.java'
-          text = helper.read_text(encoding='utf-8')
-          old = '''        if (SILENT_CHANNEL_ID.equals(str)) {
-            return "On • Silent";
-        }'''
-          new = '''        if (SILENT_CHANNEL_ID.equals(str)) {
-            return silencePassiveEnabled(context) ? "Disabled by app setting" : "Enabled • Silent";
-        }'''
-          if old not in text:
-              raise SystemExit('NotificationHelper channelStatus pattern not found')
-          text = text.replace(old, new, 1)
-          old = '''    static boolean canPostOnChannel(Context context, String str) {
-        return isEnabledByUser(context) && hasRuntimePermission(context) && areAppNotificationsEnabled(context) && channelImportance(context, str) != 0;
-    }'''
-          new = '''    static boolean canPostOnChannel(Context context, String str) {
-        if (SILENT_CHANNEL_ID.equals(str) && silencePassiveEnabled(context)) {
-            return false;
-        }
-        return isEnabledByUser(context) && hasRuntimePermission(context) && areAppNotificationsEnabled(context) && channelImportance(context, str) != 0;
-    }'''
-          if old not in text:
-              raise SystemExit('NotificationHelper canPostOnChannel pattern not found')
-          text = text.replace(old, new, 1)
-          helper.write_text(text, encoding='utf-8')
-
-          settings = src / 'src/com/harleytg/forum/SettingsActivity.java'
-          text = settings.read_text(encoding='utf-8')
-          text = text.replace('"Silence HCF Silent Alerts"', '"Disable HCF Silent Alerts"')
-          text = text.replace('"Silent/background channel • hidden when Silence HCF Silent Alerts is enabled"', '"Silent/background channel • status below shows whether the app has disabled it"')
-          text = text.replace('Toast.makeText(this, "Updated • Passive notification silence", Toast.LENGTH_LONG).show();', 'Toast.makeText(this, checked ? "HCF Silent Alerts disabled." : "HCF Silent Alerts enabled • silent.", Toast.LENGTH_LONG).show();')
-          settings.write_text(text, encoding='utf-8')
-          PY
-
-          grep -q 'VERSION_CODE = 10000089' 'beta-meta/source code/src/com/harleytg/forum/BuildInfo.java'
-          grep -q 'android:versionCode="10000089"' 'beta-meta/source code/AndroidManifest.xml'
-          grep -q 'Disabled by app setting' 'beta-meta/source code/src/com/harleytg/forum/NotificationHelper.java'
-          grep -q 'Disable HCF Silent Alerts' 'beta-meta/source code/src/com/harleytg/forum/SettingsActivity.java'
-
-      - name: Commit Dev source patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd beta-meta
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- 'source code/AndroidManifest.xml' \
-                    'source code/src/com/harleytg/forum/BuildInfo.java' \
-                    'source code/src/com/harleytg/forum/NotificationHelper.java' \
-                    'source code/src/com/harleytg/forum/SettingsActivity.java'
-          git commit -m "Clarify HCF Silent Alerts enabled state for v10000089"
-          git push origin HEAD:dev
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const path = 'build-output/HCF-Beta-v10000089-REPLACEMENT-RUN.txt';
+            let sha;
+            try {
+              const existing = await github.rest.repos.getContent({owner, repo, path, ref: 'dev'});
+              if (!Array.isArray(existing.data)) sha = existing.data.sha;
+            } catch (e) {
+              if (e.status !== 404) throw e;
+            }
+            await github.rest.repos.createOrUpdateFileContents({
+              owner,
+              repo,
+              path,
+              branch: 'dev',
+              sha,
+              message: '[skip ci] Record replacement Beta v10000089 run',
+              content: Buffer.from(String(context.runId) + '\n').toString('base64')
+            });
 
       - name: Checkout known-good Stable runtime
         uses: actions/checkout@v4
@@ -104,7 +45,13 @@ jobs:
           ref: stable
           path: app-repo
 
-      - name: Convert runtime and overlay Beta fixes
+      - name: Checkout Dev Beta source
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: beta-meta
+
+      - name: Convert runtime and apply Beta fixes
         shell: bash
         run: |
           set -euo pipefail
@@ -115,6 +62,8 @@ jobs:
           from pathlib import Path
           import os, re
           root = Path(os.environ['GITHUB_WORKSPACE']) / 'app-repo' / 'source code'
+
+          # Convert the known-good Stable runtime to the Beta package identity.
           for p in list((root / 'src').rglob('*.java')) + [root / 'AndroidManifest.xml']:
               text = p.read_text(encoding='utf-8').replace('com.harleytg.forum', 'com.harleytg.forum.dev')
               p.write_text(text, encoding='utf-8')
@@ -127,30 +76,39 @@ jobs:
           text = re.sub(r'(<meta-data\s+android:name="com\.harleytg\.APP_VERSION"\s+android:value=")[^"]+("/>)', r'\g<1>1.0 (10000089)\2', text)
           text = re.sub(r'(<meta-data\s+android:name="com\.harleytg\.APP_VERSION_CODE"\s+android:value=")[^"]+("/>)', r'\g<1>10000089\2', text)
           manifest.write_text(text, encoding='utf-8')
+          PY
+
+          # Restore Beta footer and add automatic same-session Account Security sync.
+          python3 "$GITHUB_WORKSPACE/beta-meta/.github/scripts/patch-v10000089-auto-security.py" "$ROOT"
+
+          # Preserve the v10000089 HCF Silent Alerts behavior/status clarification.
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          root = Path(os.environ['GITHUB_WORKSPACE']) / 'app-repo' / 'source code'
 
           helper = root / 'src/com/harleytg/forum/NotificationHelper.java'
           text = helper.read_text(encoding='utf-8')
-          old = '''        if (SILENT_CHANNEL_ID.equals(str)) {
+          old_status = '''        if (SILENT_CHANNEL_ID.equals(str)) {
             return "On • Silent";
         }'''
-          new = '''        if (SILENT_CHANNEL_ID.equals(str)) {
+          new_status = '''        if (SILENT_CHANNEL_ID.equals(str)) {
             return silencePassiveEnabled(context) ? "Disabled by app setting" : "Enabled • Silent";
         }'''
-          if old not in text:
-              raise SystemExit('Stable runtime channelStatus pattern not found')
-          text = text.replace(old, new, 1)
-          old = '''    static boolean canPostOnChannel(Context context, String str) {
+          if old_status in text:
+              text = text.replace(old_status, new_status, 1)
+          old_post = '''    static boolean canPostOnChannel(Context context, String str) {
         return isEnabledByUser(context) && hasRuntimePermission(context) && areAppNotificationsEnabled(context) && channelImportance(context, str) != 0;
     }'''
-          new = '''    static boolean canPostOnChannel(Context context, String str) {
+          new_post = '''    static boolean canPostOnChannel(Context context, String str) {
         if (SILENT_CHANNEL_ID.equals(str) && silencePassiveEnabled(context)) {
             return false;
         }
         return isEnabledByUser(context) && hasRuntimePermission(context) && areAppNotificationsEnabled(context) && channelImportance(context, str) != 0;
     }'''
-          if old not in text:
-              raise SystemExit('Stable runtime canPostOnChannel pattern not found')
-          helper.write_text(text.replace(old, new, 1), encoding='utf-8')
+          if old_post in text:
+              text = text.replace(old_post, new_post, 1)
+          helper.write_text(text, encoding='utf-8')
 
           settings = root / 'src/com/harleytg/forum/SettingsActivity.java'
           text = settings.read_text(encoding='utf-8')
@@ -160,16 +118,27 @@ jobs:
           settings.write_text(text, encoding='utf-8')
           PY
 
+          # Use current Beta resources plus maintained realtime/runtime components.
           cp -a "$META/res/." "$ROOT/res/"
           rm -f "$ROOT/res/values/public.xml"
           for f in BuildInfo.java LiveForumUpdater.java PerformanceProfile.java NotificationSyncScheduler.java UpdateChecker.java ForumConfig.java RemoteDomainConfig.java HcfApplication.java; do
             cp "$META/src/com/harleytg/forum/$f" "$ROOT/src/com/harleytg/forum/$f"
           done
 
+          # Fail the build if any requested behavior regresses.
           grep -q 'VERSION_CODE = 10000089' "$ROOT/src/com/harleytg/forum/BuildInfo.java"
+          grep -q 'android:versionCode="10000089"' "$ROOT/AndroidManifest.xml"
+          grep -Fq 'Harley'"'"'s Clan Forum v1.0 [Development Build / Beta]' "$ROOT/src/com/harleytg/forum/BuildInfo.java"
+          grep -q 'textView.setText(BuildInfo.DEVELOPMENT_BUILD_LABEL);' "$ROOT/src/com/harleytg/forum/MainActivity.java"
+          ! grep -Fq 'Harley'"'"'s Clan Forum v1.0 [Stable]' "$ROOT/src/com/harleytg/forum/MainActivity.java"
+          grep -q 'var autoSecurity=function()' "$ROOT/src/com/harleytg/forum/MainActivity.java"
+          grep -q 'hcf_native_sync=1' "$ROOT/src/com/harleytg/forum/MainActivity.java"
+          grep -q 'Linked sign-in providers sync automatically' "$ROOT/src/com/harleytg/forum/IdentityActivity.java"
+          grep -q 'Syncing automatically' "$ROOT/src/com/harleytg/forum/ForumSecurity.java"
           grep -q 'Disabled by app setting' "$ROOT/src/com/harleytg/forum/NotificationHelper.java"
           grep -q 'Disable HCF Silent Alerts' "$ROOT/src/com/harleytg/forum/SettingsActivity.java"
           grep -q 'private-user' "$ROOT/src/com/harleytg/forum/LiveForumUpdater.java"
+          grep -q 'pusherKey' "$ROOT/src/com/harleytg/forum/LiveForumUpdater.java"
           grep -q 'foreground service stopped' "$ROOT/src/com/harleytg/forum/NotificationSyncScheduler.java"
 
       - name: Set up Android SDK
@@ -182,14 +151,14 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
 
-      - name: Compile dex align and validate Beta v10000089
+      - name: Compile and validate replacement Beta v10000089
         shell: bash
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/app-repo/source code"
           BT="$ANDROID_HOME/build-tools/35.0.0"
           ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
-          WORK="$RUNNER_TEMP/hcf-beta-v10000089"
+          WORK="$RUNNER_TEMP/hcf-beta-v10000089-replacement"
           OUT="$GITHUB_WORKSPACE/out"
           rm -rf "$WORK" "$OUT"
           mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
@@ -208,17 +177,19 @@ jobs:
           grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
           grep -q "versionCode='10000089'" "$OUT/APK-BADGING.txt"
           grep -q "versionName='1.0 (10000089)'" "$OUT/APK-BADGING.txt"
+          unzip -p "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" classes.dex | strings | grep -Fq "Harley's Clan Forum v1.0 [Development Build / Beta]"
+          unzip -p "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" classes.dex | strings | grep -q 'hcf_native_sync=1'
+          unzip -p "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" classes.dex | strings | grep -q 'Linked sign-in providers sync automatically'
           unzip -p "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" classes.dex | strings | grep -q 'Disabled by app setting'
-          unzip -p "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" classes.dex | strings | grep -q 'Disable HCF Silent Alerts'
           unzip -p "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" classes.dex | strings | grep -q 'private-user'
           unzip -p "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" classes.dex | strings | grep -q 'HCF-Beta-v10000089.apk'
           cp "$BT/lib/apksigner.jar" "$OUT/apksigner.jar"
           sha256sum "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" | tee "$OUT/SHA256SUMS.txt"
 
-      - name: Upload unsigned Beta artifact
+      - name: Upload replacement unsigned Beta artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HCF-Beta-v10000089-SilentStatus-Unsigned
+          name: HCF-Beta-v10000089-Replacement-Unsigned
           path: out/
           if-no-files-found: error
           retention-days: 1
