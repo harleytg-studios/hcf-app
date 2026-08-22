@@ -1,4 +1,4 @@
-name: HCF Beta v10000090 Footer Branding Build
+name: HCF Beta v10000089 Replacement Auto Security Build
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const path = 'build-output/HCF-Beta-v10000090-RUN.txt';
+            const path = 'build-output/HCF-Beta-v10000089-REPLACEMENT2-RUN.txt';
             let sha;
             try {
               const existing = await github.rest.repos.getContent({owner, repo, path, ref: 'dev'});
@@ -35,7 +35,7 @@ jobs:
               path,
               branch: 'dev',
               sha,
-              message: '[skip ci] Record Beta v10000090 footer build run',
+              message: '[skip ci] Record replacement Beta v10000089 run',
               content: Buffer.from(String(context.runId) + '\n').toString('base64')
             });
 
@@ -51,13 +51,27 @@ jobs:
           ref: dev
           path: beta-meta
 
-      - name: Prepare Beta runtime
+      - name: Prepare replacement Beta v10000089 runtime
         shell: bash
         run: |
           set -euo pipefail
-          python3 "$GITHUB_WORKSPACE/beta-meta/.github/scripts/build-beta-v10000090-footer.py" \
-            "$GITHUB_WORKSPACE/app-repo/source code" \
-            "$GITHUB_WORKSPACE/beta-meta/source code"
+          ROOT="$GITHUB_WORKSPACE/app-repo/source code"
+          META="$GITHUB_WORKSPACE/beta-meta/source code"
+          python3 "$GITHUB_WORKSPACE/beta-meta/.github/scripts/build-beta-v10000090-footer.py" "$ROOT" "$META"
+          python3 "$GITHUB_WORKSPACE/beta-meta/.github/scripts/patch-v10000089-auto-security.py" "$ROOT"
+
+          grep -q 'VERSION_CODE = 10000089' "$ROOT/src/com/harleytg/forum/BuildInfo.java"
+          grep -q 'android:versionCode="10000089"' "$ROOT/AndroidManifest.xml"
+          grep -q 'textView.setText(BuildInfo.DEVELOPMENT_BUILD_LABEL);' "$ROOT/src/com/harleytg/forum/MainActivity.java"
+          grep -q 'var autoSecurity=function()' "$ROOT/src/com/harleytg/forum/MainActivity.java"
+          grep -q 'hcf_native_sync=1' "$ROOT/src/com/harleytg/forum/MainActivity.java"
+          grep -q 'Linked sign-in providers sync automatically' "$ROOT/src/com/harleytg/forum/IdentityActivity.java"
+          grep -q 'Syncing automatically' "$ROOT/src/com/harleytg/forum/ForumSecurity.java"
+          grep -q 'Disabled by app setting' "$ROOT/src/com/harleytg/forum/NotificationHelper.java"
+          grep -q 'Disable HCF Silent Alerts' "$ROOT/src/com/harleytg/forum/SettingsActivity.java"
+          grep -q 'private-user' "$ROOT/src/com/harleytg/forum/LiveForumUpdater.java"
+          grep -q 'pusherKey' "$ROOT/src/com/harleytg/forum/LiveForumUpdater.java"
+          grep -q 'foreground service stopped' "$ROOT/src/com/harleytg/forum/NotificationSyncScheduler.java"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -69,14 +83,14 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
 
-      - name: Compile and validate Beta v10000090
+      - name: Compile and validate replacement Beta v10000089
         shell: bash
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/app-repo/source code"
           BT="$ANDROID_HOME/build-tools/35.0.0"
           ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
-          WORK="$RUNNER_TEMP/hcf-beta-v10000090"
+          WORK="$RUNNER_TEMP/hcf-beta-v10000089-replacement"
           OUT="$GITHUB_WORKSPACE/out"
           rm -rf "$WORK" "$OUT"
           mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
@@ -88,24 +102,26 @@ jobs:
           "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
           cp "$WORK/resources.apk" "$WORK/unsigned.apk"
           (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
-          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Beta-v10000090-aligned-unsigned.apk"
-          "$BT/zipalign" -c -p 4 "$OUT/HCF-Beta-v10000090-aligned-unsigned.apk"
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk"
+          "$BT/zipalign" -c -p 4 "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk"
 
-          "$BT/aapt" dump badging "$OUT/HCF-Beta-v10000090-aligned-unsigned.apk" | head -1 | tee "$OUT/APK-BADGING.txt"
+          "$BT/aapt" dump badging "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" | head -1 | tee "$OUT/APK-BADGING.txt"
           grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
-          grep -q "versionCode='10000090'" "$OUT/APK-BADGING.txt"
-          grep -q "versionName='1.0 (10000090)'" "$OUT/APK-BADGING.txt"
-          unzip -p "$OUT/HCF-Beta-v10000090-aligned-unsigned.apk" classes.dex | strings | grep -Fq "Harley's Clan Forum v1.0 [Development Build / Beta]"
-          unzip -p "$OUT/HCF-Beta-v10000090-aligned-unsigned.apk" classes.dex | strings | grep -q 'Disabled by app setting'
-          unzip -p "$OUT/HCF-Beta-v10000090-aligned-unsigned.apk" classes.dex | strings | grep -q 'private-user'
-          unzip -p "$OUT/HCF-Beta-v10000090-aligned-unsigned.apk" classes.dex | strings | grep -q 'HCF-Beta-v10000090.apk'
+          grep -q "versionCode='10000089'" "$OUT/APK-BADGING.txt"
+          grep -q "versionName='1.0 (10000089)'" "$OUT/APK-BADGING.txt"
+          unzip -p "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" classes.dex | strings | grep -Fq "Harley's Clan Forum v1.0 [Development Build / Beta]"
+          unzip -p "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" classes.dex | strings | grep -q 'hcf_native_sync=1'
+          unzip -p "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" classes.dex | strings | grep -q 'Linked sign-in providers sync automatically'
+          unzip -p "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" classes.dex | strings | grep -q 'Disabled by app setting'
+          unzip -p "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" classes.dex | strings | grep -q 'private-user'
+          unzip -p "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" classes.dex | strings | grep -q 'HCF-Beta-v10000089.apk'
           cp "$BT/lib/apksigner.jar" "$OUT/apksigner.jar"
-          sha256sum "$OUT/HCF-Beta-v10000090-aligned-unsigned.apk" | tee "$OUT/SHA256SUMS.txt"
+          sha256sum "$OUT/HCF-Beta-v10000089-aligned-unsigned.apk" | tee "$OUT/SHA256SUMS.txt"
 
-      - name: Upload unsigned Beta artifact
+      - name: Upload replacement unsigned Beta artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HCF-Beta-v10000090-FooterBranding-Unsigned
+          name: HCF-Beta-v10000089-Replacement-AutoSecurity-Unsigned
           path: out/
           if-no-files-found: error
           retention-days: 1
