@@ -4,10 +4,22 @@ import android.app.Application;
 import android.os.Build;
 import java.lang.Thread;
 
+/**
+ * Application entry. Applies resolved night mode as early as possible so the
+ * first activity frame does not flash the opposite theme (light splash on a
+ * dark preference, etc.).
+ */
 public final class HcfApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+
+        // Theme must run before any activity attaches / draws windowBackground.
+        try {
+            ThemeManager.applyToApplication(this);
+        } catch (Throwable ignored) {
+        }
+
         RuntimeState.install(this);
         RemoteDomainConfig.initialize(this);
 
@@ -23,7 +35,9 @@ public final class HcfApplication extends Application {
         } catch (Throwable ignored) {
         }
         try {
-            AppLogger.info(this, "app_start", BuildInfo.VERSION + " (" + BuildInfo.VERSION_CODE + ") | SDK " + Build.VERSION.SDK_INT + " | " + Build.MANUFACTURER + " " + Build.MODEL);
+            AppLogger.info(this, "app_start", BuildInfo.VERSION + " (" + BuildInfo.VERSION_CODE
+                    + ") | SDK " + Build.VERSION.SDK_INT + " | " + Build.MANUFACTURER + " " + Build.MODEL
+                    + " | theme=" + ThemeManager.mode(this) + "/" + ThemeManager.webColorScheme(this));
         } catch (Throwable ignored) {
         }
 
