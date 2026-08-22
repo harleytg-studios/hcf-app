@@ -1,30 +1,32 @@
-# HCF Beta v10000090 — Grok Guide Repair Verification
+# HCF Beta v10000090 — Final Release Verification
 
-## Completed in source
+## Completed in Dev source
 - Direct `dev` source compilation: PASS
+- Package: `com.harleytg.forum.dev`
+- BuildInfo/manifest identity: `1.0 (10000090)` / versionCode `10000090`: PASS
 - `Method not decompiled` runtime stubs: 0
 - decompiler `UnsupportedOperationException` runtime stubs: 0
 - Update progress/status/cleanup methods restored: PASS
 - Notification delta/badge implementation restored: PASS
 - Foreground notification-service sync implementation restored: PASS
 - File chooser + install-permission result flow restored: PASS
-- BuildInfo/manifest identity unified at versionCode 10000090: PASS
-- README current build identity updated: PASS
 - HCF Alerts remains app-required; Android owns permission/channel blocking: PASS
-- Background notification sync belongs to HCF Alerts UI: PASS
+- Background notification sync is under HCF Alerts: PASS
+- Background state reports live / delayed / waiting / paused accurately: PASS
+- HCF Silent Alerts remains a separate service-status channel: PASS
 - Last background sync age is shown in Notifications UI: PASS
-- Silent Alerts service-status behavior remains separate: PASS
-- Update package/version/signing verification preserved and signer-lineage policy added: PASS
-- Remote domain host validation preserved: PASS
-- Live updater state logging + persistent route fingerprint baseline: PASS
-- App Links assetlinks deployment payload generated for Dev and Stable: PASS
+- Update package/version/signing verification and signer-lineage policy: PASS
+- Realtime Pusher transport and live-update diagnostics: PASS
+- Remote domain host validation: PASS
+- Cold-start theme application and remembered Forum Auto state: PASS
+- Separate AMOLED appearance mode and live theme status: PASS
+- App Links `assetlinks.json` deployment payload generated: PASS
 - Stale decompiler `public.xml` removed: PASS
-- build-release.sh rejects version drift/stubs and pins Beta signer: PASS
-- Direct-source APK package: com.harleytg.forum.dev
+- `build-release.sh` rejects version drift/stubs and pins Beta signer: PASS
 
-## External deployment still required
-- `assetlinks.json` must be served from both forum hosts at `/.well-known/assetlinks.json`.
+## External infrastructure still required
+- `assetlinks.json` must be served from each forum host at `/.well-known/assetlinks.json` for Android App Links verification.
 - Native FCM remains disabled until a Firebase Android app config, trusted server sender, token lifecycle, and native receiver are deployed. Web Firebase config alone is not native FCM.
 
 ## Architectural follow-up
-Grok recommends incrementally splitting MainActivity. The repaired source is now suitable for that refactor, but a large class split is intentionally not mixed into this runtime-stability build because it would add unrelated regression risk.
+- MainActivity can be split incrementally in a later refactor. It is intentionally not mixed into this release-stability build.

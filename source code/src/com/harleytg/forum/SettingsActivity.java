@@ -683,10 +683,10 @@ public final class SettingsActivity extends ThemedActivity {
             NotificationHelper.refreshChannels(this);
             NotificationSyncScheduler.apply(this);
             AppLogger.info(this, "setting_silence_passive_notifications", Boolean.toString(checked));
-            Toast.makeText(this, checked ? "HCF Silent Alerts disabled." : "HCF Silent Alerts enabled • silent.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, checked ? "HCF Silent Alerts disabled. Real HCF Alerts stay on; background delivery may be delayed." : "HCF Silent Alerts enabled • live background delivery available.", Toast.LENGTH_LONG).show();
         });
         card.addView(silence);
-        card.addView(text("This affects the silent service-status channel only. Android may limit continuous background checking when the service status is disabled.", 10, getColor(R.color.hcf_muted)));
+        card.addView(text("This never disables HCF Alerts. When this switch is ON, the continuous foreground sync service stops because Android requires a visible service notification; fallback background checks remain scheduled.", 10, getColor(R.color.hcf_muted)));
         card.addView(notificationChannelRow("HCF Silent Alerts", "Silent • service status only", "hcf_silent_alerts_v1"));
         return card;
     }
@@ -1389,7 +1389,13 @@ public final class SettingsActivity extends ThemedActivity {
             NotificationHelper.createChannel(this);
             boolean ready = NotificationHelper.canPost(this) && NotificationHelper.channelImportance(this) != 0;
             boolean background = prefs.getBoolean("background_notification_sync", true);
-            String delivery = background ? "Background delivery ON" : "Background delivery paused";
+            boolean silentStatusDisabled = prefs.getBoolean("silence_background_service_notification", false);
+            String sessionUserId = prefs.getString("session_user_id", "");
+            boolean signedIn = sessionUserId != null && !sessionUserId.trim().isEmpty();
+            String delivery = !background ? "Background delivery paused"
+                    : !signedIn ? "Background delivery waiting for sign-in"
+                    : silentStatusDisabled ? "Background delivery delayed"
+                    : "Background delivery live";
             long lastSyncAt = prefs.getLong(AppPrefs.NOTIFICATION_LAST_SYNC_AT, 0L);
             String lastSync;
             if (lastSyncAt <= 0L) {
