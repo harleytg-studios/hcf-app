@@ -30,7 +30,7 @@ jobs:
             }
             await github.rest.repos.createOrUpdateFileContents({
               owner, repo, path, branch: 'dev', sha,
-              message: '[skip ci] Record Grok stub diagnostic run',
+              message: '[skip ci] Record Grok diagnostic run',
               content: Buffer.from(String(context.runId) + '\n').toString('base64')
             });
       - uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
         with:
           ref: stable
           path: stable-repo
-      - name: Apply repair and print every remaining stub
+      - name: Apply repair and print remaining blockers
         shell: bash
         run: |
           set +e
@@ -52,6 +52,10 @@ jobs:
           grep -R -n 'Method not decompiled:' 'source code/src' || true
           echo '=== REMAINING UNSUPPORTED OPERATION ==='
           grep -R -n 'throw new UnsupportedOperationException' 'source code/src' || true
-          echo '=== ALL JAVA FILES WITH DECOMPILER MARKERS ==='
-          grep -R -l -E 'Method not decompiled:|throw new UnsupportedOperationException' 'source code/src' || true
+          echo '=== OLD MAINACTIVITY BUILD 10000072 ==='
+          grep -n -C 2 '10000072' 'source code/src/com/harleytg/forum/MainActivity.java' || true
+          echo '=== OLD UPDATER BUILD 10000071 ==='
+          grep -n -C 2 '10000071' 'source code/src/com/harleytg/forum/AppUpdateDownloader.java' || true
+          echo '=== OLD SERVICE BUILD v10000047 ==='
+          grep -n -C 2 '10000047' 'source code/src/com/harleytg/forum/InstantNotificationService.java' || true
           exit 0
