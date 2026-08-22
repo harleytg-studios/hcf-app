@@ -66,6 +66,9 @@ final class AppPrefs {
     static final String RENDERER_RECOVERY_COUNT = "renderer_recovery_count";
     static final String SAFE_LINKS_SEEN_DOMAINS = "safe_links_seen_domains";
     static final String SESSION_USER_ID = "session_user_id";
+    static final String SETUP_COMPLETED = "setup_completed";
+    static final String SETUP_SEEN = "setup_seen";
+    static final String SETUP_VERSION = "setup_version";
     static final String SHOW_BOTTOM_NAV = "show_bottom_nav";
     static final String SHOW_STARTUP_SCREEN = "show_startup_screen";
     static final String SHOW_URL_BAR = "show_url_bar";

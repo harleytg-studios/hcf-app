@@ -1,7 +1,9 @@
 package com.harleytg.forum.dev;
 
+import android.app.Activity;
 import android.app.Application;
 import android.os.Build;
+import android.os.Bundle;
 import java.lang.Thread;
 
 /**
@@ -22,6 +24,44 @@ public final class HcfApplication extends Application {
 
         RuntimeState.install(this);
         RemoteDomainConfig.initialize(this);
+
+        // The old MainActivity permission dialog is now legacy. Set its guard
+        // before MainActivity is created so the delayed 700 ms AlertDialog can
+        // never appear. The versioned Setup Center owns onboarding from here on.
+        try {
+            getSharedPreferences(AppPrefs.FILE, 0).edit()
+                    .putBoolean(AppPrefs.PERMISSION_ONBOARDING_DONE, true)
+                    .apply();
+        } catch (Throwable ignored) {
+        }
+
+        registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacks() {
+            @Override public void onActivityCreated(Activity activity, Bundle state) {
+                if (activity instanceof MainActivity) {
+                    try {
+                        SetupCenter.maybeLaunchForMainActivity((MainActivity) activity, state);
+                    } catch (Throwable error) {
+                        AppLogger.error(HcfApplication.this, "app_setup_lifecycle", error.getClass().getSimpleName());
+                    }
+                }
+            }
+
+            @Override public void onActivityResumed(Activity activity) {
+                if (activity instanceof MainActivity) {
+                    try {
+                        SetupCenter.installDrawerEntry((MainActivity) activity);
+                    } catch (Throwable error) {
+                        AppLogger.warn(HcfApplication.this, "app_setup_drawer", error.getClass().getSimpleName());
+                    }
+                }
+            }
+
+            @Override public void onActivityStarted(Activity activity) {}
+            @Override public void onActivityPaused(Activity activity) {}
+            @Override public void onActivityStopped(Activity activity) {}
+            @Override public void onActivitySaveInstanceState(Activity activity, Bundle outState) {}
+            @Override public void onActivityDestroyed(Activity activity) {}
+        });
 
         final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
