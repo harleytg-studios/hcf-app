@@ -50,30 +50,12 @@ jobs:
           path = Path('source code/src/com/harleytg/forum/SettingsActivity.java')
           text = path.read_text(encoding='utf-8')
 
-          old_method = '''    private View themeModeSelector() {
-              LinearLayout root = new LinearLayout(this);
-              root.setOrientation(LinearLayout.VERTICAL);
-              root.setPadding(0, dp(4), 0, dp(2));
-              root.setTag(TARGET_TAG_PREFIX + "theme");
-              LinearLayout first = new LinearLayout(this);
-              first.setOrientation(LinearLayout.HORIZONTAL);
-              first.setWeightSum(2.0f);
-              LinearLayout second = new LinearLayout(this);
-              second.setOrientation(LinearLayout.HORIZONTAL);
-              second.setWeightSum(2.0f);
-              String mode = ThemeManager.mode(this);
-              first.addView(themeChoiceButton("Forum Auto", "auto_forum", "auto_forum".equals(mode)), themeChoiceParams(false));
-              first.addView(themeChoiceButton("Phone Auto", "auto_phone", "auto_phone".equals(mode)), themeChoiceParams(true));
-              boolean dark = "dark".equals(mode) || "amoled".equals(mode);
-              second.addView(themeChoiceButton("Light", "light", "light".equals(mode)), themeChoiceParams(false));
-              second.addView(themeChoiceButton("Dark", "dark", dark), themeChoiceParams(true));
-              root.addView(first);
-              LinearLayout.LayoutParams secondLp = new LinearLayout.LayoutParams(-1, -2);
-              secondLp.topMargin = dp(8);
-              root.addView(second, secondLp);
-              return root;
-          }
-          '''
+          start_marker = '    private View themeModeSelector() {'
+          end_marker = '    private LinearLayout.LayoutParams themeChoiceParams(boolean right) {'
+          start = text.find(start_marker)
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('themeModeSelector boundaries not found; refusing ambiguous patch')
 
           new_method = '''    private View themeModeSelector() {
               LinearLayout root = new LinearLayout(this);
@@ -111,21 +93,35 @@ jobs:
               root.addView(live);
               return root;
           }
+
           '''
+          # YAML removes the common indentation from this heredoc block. Restore
+          # the Java method's nested indentation deterministically.
+          method_lines = new_method.splitlines()
+          fixed = []
+          for line in method_lines:
+              if line.startswith('    private View') or line == '' or line.startswith('    }'):
+                  fixed.append(line)
+              elif line:
+                  fixed.append('    ' + line)
+              else:
+                  fixed.append(line)
+          new_method = '\n'.join(fixed)
+          if not new_method.endswith('\n\n'):
+              new_method = new_method.rstrip('\n') + '\n\n'
+
+          text = text[:start] + new_method + text[end:]
 
           old_helper = '        card.addView(text("Forum Auto follows your forum Night Mode setting; Phone Auto follows Android directly.", 10, getColor(R.color.hcf_muted)));'
-          new_helper = '''        card.addView(text(
-                  "Forum Auto follows Flarum Night Mode (uses last known value on startup). "
-                          + "Phone Auto follows Android. Light / Dark / AMOLED force the app chrome immediately.",
-                  10, getColor(R.color.hcf_muted)));'''
-
-          if old_method not in text:
-              raise SystemExit('themeModeSelector old block not found; refusing ambiguous patch')
-          if old_helper not in text:
+          new_helper = ('        card.addView(text(\n'
+                        '                "Forum Auto follows Flarum Night Mode (uses last known value on startup). "\n'
+                        '                        + "Phone Auto follows Android. Light / Dark / AMOLED force the app chrome immediately.",\n'
+                        '                10, getColor(R.color.hcf_muted)));')
+          if old_helper in text:
+              text = text.replace(old_helper, new_helper, 1)
+          elif 'uses last known value on startup' not in text:
               raise SystemExit('Appearance helper text not found; refusing ambiguous patch')
 
-          text = text.replace(old_method, new_method, 1)
-          text = text.replace(old_helper, new_helper, 1)
           path.write_text(text, encoding='utf-8')
           PY
 
