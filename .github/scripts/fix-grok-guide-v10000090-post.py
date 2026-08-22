@@ -25,6 +25,10 @@ text = text.replace("is newer than the Stable feed", "is newer than the Developm
 text = text.replace("You're on the newest Stable build.", "You're on the newest Development / Beta build.")
 text = text.replace("Checking Stable updates…", "Checking Development / Beta updates…")
 text = text.replace("A newer Stable build", "A newer Development / Beta build")
+text = text.replace(
+    'this.welcomeBanner.setText("✨  What\'s New • v1.0\\nBeta/Dev v" + BuildInfo.VERSION_CODE + " • Four-button theme selector  •  Tap to view");',
+    'this.welcomeBanner.setText("✨  What\'s New • v1.0\\nBeta/Dev v" + BuildInfo.VERSION_CODE + " • Theme, notifications & stability update  •  Tap to view");',
+)
 main.write_text(text, encoding="utf-8")
 
 # ---------------------------------------------------------------------------
@@ -73,6 +77,19 @@ if old in text:
 elif 'return firstDeepObject(new JSONObject(trim), i + 1, strArr);' in text and 'catch (Throwable ignored)' not in text:
     raise SystemExit("ForumNotificationClient readableValue JSON guard missing")
 client.write_text(text, encoding="utf-8")
+
+# ---------------------------------------------------------------------------
+# HcfIntentChooser: JADX left loadLabel potentially unassigned when
+# ResolveInfo.loadLabel throws. Initialize it before the try so the checked-in
+# Dev tree compiles with javac rather than depending on decompiler behavior.
+# ---------------------------------------------------------------------------
+chooser = src / "HcfIntentChooser.java"
+text = chooser.read_text(encoding="utf-8")
+text = text.replace(
+    '    private static String resolveLabel(PackageManager packageManager, ResolveInfo resolveInfo) {\n        CharSequence loadLabel;\n        if (resolveInfo == null) {',
+    '    private static String resolveLabel(PackageManager packageManager, ResolveInfo resolveInfo) {\n        CharSequence loadLabel = null;\n        if (resolveInfo == null) {',
+)
+chooser.write_text(text, encoding="utf-8")
 
 # ---------------------------------------------------------------------------
 # Diagnostics/support/release notes: remove historic hard-coded build identity.
@@ -156,6 +173,8 @@ if "Development / Beta feed" not in main_text or "newest Development / Beta buil
 client_text = client.read_text(encoding="utf-8")
 if 'return firstDeepObject(new JSONObject(trim), i + 1, strArr);' in client_text and 'catch (Throwable ignored)' not in client_text:
     raise SystemExit("ForumNotificationClient JSON parsing guard missing")
+if 'CharSequence loadLabel = null;' not in chooser.read_text(encoding="utf-8"):
+    raise SystemExit("HcfIntentChooser resolveLabel initialization missing")
 if "10000072" in support.read_text(encoding="utf-8"):
     raise SystemExit("SupportContactActivity still contains stale build identity")
 if "AMOLED" not in notes.read_text(encoding="utf-8"):
