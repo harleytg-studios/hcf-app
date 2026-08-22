@@ -224,7 +224,7 @@ public final class IdentityActivity extends ThemedActivity {
             if (snapshot2.seen) {
                 str = "No linked sign-in providers were detected for this account.";
             } else {
-                str = "Open Account Security once to sync linked sign-in providers.";
+                str = "Linked sign-in providers sync automatically while the forum is signed in.";
             }
             card.addView(text(str, 11, getColor(R.color.hcf_muted)));
         }
@@ -273,7 +273,7 @@ public final class IdentityActivity extends ThemedActivity {
 
     private View securityCard(ForumIdentity.Snapshot snapshot, ForumSecurity.Snapshot snapshot2) {
         LinearLayout card = card();
-        card.addView(sectionTitle("Sign-in & security", "A safe summary from your forum security page"));
+        card.addView(sectionTitle("Sign-in & security", "A safe summary synced from your forum account"));
         String mergeLabels = ForumSecurity.mergeLabels(snapshot.connections, snapshot2.seen ? snapshot2.providers : "");
         if (mergeLabels.isEmpty()) {
             mergeLabels = snapshot.connectionLabel();
@@ -283,7 +283,7 @@ public final class IdentityActivity extends ThemedActivity {
         }
         addRow(card, "Connected sign-in methods", mergeLabels);
         addRow(card, "Email status", snapshot.email.isEmpty() ? "Not exposed" : snapshot.emailConfirmed ? "Verified" : "Not verified");
-        addRow(card, "Security sync", snapshot2.seen ? snapshot2.sessionLabel() : "Open Account Security once to sync");
+        addRow(card, "Security sync", snapshot2.seen ? snapshot2.sessionLabel() : "Syncing automatically");
         String str = "No controls detected";
         if (snapshot2.seen) {
             ArrayList arrayList = new ArrayList();
