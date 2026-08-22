@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -84,3 +84,17 @@ jobs:
           path: out/
           if-no-files-found: error
           retention-days: 1
+
+      - name: Publish unsigned APK to dev build-output
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build-output
+          cp out/HCF-Beta-v10000087-aligned-unsigned.apk build-output/
+          cp out/APK-BADGING.txt build-output/HCF-Beta-v10000087-APK-BADGING.txt
+          cp out/SHA256SUMS.txt build-output/HCF-Beta-v10000087-UNSIGNED-SHA256.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- build-output/HCF-Beta-v10000087-aligned-unsigned.apk build-output/HCF-Beta-v10000087-APK-BADGING.txt build-output/HCF-Beta-v10000087-UNSIGNED-SHA256.txt
+          git commit -m "[skip ci] Build Beta v10000087 realtime unsigned APK"
+          git push origin HEAD:dev
