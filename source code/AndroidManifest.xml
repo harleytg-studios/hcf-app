@@ -44,6 +44,7 @@
         <meta-data android:name="com.harleytg.SESSION_CLIENT" android:value="Harley&apos;s Clan Forum App"/>
         <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="true"/>
         <provider android:name="com.harleytg.forum.dev.UpdateFileProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.updatefiles" android:grantUriPermissions="true"/>
+        <activity android:name="com.harleytg.forum.dev.WelcomeActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.SetupActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.SettingsActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.LogsActivity" android:exported="false"/>

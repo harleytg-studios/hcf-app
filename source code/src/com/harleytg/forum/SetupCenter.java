@@ -19,6 +19,7 @@ import java.util.Map;
 /** Shared state and Android integration helpers for the versioned App Setup Center. */
 final class SetupCenter {
     static final int CURRENT_SETUP_VERSION = 1;
+    static final int CURRENT_WELCOME_VERSION = 1;
     static final String EXTRA_AUTO_LAUNCHED = "hcf_setup_auto_launched";
     static final String PRIMARY_FORUM_HOST = "forum.harleytg.com";
     static final String BACKUP_FORUM_HOST = "harleysclan.freeflarum.com";
@@ -35,6 +36,22 @@ final class SetupCenter {
             this.ready = ready;
             this.detail = detail;
         }
+    }
+
+    static boolean shouldShowWelcome(Context context) {
+        if (context == null) return false;
+        SharedPreferences prefs = context.getSharedPreferences(AppPrefs.FILE, 0);
+        int storedVersion = prefs.getInt(AppPrefs.WELCOME_VERSION, 0);
+        boolean seen = prefs.getBoolean(AppPrefs.WELCOME_SEEN, false);
+        return storedVersion < CURRENT_WELCOME_VERSION || !seen;
+    }
+
+    static void markWelcomeSeen(Context context) {
+        if (context == null) return;
+        context.getSharedPreferences(AppPrefs.FILE, 0).edit()
+                .putInt(AppPrefs.WELCOME_VERSION, CURRENT_WELCOME_VERSION)
+                .putBoolean(AppPrefs.WELCOME_SEEN, true)
+                .apply();
     }
 
     static boolean shouldAutoLaunch(Context context) {
@@ -79,10 +96,23 @@ final class SetupCenter {
     static void maybeLaunchForMainActivity(MainActivity activity, android.os.Bundle savedInstanceState) {
         if (activity == null) return;
         installDrawerEntry(activity);
-        if (savedInstanceState != null || !shouldAutoLaunch(activity)) return;
+        if (savedInstanceState != null) return;
 
-        // Mark the current setup version as seen before launching. This is the loop guard:
-        // returning to MainActivity (or recreating it) must never relaunch Setup continuously.
+        // New onboarding gate: welcome the user before asking them to configure
+        // optional Android integrations. The welcome screen records its own state
+        // only after the user chooses Setup or Continue, so an interrupted first
+        // launch can safely show the welcome screen again.
+        if (shouldShowWelcome(activity)) {
+            Intent welcome = new Intent(activity, WelcomeActivity.class);
+            welcome.putExtra(EXTRA_AUTO_LAUNCHED, true);
+            activity.startActivity(welcome);
+            AppLogger.info(activity, "app_welcome", "auto_launch_v" + CURRENT_WELCOME_VERSION);
+            return;
+        }
+
+        // Compatibility path for an install whose welcome screen was already
+        // acknowledged but whose current Setup Center version has never been seen.
+        if (!shouldAutoLaunch(activity)) return;
         markSeen(activity);
         Intent intent = new Intent(activity, SetupActivity.class);
         intent.putExtra(EXTRA_AUTO_LAUNCHED, true);
