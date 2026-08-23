@@ -1,13 +1,12 @@
 name: Build Hardware Guard APK
 
 on:
-  push:
+  pull_request:
     branches:
-      - hardware-guard
+      - main
     paths:
       - 'hardware-guard/**'
       - '.github/workflows/build-hardware-guard.yml'
-  workflow_dispatch:
 
 jobs:
   build-apk:
