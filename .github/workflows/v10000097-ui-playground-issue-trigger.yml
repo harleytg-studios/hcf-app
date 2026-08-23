@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   patch-build:
-    if: contains(github.event.issue.title, '[build-ui-playground-v10000097]')
+    if: github.event.issue.title == 'RUN HCF v10000097 UI PLAYGROUND'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout dev
