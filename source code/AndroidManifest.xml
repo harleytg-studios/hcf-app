@@ -52,8 +52,8 @@
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$IdentityActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$SupportContactActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$MediaViewerActivity" android:exported="false" android:screenOrientation="unspecified"/>
-        <activity android:name="com.harleytg.forum.dev.HcfStartupMainActivity" android:exported="false" android:launchMode="singleTop"/>
-        <activity android:name="com.harleytg.forum.dev.HcfStartupActivity" android:exported="true" android:launchMode="singleTop">
+        <activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupMainActivity" android:exported="false" android:launchMode="singleTop"/>
+        <activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupActivity" android:exported="true" android:launchMode="singleTop">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>
         <service android:name="com.harleytg.forum.dev.HcfNotificationEngine$InstantNotificationService" android:enabled="true" android:exported="false" android:stopWithTask="false" android:foregroundServiceType="specialUse">
