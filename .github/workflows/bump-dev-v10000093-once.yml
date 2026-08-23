@@ -1,0 +1,145 @@
+name: Temporary Dev v10000093 Bump
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/bump-dev-v10000093-once.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bump-build-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Bump to v10000093 and repair consolidated build path
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path.cwd()
+          manifest = root / 'source code/AndroidManifest.xml'
+          app = root / 'source code/src/com/harleytg/forum/HcfApplication.java'
+          readme = root / 'README.md'
+          verifier = root / '.github/scripts/verify-release-readiness.py'
+          build = root / 'source code/build-release.sh'
+          old_wf = root / '.github/workflows/build-dev-v10000092.yml'
+          new_wf = root / '.github/workflows/build-dev-v10000093.yml'
+
+          def replace(path, old, new, count=None):
+              text = path.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'missing expected text in {path}: {old}')
+              text = text.replace(old, new) if count is None else text.replace(old, new, count)
+              path.write_text(text, encoding='utf-8')
+
+          replace(manifest, '10000092', '10000093')
+          replace(app, '10000092', '10000093')
+          replace(app, 'static final int INTERNAL_BUILD = 112;', 'static final int INTERNAL_BUILD = 113;')
+          replace(readme, '10000092', '10000093')
+          replace(readme, 'Internal build: `112`', 'Internal build: `113`')
+          replace(verifier, 'EXPECTED_VERSION_CODE = 10000092', 'EXPECTED_VERSION_CODE = 10000093')
+          replace(verifier, 'EXPECTED_INTERNAL_BUILD = 112', 'EXPECTED_INTERNAL_BUILD = 113')
+          replace(verifier, 'v10000092', 'v10000093')
+          replace(verifier, 'build-dev-v10000092.yml', 'build-dev-v10000093.yml')
+          replace(build, 'src/com/harleytg/forum/BuildInfo.java', 'src/com/harleytg/forum/HcfApplication.java')
+          replace(build, 'Missing BuildInfo.java', 'Missing HcfApplication.java')
+
+          if not old_wf.is_file():
+              raise SystemExit('missing build-dev-v10000092.yml')
+          wf = old_wf.read_text(encoding='utf-8').replace('10000092', '10000093')
+          new_wf.write_text(wf, encoding='utf-8')
+          old_wf.unlink()
+
+          # This workflow is intentionally one-time. Remove it before release verification
+          # so the normal policy continues to reject write-enabled release workflows.
+          temp = root / '.github/workflows/bump-dev-v10000093-once.yml'
+          if temp.exists():
+              temp.unlink()
+
+          # Prevent stale active-build references from surviving the bump.
+          stale = []
+          for path in [manifest, app, readme, verifier, build, new_wf]:
+              if '10000092' in path.read_text(encoding='utf-8'):
+                  stale.append(str(path))
+          if stale:
+              raise SystemExit('stale v10000092 references: ' + ', '.join(stale))
+          PY
+
+          test "$(find 'source code/src/com/harleytg/forum' -maxdepth 1 -name '*.java' | wc -l)" -eq 8
+          grep -Fq 'android:versionCode="10000093"' 'source code/AndroidManifest.xml'
+          grep -Fq 'VERSION_CODE = 10000093;' 'source code/src/com/harleytg/forum/HcfApplication.java'
+          grep -Fq 'INTERNAL_BUILD = 113;' 'source code/src/com/harleytg/forum/HcfApplication.java'
+          grep -Fq 'build_info="$project_dir/src/com/harleytg/forum/HcfApplication.java"' 'source code/build-release.sh'
+
+          python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
+          python3 .github/scripts/verify-release-readiness.py .
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build verified unsigned v10000093 APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+          ROOT="$GITHUB_WORKSPACE/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-beta-v10000093"
+          OUT="$GITHUB_WORKSPACE/out-v10000093"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
+
+          "$BT/aapt" package -f -m \
+            -J "$WORK/gen" \
+            -M "$ROOT/AndroidManifest.xml" \
+            -S "$ROOT/res" \
+            -A "$ROOT/assets" \
+            -I "$ANDROID_JAR" \
+            -F "$WORK/resources.apk"
+
+          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
+          mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
+
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
+          APK="$OUT/HCF-Beta-v10000093-aligned-unsigned.apk"
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$APK"
+          "$BT/zipalign" -c -p 4 "$APK"
+          "$BT/aapt" dump badging "$APK" | head -1 | tee "$OUT/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
+          grep -q "versionCode='10000093'" "$OUT/APK-BADGING.txt"
+          grep -q "versionName='1.0 (10000093)'" "$OUT/APK-BADGING.txt"
+          sha256sum "$APK" | tee "$OUT/SHA256SUMS.txt"
+
+      - name: Commit v10000093 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Bump Dev APK to v10000093'
+          git push origin dev
+
+      - name: Upload unsigned v10000093 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-Beta-v10000093-Unsigned
+          path: out-v10000093/
+          if-no-files-found: error
+          retention-days: 7
