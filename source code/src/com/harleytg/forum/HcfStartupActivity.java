@@ -1,6 +1,5 @@
 package com.harleytg.forum.dev;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -27,7 +26,6 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import java.net.URL;
-import java.util.Locale;
 import javax.net.ssl.HttpsURLConnection;
 
 /**
@@ -68,6 +66,7 @@ public final class HcfStartupActivity extends ThemedActivity {
     private boolean loaderStarted;
     private boolean handoffStarted;
     private boolean destroyed;
+    private boolean resumed;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -102,6 +101,7 @@ public final class HcfStartupActivity extends ThemedActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        resumed = true;
         mainHandler.post(new Runnable() {
             @Override public void run() {
                 advanceStartupGate();
@@ -110,28 +110,34 @@ public final class HcfStartupActivity extends ThemedActivity {
     }
 
     @Override
+    protected void onPause() {
+        resumed = false;
+        super.onPause();
+    }
+
+    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_WELCOME || requestCode == REQUEST_SETUP) {
+            // Do not start the loader here. Welcome can launch Setup before it
+            // finishes, so Android may deliver this result while Setup is still
+            // covering the startup activity. onResume() is the authoritative gate.
             gateInProgress = false;
-            mainHandler.post(new Runnable() {
-                @Override public void run() {
-                    advanceStartupGate();
-                }
-            });
         }
     }
 
     @Override
     protected void onDestroy() {
         destroyed = true;
+        resumed = false;
         mainHandler.removeCallbacksAndMessages(null);
         destroyStartupWebView();
         super.onDestroy();
     }
 
     private void advanceStartupGate() {
-        if (destroyed || isFinishing() || isDestroyed() || gateInProgress || loaderStarted || handoffStarted) {
+        if (!resumed || destroyed || isFinishing() || isDestroyed()
+                || gateInProgress || loaderStarted || handoffStarted) {
             return;
         }
 
@@ -306,7 +312,7 @@ public final class HcfStartupActivity extends ThemedActivity {
     }
 
     private void startSystemLoader() {
-        if (loaderStarted || handoffStarted || destroyed) return;
+        if (!resumed || loaderStarted || handoffStarted || destroyed) return;
         loaderStarted = true;
 
         publishStage(4, "Loading app preferences", "Applying theme, performance and saved native settings.");
@@ -370,10 +376,13 @@ public final class HcfStartupActivity extends ThemedActivity {
                 publishStage(72, "Checking update system", "Update checks can recover after the forum opens.");
             }
 
-            // 7. Previous crash/recovery state.
+            // 7. Inspect recovery state only. Any crash-report dialog remains owned
+            // by MainActivity on the UI thread after the startup handoff.
             try {
-                TelemetryService.handlePendingCrash(this);
-                publishStage(80, "Checking recovery state", "Crash recovery and diagnostics state checked.");
+                boolean pendingCrash = TelemetryService.hasPendingCrash(this);
+                publishStage(80, "Checking recovery state",
+                        pendingCrash ? "A saved recovery report is ready for the main app to handle."
+                                : "No pending crash recovery report was found.");
             } catch (Throwable recoveryError) {
                 AppLogger.warn(this, "startup_recovery", recoveryError.getClass().getSimpleName());
                 publishStage(80, "Checking recovery state", "No blocking recovery action is required.");
@@ -425,7 +434,7 @@ public final class HcfStartupActivity extends ThemedActivity {
     }
 
     private void beginChromeHandoff() {
-        if (destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
+        if (!resumed || destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
         handoffStarted = true;
 
         TextView subtitle = findViewById(R.id.appHeaderSubtitle);
@@ -505,7 +514,7 @@ public final class HcfStartupActivity extends ThemedActivity {
     }
 
     private void launchForumMainActivity() {
-        if (destroyed || isFinishing() || isDestroyed()) return;
+        if (!resumed || destroyed || isFinishing() || isDestroyed()) return;
 
         destroyStartupWebView();
 
