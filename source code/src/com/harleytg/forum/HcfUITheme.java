@@ -58,6 +58,7 @@ public final class HcfUITheme {
         private static final long HEADER_FADE_MS = 180L;
         private static final long URL_FADE_MS = 180L;
         private static final long LOADER_FADE_MS = 220L;
+        private static final long LOADER_FIRST_FRAME_HOLD_MS = 300L;
         private static final long WEBVIEW_HANDOFF_DELAY_MS = 80L;
 
         private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -402,16 +403,53 @@ public final class HcfUITheme {
             if (!resumed || loaderStarted || handoffStarted || destroyed) return;
             loaderStarted = true;
 
-            publishStage(4, "Loading app preferences", "Applying theme, performance and saved native settings.");
-            AppLogger.info(this, "startup_loader", "begin");
+            // Both first-run and returning users must see a real 0% loader frame
+            // before background checks are allowed to advance the progress bar.
+            if (loaderOverlay != null) {
+                loaderOverlay.animate().cancel();
+                loaderOverlay.setAlpha(1.0f);
+                loaderOverlay.setVisibility(View.VISIBLE);
+            }
+            if (loaderBackdrop != null) {
+                loaderBackdrop.animate().cancel();
+                loaderBackdrop.setAlpha(1.0f);
+                loaderBackdrop.setVisibility(View.VISIBLE);
+            }
+            if (loaderPanel != null) {
+                loaderPanel.animate().cancel();
+                loaderPanel.setAlpha(1.0f);
+                loaderPanel.setVisibility(View.VISIBLE);
+            }
+            if (retryButton != null) retryButton.setVisibility(View.GONE);
+            if (loaderTitle != null) loaderTitle.setText("Starting Harley's Clan Forum");
+            if (loaderStatus != null) loaderStatus.setText("Starting native systems");
+            if (loaderDetail != null) {
+                loaderDetail.setText("Preparing system checks before the forum opens.");
+            }
+            if (loaderProgress != null) loaderProgress.setProgress(0, false);
 
-            Thread worker = new Thread(new Runnable() {
+            AppLogger.info(this, "startup_loader", "visible_zero");
+
+            mainHandler.postDelayed(new Runnable() {
                 @Override public void run() {
-                    runSystemChecks();
+                    if (destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
+                    if (!resumed) {
+                        loaderStarted = false;
+                        return;
+                    }
+
+                    publishStage(4, "Loading app preferences", "Applying theme, performance and saved native settings.");
+                    AppLogger.info(StartupActivity.this, "startup_loader", "begin_after_visible_frame");
+
+                    Thread worker = new Thread(new Runnable() {
+                        @Override public void run() {
+                            runSystemChecks();
+                        }
+                    }, "hcf-startup-checks");
+                    worker.setPriority(Thread.NORM_PRIORITY);
+                    worker.start();
                 }
-            }, "hcf-startup-checks");
-            worker.setPriority(Thread.NORM_PRIORITY);
-            worker.start();
+            }, LOADER_FIRST_FRAME_HOLD_MS);
         }
 
         private void runSystemChecks() {
