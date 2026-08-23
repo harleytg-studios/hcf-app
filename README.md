@@ -7,9 +7,9 @@ Development/Beta branch for the Harley's Clan Forum Android app.
 - App name: **Harley's Clan Forum [Beta]**
 - Branch: `dev`
 - Android package: `com.harleytg.forum.dev`
-- Version name: `1.0 (10000095)`
-- Version code: `10000095`
-- Internal build: `115`
+- Version name: `1.0 (10000097)`
+- Version code: `10000097`
+- Internal build: `117`
 - Minimum SDK: `26`
 - Target SDK: `34`
 - Source directory: [`source code/`](./source%20code)
@@ -40,6 +40,6 @@ Only the two active read-only GitHub Actions workflows and their release-verific
 
 ## Release gates
 
-The v10000095 workflow compiles the complete Java/resource source, packages and aligns an unsigned CI APK, verifies package/version identity, checks the approved three-tile HCF Alerts UI, and rejects decompiler stubs or missing same-version SHA-256 update protections. Production signing remains local so the Beta private key is never stored in GitHub Actions.
+The v10000097 workflow compiles the complete Java/resource source, packages and aligns an unsigned CI APK, verifies package/version identity, checks the approved three-tile HCF Alerts UI, and rejects decompiler stubs or missing same-version SHA-256 update protections. Production signing remains local so the Beta private key is never stored in GitHub Actions.
 
 The shared Stable + Dev Digital Asset Links source is [`configs/app-links/assetlinks.json`](./configs/app-links/assetlinks.json). Its canonical deployment source is the `main`-branch path `configs/app-links/assetlinks.json`; this Dev release does not modify or rebuild the Stable app.

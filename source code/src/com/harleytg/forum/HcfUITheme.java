@@ -419,46 +419,134 @@ abstract class ThemedActivity extends Activity implements SharedPreferences.OnSh
     }
 }
 
-/** Welcome-only layout fitter. Keeps the first-run screen on one phone viewport. */
+/** Welcome-only fit-to-screen controller.
+ * Measures the actual first-run content and only shrinks when it would overflow.
+ * Any remaining free height is distributed between sections so the screen feels
+ * intentionally full instead of leaving a large blank block at the bottom.
+ */
 final class WelcomeScreenFitter {
     private WelcomeScreenFitter() {}
 
-    static void apply(Activity activity, View root) {
+    static void apply(final Activity activity, final View root) {
         if (activity == null || root == null || !(activity instanceof HcfMainActivities.WelcomeActivity)) {
             return;
         }
 
-        int screenHeightDp = activity.getResources().getConfiguration().screenHeightDp;
-        if (screenHeightDp > 860) {
-            return;
-        }
-
-        final float layoutScale = screenHeightDp <= 680 ? 0.68f
-                : screenHeightDp <= 780 ? 0.78f
-                : 0.90f;
-        final float textScale = screenHeightDp <= 680 ? 0.84f
-                : screenHeightDp <= 780 ? 0.91f
-                : 0.96f;
-
         if (root instanceof ScrollView) {
             ScrollView scroll = (ScrollView) root;
+            scroll.setFillViewport(true);
             scroll.setVerticalScrollBarEnabled(false);
             scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         }
 
         root.post(new Runnable() {
-            @Override
-            public void run() {
-                compact(root, layoutScale, textScale);
-                root.requestLayout();
+            @Override public void run() {
+                fit(activity, root);
             }
         });
     }
 
-    private static void compact(View view, float layoutScale, float textScale) {
-        if (view == null) {
+    private static void fit(final Activity activity, final View root) {
+        View content = root;
+        int viewportHeight = root.getHeight();
+
+        if (root instanceof ScrollView) {
+            ScrollView scroll = (ScrollView) root;
+            viewportHeight = scroll.getHeight();
+            if (scroll.getChildCount() > 0) {
+                content = scroll.getChildAt(0);
+            }
+        }
+
+        if (content == null || viewportHeight <= 0) {
             return;
         }
+
+        final View finalContent = content;
+        final int finalViewportHeight = viewportHeight;
+        int usedHeight = contentBottom(content);
+        int safeBottom = dp(activity, 10);
+        int targetHeight = Math.max(dp(activity, 520), viewportHeight - safeBottom);
+
+        if (usedHeight > targetHeight) {
+            float scale = ((float) targetHeight) / ((float) usedHeight);
+            scale = Math.max(0.80f, Math.min(1.0f, scale));
+            compact(content, scale, Math.max(0.88f, scale));
+            content.requestLayout();
+            content.post(new Runnable() {
+                @Override public void run() {
+                    balance(activity, finalContent, finalViewportHeight);
+                }
+            });
+        } else {
+            balance(activity, content, viewportHeight);
+        }
+    }
+
+    private static void balance(Activity activity, View content, int viewportHeight) {
+        if (!(content instanceof android.widget.LinearLayout) || viewportHeight <= 0) {
+            return;
+        }
+
+        android.widget.LinearLayout column = (android.widget.LinearLayout) content;
+        int usedHeight = contentBottom(column);
+        int extra = viewportHeight - usedHeight;
+        if (extra <= dp(activity, 6)) {
+            return;
+        }
+
+        int visible = 0;
+        for (int i = 0; i < column.getChildCount(); i++) {
+            if (column.getChildAt(i).getVisibility() != View.GONE) visible++;
+        }
+        if (visible <= 0) return;
+
+        int slots = visible + 1;
+        int add = Math.max(1, extra / slots);
+
+        column.setPadding(
+                column.getPaddingLeft(),
+                column.getPaddingTop() + add,
+                column.getPaddingRight(),
+                column.getPaddingBottom() + add
+        );
+
+        boolean first = true;
+        for (int i = 0; i < column.getChildCount(); i++) {
+            View child = column.getChildAt(i);
+            if (child.getVisibility() == View.GONE) continue;
+            if (first) {
+                first = false;
+                continue;
+            }
+            ViewGroup.LayoutParams raw = child.getLayoutParams();
+            if (raw instanceof ViewGroup.MarginLayoutParams) {
+                ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) raw;
+                lp.topMargin += add;
+                child.setLayoutParams(lp);
+            }
+        }
+
+        column.setMinimumHeight(viewportHeight);
+        column.requestLayout();
+    }
+
+    private static int contentBottom(View view) {
+        if (!(view instanceof ViewGroup)) {
+            return Math.max(view.getMeasuredHeight(), view.getHeight());
+        }
+        ViewGroup group = (ViewGroup) view;
+        int bottom = group.getPaddingTop();
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            if (child.getVisibility() == View.GONE) continue;
+            bottom = Math.max(bottom, child.getBottom());
+        }
+        return bottom + group.getPaddingBottom();
+    }
+
+    private static void compact(View view, float layoutScale, float textScale) {
+        if (view == null) return;
 
         view.setPadding(
                 scaled(view.getPaddingLeft(), layoutScale),
@@ -469,12 +557,8 @@ final class WelcomeScreenFitter {
 
         ViewGroup.LayoutParams params = view.getLayoutParams();
         if (params != null) {
-            if (params.width > 0) {
-                params.width = scaled(params.width, layoutScale);
-            }
-            if (params.height > 0) {
-                params.height = scaled(params.height, layoutScale);
-            }
+            if (params.width > 0) params.width = scaled(params.width, layoutScale);
+            if (params.height > 0) params.height = scaled(params.height, layoutScale);
             if (params instanceof ViewGroup.MarginLayoutParams) {
                 ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) params;
                 margins.leftMargin = scaled(margins.leftMargin, layoutScale);
@@ -487,12 +571,8 @@ final class WelcomeScreenFitter {
 
         int minWidth = view.getMinimumWidth();
         int minHeight = view.getMinimumHeight();
-        if (minWidth > 0) {
-            view.setMinimumWidth(scaled(minWidth, layoutScale));
-        }
-        if (minHeight > 0) {
-            view.setMinimumHeight(scaled(minHeight, layoutScale));
-        }
+        if (minWidth > 0) view.setMinimumWidth(scaled(minWidth, layoutScale));
+        if (minHeight > 0) view.setMinimumHeight(scaled(minHeight, layoutScale));
 
         if (view instanceof TextView) {
             TextView text = (TextView) view;
@@ -510,6 +590,10 @@ final class WelcomeScreenFitter {
 
     private static int scaled(int value, float scale) {
         return value == 0 ? 0 : Math.max(1, Math.round(value * scale));
+    }
+
+    private static int dp(Activity activity, int value) {
+        return Math.round(value * activity.getResources().getDisplayMetrics().density);
     }
 }
 
