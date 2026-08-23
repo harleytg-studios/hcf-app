@@ -52,6 +52,10 @@
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$IdentityActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$SupportContactActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$MediaViewerActivity" android:exported="false" android:screenOrientation="unspecified"/>
+        <activity android:name="com.harleytg.forum.dev.HcfStartupMainActivity" android:exported="false" android:launchMode="singleTop"/>
+        <activity android:name="com.harleytg.forum.dev.HcfStartupActivity" android:exported="true" android:launchMode="singleTop">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity>
         <service android:name="com.harleytg.forum.dev.HcfNotificationEngine$InstantNotificationService" android:enabled="true" android:exported="false" android:stopWithTask="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Continuously checks the authenticated Harley&apos;s Clan Forum account for time-sensitive user-visible forum notifications while the app is foregrounded or backgrounded."/>
         </service>
@@ -60,7 +64,6 @@
         <receiver android:name="com.harleytg.forum.dev.HcfUpdateEngine$UpdateDownloadReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.DOWNLOAD_COMPLETE"/></intent-filter></receiver>
         <receiver android:name="com.harleytg.forum.dev.HcfNotificationEngine$BootReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.MY_PACKAGE_REPLACED"/></intent-filter></receiver>
         <activity android:name="com.harleytg.forum.dev.HcfMainActivities$MainActivity" android:exported="true" android:launchMode="singleTop">
-            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
