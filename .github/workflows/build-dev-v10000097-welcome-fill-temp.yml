@@ -1,0 +1,296 @@
+name: HCF Beta v10000097 Welcome Fill
+
+on:
+  pull_request:
+    branches: [dev]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Patch Welcome fit and bump v10000097
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          ui = Path('source code/src/com/harleytg/forum/HcfUITheme.java')
+          app = Path('source code/src/com/harleytg/forum/HcfApplication.java')
+          manifest = Path('source code/AndroidManifest.xml')
+          readme = Path('README.md')
+
+          text = ui.read_text(encoding='utf-8')
+          start = text.index('/** Welcome-only layout fitter.')
+          end = text.index('// ---- FaIcons.java ----', start)
+          replacement = r'''/** Welcome-only fit-to-screen controller.
+ * Measures the actual first-run content and only shrinks when it would overflow.
+ * Any remaining free height is distributed between sections so the screen feels
+ * intentionally full instead of leaving a large blank block at the bottom.
+ */
+final class WelcomeScreenFitter {
+    private WelcomeScreenFitter() {}
+
+    static void apply(final Activity activity, final View root) {
+        if (activity == null || root == null || !(activity instanceof HcfMainActivities.WelcomeActivity)) {
+            return;
+        }
+
+        if (root instanceof ScrollView) {
+            ScrollView scroll = (ScrollView) root;
+            scroll.setFillViewport(true);
+            scroll.setVerticalScrollBarEnabled(false);
+            scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        }
+
+        root.post(new Runnable() {
+            @Override public void run() {
+                fit(activity, root);
+            }
+        });
+    }
+
+    private static void fit(final Activity activity, final View root) {
+        View content = root;
+        int viewportHeight = root.getHeight();
+
+        if (root instanceof ScrollView) {
+            ScrollView scroll = (ScrollView) root;
+            viewportHeight = scroll.getHeight();
+            if (scroll.getChildCount() > 0) {
+                content = scroll.getChildAt(0);
+            }
+        }
+
+        if (content == null || viewportHeight <= 0) {
+            return;
+        }
+
+        final View finalContent = content;
+        final int finalViewportHeight = viewportHeight;
+        int usedHeight = contentBottom(content);
+        int safeBottom = dp(activity, 10);
+        int targetHeight = Math.max(dp(activity, 520), viewportHeight - safeBottom);
+
+        if (usedHeight > targetHeight) {
+            float scale = ((float) targetHeight) / ((float) usedHeight);
+            scale = Math.max(0.80f, Math.min(1.0f, scale));
+            compact(content, scale, Math.max(0.88f, scale));
+            content.requestLayout();
+            content.post(new Runnable() {
+                @Override public void run() {
+                    balance(activity, finalContent, finalViewportHeight);
+                }
+            });
+        } else {
+            balance(activity, content, viewportHeight);
+        }
+    }
+
+    private static void balance(Activity activity, View content, int viewportHeight) {
+        if (!(content instanceof android.widget.LinearLayout) || viewportHeight <= 0) {
+            return;
+        }
+
+        android.widget.LinearLayout column = (android.widget.LinearLayout) content;
+        int usedHeight = contentBottom(column);
+        int extra = viewportHeight - usedHeight;
+        if (extra <= dp(activity, 6)) {
+            return;
+        }
+
+        int visible = 0;
+        for (int i = 0; i < column.getChildCount(); i++) {
+            if (column.getChildAt(i).getVisibility() != View.GONE) visible++;
+        }
+        if (visible <= 0) return;
+
+        int slots = visible + 1;
+        int add = Math.max(1, extra / slots);
+
+        column.setPadding(
+                column.getPaddingLeft(),
+                column.getPaddingTop() + add,
+                column.getPaddingRight(),
+                column.getPaddingBottom() + add
+        );
+
+        boolean first = true;
+        for (int i = 0; i < column.getChildCount(); i++) {
+            View child = column.getChildAt(i);
+            if (child.getVisibility() == View.GONE) continue;
+            if (first) {
+                first = false;
+                continue;
+            }
+            ViewGroup.LayoutParams raw = child.getLayoutParams();
+            if (raw instanceof ViewGroup.MarginLayoutParams) {
+                ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) raw;
+                lp.topMargin += add;
+                child.setLayoutParams(lp);
+            }
+        }
+
+        column.setMinimumHeight(viewportHeight);
+        column.requestLayout();
+    }
+
+    private static int contentBottom(View view) {
+        if (!(view instanceof ViewGroup)) {
+            return Math.max(view.getMeasuredHeight(), view.getHeight());
+        }
+        ViewGroup group = (ViewGroup) view;
+        int bottom = group.getPaddingTop();
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            if (child.getVisibility() == View.GONE) continue;
+            bottom = Math.max(bottom, child.getBottom());
+        }
+        return bottom + group.getPaddingBottom();
+    }
+
+    private static void compact(View view, float layoutScale, float textScale) {
+        if (view == null) return;
+
+        view.setPadding(
+                scaled(view.getPaddingLeft(), layoutScale),
+                scaled(view.getPaddingTop(), layoutScale),
+                scaled(view.getPaddingRight(), layoutScale),
+                scaled(view.getPaddingBottom(), layoutScale)
+        );
+
+        ViewGroup.LayoutParams params = view.getLayoutParams();
+        if (params != null) {
+            if (params.width > 0) params.width = scaled(params.width, layoutScale);
+            if (params.height > 0) params.height = scaled(params.height, layoutScale);
+            if (params instanceof ViewGroup.MarginLayoutParams) {
+                ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) params;
+                margins.leftMargin = scaled(margins.leftMargin, layoutScale);
+                margins.topMargin = scaled(margins.topMargin, layoutScale);
+                margins.rightMargin = scaled(margins.rightMargin, layoutScale);
+                margins.bottomMargin = scaled(margins.bottomMargin, layoutScale);
+            }
+            view.setLayoutParams(params);
+        }
+
+        int minWidth = view.getMinimumWidth();
+        int minHeight = view.getMinimumHeight();
+        if (minWidth > 0) view.setMinimumWidth(scaled(minWidth, layoutScale));
+        if (minHeight > 0) view.setMinimumHeight(scaled(minHeight, layoutScale));
+
+        if (view instanceof TextView) {
+            TextView text = (TextView) view;
+            text.setTextSize(TypedValue.COMPLEX_UNIT_PX, text.getTextSize() * textScale);
+            text.setLineSpacing(text.getLineSpacingExtra() * textScale, text.getLineSpacingMultiplier());
+        }
+
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                compact(group.getChildAt(i), layoutScale, textScale);
+            }
+        }
+    }
+
+    private static int scaled(int value, float scale) {
+        return value == 0 ? 0 : Math.max(1, Math.round(value * scale));
+    }
+
+    private static int dp(Activity activity, int value) {
+        return Math.round(value * activity.getResources().getDisplayMetrics().density);
+    }
+}
+
+
+'''
+          text = text[:start] + replacement + text[end:]
+          ui.write_text(text, encoding='utf-8')
+
+          m = manifest.read_text(encoding='utf-8')
+          m = re.sub(r'android:versionCode="\d+"', 'android:versionCode="10000097"', m, count=1)
+          m = re.sub(r'android:versionName="1\.0 \(\d+\)"', 'android:versionName="1.0 (10000097)"', m, count=1)
+          manifest.write_text(m, encoding='utf-8')
+
+          a = app.read_text(encoding='utf-8')
+          a = re.sub(r'HCF-Beta-v\d+\.apk', 'HCF-Beta-v10000097.apk', a)
+          a = re.sub(r'static final int INTERNAL_BUILD = \d+;', 'static final int INTERNAL_BUILD = 117;', a, count=1)
+          a = re.sub(r'HarleysClanForumApp/1\.0 Build/\d+', 'HarleysClanForumApp/1.0 Build/10000097', a)
+          a = re.sub(r'static final int VERSION_CODE = \d+;', 'static final int VERSION_CODE = 10000097;', a, count=1)
+          app.write_text(a, encoding='utf-8')
+
+          r = readme.read_text(encoding='utf-8')
+          r = re.sub(r'1000009\d', '10000097', r)
+          r = re.sub(r'Internal build: `\d+`', 'Internal build: `117`', r)
+          readme.write_text(r, encoding='utf-8')
+          PY
+
+          test "$(find 'source code/src/com/harleytg/forum' -maxdepth 1 -name '*.java' | wc -l)" -eq 8
+          grep -Fq 'android:versionCode="10000097"' 'source code/AndroidManifest.xml'
+          grep -Fq 'VERSION_CODE = 10000097;' 'source code/src/com/harleytg/forum/HcfApplication.java'
+          grep -Fq 'fit-to-screen controller' 'source code/src/com/harleytg/forum/HcfUITheme.java'
+          grep -Fq 'balance(activity' 'source code/src/com/harleytg/forum/HcfUITheme.java'
+
+      - name: Commit source update to dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'markhitchk'
+          git config user.email 'mark.hitchk@gmail.com'
+          git add 'source code/src/com/harleytg/forum/HcfUITheme.java' 'source code/src/com/harleytg/forum/HcfApplication.java' 'source code/AndroidManifest.xml' README.md
+          git commit -m 'Fit Welcome screen to full viewport and bump v10000097'
+          git push origin HEAD:dev
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Compile and package unsigned APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          ROOT="$GITHUB_WORKSPACE/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          AJ="$ANDROID_HOME/platforms/android-35/android.jar"
+          W="$RUNNER_TEMP/hcf-v10000097"
+          O="$GITHUB_WORKSPACE/out-v10000097"
+          mkdir -p "$W/gen" "$W/classes" "$W/dex" "$O/signing-tools/lib"
+
+          "$BT/aapt" package -f -m -J "$W/gen" -M "$ROOT/AndroidManifest.xml" -S "$ROOT/res" -A "$ROOT/assets" -I "$AJ" -F "$W/resources.apk"
+          mapfile -t JAVA_FILES < <(find "$W/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$AJ" -d "$W/classes" "${JAVA_FILES[@]}"
+          mapfile -t CLASS_FILES < <(find "$W/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$AJ" --min-api 26 --release --output "$W/dex" "${CLASS_FILES[@]}"
+
+          cp "$W/resources.apk" "$W/unsigned.apk"
+          (cd "$W/dex" && "$BT/aapt" add "$W/unsigned.apk" classes.dex)
+          APK="$O/HCF-Beta-v10000097-WelcomeFill-aligned-unsigned.apk"
+          "$BT/zipalign" -f -p 4 "$W/unsigned.apk" "$APK"
+          "$BT/zipalign" -c -p 4 "$APK"
+
+          "$BT/aapt" dump badging "$APK" | head -1 | tee "$O/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum.dev'" "$O/APK-BADGING.txt"
+          grep -q "versionCode='10000097'" "$O/APK-BADGING.txt"
+          unzip -p "$APK" classes.dex | strings > "$O/DEX-STRINGS.txt"
+          grep -Fq 'WelcomeScreenFitter' "$O/DEX-STRINGS.txt"
+          cp "$BT/apksigner" "$O/signing-tools/apksigner"
+          cp "$BT/lib/apksigner.jar" "$O/signing-tools/lib/apksigner.jar"
+          sha256sum "$APK" | tee "$O/SHA256SUMS.txt"
+
+      - name: Upload v10000097 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-Beta-v10000097-WelcomeFill-Unsigned
+          path: out-v10000097/
+          if-no-files-found: error
+          retention-days: 7
