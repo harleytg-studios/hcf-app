@@ -1,0 +1,86 @@
+name: One-time v10000097 Loader Chrome Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/v10000097-loader-chrome-fix-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Patch startup chrome handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          ui = Path('source code/src/com/harleytg/forum/HcfUITheme.java')
+          main = Path('source code/src/com/harleytg/forum/HcfMainActivities.java')
+
+          def replace_once(text, old, new, label):
+              if old not in text:
+                  raise SystemExit(f'missing expected block: {label}')
+              return text.replace(old, new, 1)
+
+          text = ui.read_text(encoding='utf-8')
+
+          text = replace_once(text,
+              '''            if (topAppBar != null) topAppBar.setAlpha(0.0f);\n            if (urlBar != null) urlBar.setAlpha(0.0f);''',
+              '''            if (topAppBar != null) {\n                topAppBar.animate().cancel();\n                topAppBar.setAlpha(0.0f);\n                topAppBar.setVisibility(View.INVISIBLE);\n            }\n            if (urlBar != null) {\n                urlBar.animate().cancel();\n                urlBar.setAlpha(0.0f);\n                urlBar.setVisibility(View.INVISIBLE);\n            }''',
+              'initial chrome state')
+
+          old = '''            loaderBackdrop.animate()\n                    .alpha(0.0f)\n                    .setDuration(BACKDROP_REVEAL_MS)\n                    .withEndAction(new Runnable() {\n                        @Override public void run() {\n                            animateHeaderIn();\n                        }\n                    })\n                    .start();'''
+          new = '''            // Keep the loader visually present while exposing only the real native chrome.\n            // Moving the opaque backdrop into contentFrame avoids the old blank-shell flash.\n            dockBackdropBelowChrome();\n            animateHeaderIn();'''
+          text = replace_once(text, old, new, 'backdrop-first handoff')
+
+          marker = '''        private void animateHeaderIn() {\n'''
+          insertion = '''        private void dockBackdropBelowChrome() {\n            if (loaderBackdrop == null) return;\n            try {\n                View content = findViewById(R.id.contentFrame);\n                if (!(content instanceof ViewGroup)) return;\n\n                ViewGroup currentParent = loaderBackdrop.getParent() instanceof ViewGroup\n                        ? (ViewGroup) loaderBackdrop.getParent() : null;\n                if (currentParent != null) currentParent.removeView(loaderBackdrop);\n\n                loaderBackdrop.animate().cancel();\n                loaderBackdrop.setAlpha(1.0f);\n                loaderBackdrop.setVisibility(View.VISIBLE);\n\n                ((ViewGroup) content).addView(loaderBackdrop, new ViewGroup.LayoutParams(\n                        ViewGroup.LayoutParams.MATCH_PARENT,\n                        ViewGroup.LayoutParams.MATCH_PARENT));\n            } catch (Throwable error) {\n                AppLogger.warn(this, \"startup_chrome\", \"dock backdrop: \" + error.getClass().getSimpleName());\n            }\n        }\n\n'''
+          if marker not in text:
+              raise SystemExit('missing animateHeaderIn marker')
+          text = text.replace(marker, insertion + marker, 1)
+
+          text = replace_once(text,
+              '''        private void animateHeaderIn() {\n            if (topAppBar == null) {\n                animateUrlBarIn();\n                return;\n            }\n            topAppBar.animate()\n                    .alpha(1.0f)\n                    .setDuration(HEADER_FADE_MS)''',
+              '''        private void animateHeaderIn() {\n            if (topAppBar == null) {\n                animateUrlBarIn();\n                return;\n            }\n            topAppBar.animate().cancel();\n            topAppBar.setAlpha(0.0f);\n            topAppBar.setVisibility(View.VISIBLE);\n            topAppBar.animate()\n                    .alpha(1.0f)\n                    .setDuration(HEADER_FADE_MS)''',
+              'header animation')
+
+          text = replace_once(text,
+              '''        private void animateUrlBarIn() {\n            if (urlBar == null) {\n                fadeLoaderOut();\n                return;\n            }\n            urlBar.animate()\n                    .alpha(1.0f)\n                    .setDuration(URL_FADE_MS)''',
+              '''        private void animateUrlBarIn() {\n            if (urlBar == null) {\n                fadeLoaderOut();\n                return;\n            }\n            urlBar.animate().cancel();\n            urlBar.setAlpha(0.0f);\n            urlBar.setVisibility(View.VISIBLE);\n            urlBar.animate()\n                    .alpha(1.0f)\n                    .setDuration(URL_FADE_MS)''',
+              'url animation')
+
+          old = '''        private void fadeLoaderOut() {\n            if (loaderPanel == null) {\n                scheduleForumHandoff();\n                return;\n            }\n            loaderPanel.animate()\n                    .alpha(0.0f)\n                    .setDuration(LOADER_FADE_MS)\n                    .withEndAction(new Runnable() {\n                        @Override public void run() {\n                            if (loaderOverlay != null) loaderOverlay.setVisibility(View.GONE);\n                            scheduleForumHandoff();\n                        }\n                    })\n                    .start();\n        }'''
+          new = '''        private void fadeLoaderOut() {\n            if (loaderPanel == null && loaderBackdrop == null) {\n                scheduleForumHandoff();\n                return;\n            }\n\n            if (loaderPanel != null) {\n                loaderPanel.animate().cancel();\n                loaderPanel.animate()\n                        .alpha(0.0f)\n                        .setDuration(LOADER_FADE_MS)\n                        .start();\n            }\n\n            if (loaderBackdrop != null) {\n                loaderBackdrop.animate().cancel();\n                loaderBackdrop.animate()\n                        .alpha(0.0f)\n                        .setDuration(LOADER_FADE_MS)\n                        .withEndAction(new Runnable() {\n                            @Override public void run() {\n                                if (loaderOverlay != null) loaderOverlay.setVisibility(View.GONE);\n                                scheduleForumHandoff();\n                            }\n                        })\n                        .start();\n            } else {\n                loaderPanel.animate()\n                        .withEndAction(new Runnable() {\n                            @Override public void run() {\n                                if (loaderOverlay != null) loaderOverlay.setVisibility(View.GONE);\n                                scheduleForumHandoff();\n                            }\n                        })\n                        .start();\n            }\n        }'''
+          text = replace_once(text, old, new, 'loader fade')
+
+          ui.write_text(text, encoding='utf-8')
+
+          text = main.read_text(encoding='utf-8')
+          old = '''                updateUrlChrome(home);\n                showChecking(this.activeHost);\n                AppLogger.info(this, \"initial_navigation\", AppLogger.safeUrl(home));\n                this.webView.loadUrl(home);'''
+          new = '''                updateUrlChrome(home);\n                boolean startupHandoff = getIntent() != null\n                        && getIntent().getBooleanExtra(\"hcf_startup_handoff\", false);\n                if (startupHandoff) {\n                    // The native startup loader already completed. Do not flash the old\n                    // content-only checking overlay before the forum's own loader appears.\n                    hideStatus();\n                } else {\n                    showChecking(this.activeHost);\n                }\n                AppLogger.info(this, \"initial_navigation\", AppLogger.safeUrl(home));\n                this.webView.loadUrl(home);'''
+          text = replace_once(text, old, new, 'MainActivity initial navigation')
+          main.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit fix to dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Harleys Studios Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add 'source code/src/com/harleytg/forum/HcfUITheme.java' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          git diff --cached --check
+          git commit -m 'Fix startup loader header and URL handoff'
+          git push origin HEAD:dev
