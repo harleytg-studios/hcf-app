@@ -125,8 +125,6 @@ require("v4 signature sidecar check missing", "Missing APK Signature Scheme v4 s
 require("release gate is not called by build", "verify-release-readiness.py" in build_script)
 require("canonical v10000092 workflow missing", any(path.name == "build-dev-v10000092.yml" for path in workflows))
 for path in workflows:
-    if path.name == "consolidate-java-once.yml":
-        continue
     require(f"release workflow must not write repository contents: {path.name}", "contents: write" not in text(path))
 
 print(
