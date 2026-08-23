@@ -1,0 +1,172 @@
+name: Temporary Java Consolidation
+
+on:
+  push:
+    branches: [dev]
+    paths: ['.github/workflows/consolidate-java-once.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  consolidate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: dev, fetch-depth: 0}
+      - name: Backup current dev
+        run: |
+          B="backup/dev-before-8-java-${GITHUB_RUN_ID}"
+          git branch "$B" HEAD
+          git push origin "$B"
+      - name: Generate 8 Java files
+        run: |
+          cat >/tmp/c.py <<'PYCODE'
+          from collections import OrderedDict,defaultdict
+          from pathlib import Path
+          import re
+          R=Path.cwd(); S=R/'source code'; J=S/'src/com/harleytg/forum'; P='com.harleytg.forum.dev'
+          G=OrderedDict([
+          ('HcfApplication.java',['HcfApplication.java','AppExecutors.java','BuildInfo.java','PerformanceProfile.java','RuntimeDiagnostics.java','RuntimeState.java','TelemetryService.java']),
+          ('HcfSecurityAndPrefs.java',['AppSecurity.java','LinkSafety.java','AppPrefs.java','UiPreferences.java','AppLogger.java','ErrorSystem.java']),
+          ('HcfUpdateEngine.java',['UpdateChecker.java','AppUpdateDownloader.java','UpdateScheduler.java','UpdateAutomation.java','UpdateCheckJobService.java','UpdateDownloadReceiver.java','UpdateFileProvider.java','ReleaseNotes.java']),
+          ('HcfNotificationEngine.java',['InstantNotificationService.java','NotificationHelper.java','NotificationSyncJobService.java','NotificationSyncScheduler.java','BootReceiver.java']),
+          ('HcfForumEngine.java',['ForumConfig.java','FirebaseConfigLoader.java','ForumIdentity.java','ForumNotificationClient.java','ForumNotificationSync.java','ForumSecurity.java','ForumUrlRouter.java','LiveForumUpdater.java','RemoteDomainConfig.java','AppDomainRouter.java']),
+          ('HcfMainActivities.java',['MainActivity.java','WelcomeActivity.java','SetupActivity.java','SetupCenter.java','CookieManagerActivity.java','HcfIntentChooser.java']),
+          ('HcfSubActivities.java',['IdentityActivity.java','LogsActivity.java','MediaViewerActivity.java','SettingsActivity.java','SupportContactActivity.java']),
+          ('HcfUITheme.java',['ThemeManager.java','ThemedActivity.java','FaIcons.java','UiButtons.java','AppDomainEditText.java'])])
+          C=OrderedDict([
+          ('HcfApplication',('HcfApplication','App')),('UpdateFileProvider',('HcfUpdateEngine','UpdateFileProvider')),('WelcomeActivity',('HcfMainActivities','WelcomeActivity')),('SetupActivity',('HcfMainActivities','SetupActivity')),('SettingsActivity',('HcfSubActivities','SettingsActivity')),('LogsActivity',('HcfSubActivities','LogsActivity')),('CookieManagerActivity',('HcfMainActivities','CookieManagerActivity')),('IdentityActivity',('HcfSubActivities','IdentityActivity')),('SupportContactActivity',('HcfSubActivities','SupportContactActivity')),('MediaViewerActivity',('HcfSubActivities','MediaViewerActivity')),('InstantNotificationService',('HcfNotificationEngine','InstantNotificationService')),('NotificationSyncJobService',('HcfNotificationEngine','NotificationSyncJobService')),('UpdateCheckJobService',('HcfUpdateEngine','UpdateCheckJobService')),('UpdateDownloadReceiver',('HcfUpdateEngine','UpdateDownloadReceiver')),('BootReceiver',('HcfNotificationEngine','BootReceiver')),('MainActivity',('HcfMainActivities','MainActivity'))])
+          IN={x for v in G.values() for x in v}; OUT=set(G); pkg=re.compile(r'(?m)^\s*package\s+[\w.]+\s*;\s*\n?'); imp=re.compile(r'(?m)^\s*import\s+(static\s+)?([\w.$*]+)\s*;\s*\n?')
+          def die(x): raise SystemExit('consolidate: '+x)
+          def rd(p):
+           if not p.is_file(): die('missing '+str(p)); return ''
+           return p.read_text()
+          def wr(p,x): p.write_text(x.rstrip()+'\n')
+          def split(x):
+           I=[(bool(m.group(1)),m.group(2)) for m in imp.finditer(x)]; x=pkg.sub('',x,1); return I,imp.sub('',x).lstrip('\n')
+          def repl(s,M):
+           o=[];i=0;n=len(s);st=0
+           while i<n:
+            c=s[i];d=s[i+1] if i+1<n else ''
+            if st==0:
+             if c=='"': st=1;o.append(c);i+=1;continue
+             if c=="'": st=2;o.append(c);i+=1;continue
+             if c=='/' and d=='/': st=3;o+=['/','/'];i+=2;continue
+             if c=='/' and d=='*': st=4;o+=['/','*'];i+=2;continue
+             if c in '_$' or c.isalpha():
+              k=i+1
+              while k<n and (s[k] in '_$' or s[k].isalnum()): k+=1
+              w=s[i:k];o.append(M.get(w,w));i=k;continue
+             o.append(c);i+=1;continue
+            o.append(c);i+=1
+            if st in (1,2) and c=='\\' and i<n: o.append(s[i]);i+=1;continue
+            if st==1 and c=='"': st=0
+            elif st==2 and c=="'": st=0
+            elif st==3 and c=='\n': st=0
+            elif st==4 and c=='*' and i<n and s[i]=='/': o.append('/');i+=1;st=0
+           return ''.join(o)
+          def decl(n): return re.compile(r'(?m)^(\s*)(public\s+)?((?:(?:final|abstract|strictfp)\s+)*)(class|interface|enum)\s+'+re.escape(n)+r'\b')
+          def demote(b,n):
+           m=decl(n).search(b)
+           if not m: die('no declaration '+n)
+           return b[:m.start()]+m.group(1)+m.group(3)+m.group(4)+' '+n+b[m.end():]
+          def nested(b,o,n):
+           if o=='HcfApplication': b=repl(b,{'HcfApplication':'App'});o='App'
+           m=decl(o).search(b)
+           if not m: die('no component declaration '+o)
+           b=b[:m.start()]+m.group(1)+'public static '+m.group(3)+m.group(4)+' '+n+b[m.end():]
+           return '\n'.join('    '+x if x else '' for x in b.splitlines())
+          def simple(q): return None if q.endswith('.*') else q.rsplit('.',1)[-1].rsplit('$',1)[-1]
+          
+          def patch_router(x):
+           old='''        if (!("EditText".equals(name) || "android.widget.EditText".equals(name))) {\n            return null;\n        }\n\n        int id = attrs.getAttributeResourceValue(\n                "http://schemas.android.com/apk/res/android",\n                "id",\n                0\n        );\n\n        if (id != R.id.currentUrlText) {\n            return null;\n        }\n\n        return new AppDomainEditText(context, attrs);'''
+           new='''        int id = attrs.getAttributeResourceValue(\n                "http://schemas.android.com/apk/res/android", "id", 0);\n        if (id == R.id.currentUrlText && ("EditText".equals(name) || "android.widget.EditText".equals(name)))\n            return new AppDomainEditText(context, attrs);\n        if (id == R.id.urlBackButton && ("ImageButton".equals(name) || "android.widget.ImageButton".equals(name)))\n            return new UrlBackButton(context, attrs);\n        return null;'''
+           if old not in x: die('router hook changed')
+           return x.replace(old,new,1)
+          BACK='''final class UrlBackButton extends android.widget.ImageButton {\n    UrlBackButton(android.content.Context c){super(c);init();}\n    UrlBackButton(android.content.Context c,android.util.AttributeSet a){super(c,a);init();}\n    UrlBackButton(android.content.Context c,android.util.AttributeSet a,int d){super(c,a,d);init();}\n    private void init(){setOnClickListener(v->back());}\n    private void back(){android.app.Activity a=act(getContext());if(a==null)return;android.webkit.WebView w=a.findViewById(R.id.webView);if(w!=null&&w.canGoBack()){w.goBack();try{AppLogger.info(a,"url_back",AppLogger.safeUrl(w.getUrl()));}catch(Throwable ignored){}return;}android.widget.Toast.makeText(a,"No previous forum page.",android.widget.Toast.LENGTH_SHORT).show();}\n    private android.app.Activity act(android.content.Context c){android.content.Context x=c;while(x instanceof android.content.ContextWrapper){if(x instanceof android.app.Activity)return(android.app.Activity)x;x=((android.content.ContextWrapper)x).getBaseContext();}return x instanceof android.app.Activity?(android.app.Activity)x:null;}\n}'''
+          
+          def main():
+           cur={p.name for p in J.glob('*.java')}
+           if cur!=IN: die('input set mismatch missing='+str(sorted(IN-cur))+' extras='+str(sorted(cur-IN)))
+           raw={n:rd(J/n) for n in IN};raw['AppDomainRouter.java']=patch_router(raw['AppDomainRouter.java'])
+           Is={};Bs={}
+           for n,x in raw.items(): Is[n],Bs[n]=split(x)
+           refs={o:f'{c}.{n}' for o,(c,n) in C.items()}
+           for f,b in list(Bs.items()):
+            own=f[:-5];M=dict(refs);M.pop(own,None);Bs[f]=repl(b,M)
+            for o,(c,n) in C.items():
+             if own!=o: Bs[f]=Bs[f].replace(f'"{P}.{o}"',f'"{P}.{c}${n}"')
+           gen={}
+           for t,fs in G.items():
+            cn=t[:-5]; sm=defaultdict(set)
+            for f in fs:
+             for st,q in Is[f]:
+              if not st and not q.startswith(P+'.') and simple(q): sm[simple(q)].add(q)
+            bad={k for k,v in sm.items() if len(v)>1}
+            for f in fs:
+             M={simple(q):q.replace('$','.') for st,q in Is[f] if not st and not q.startswith(P+'.') and simple(q) in bad};Bs[f]=repl(Bs[f],M)
+            MI={(st,q) for f in fs for st,q in Is[f] if not q.startswith(P+'.') and (st or simple(q) not in bad)}
+            nb=[];tb=[]
+            for f in fs:
+             o=f[:-5];b=Bs[f]
+             if o in C:
+              c,n=C[o]
+              if c!=cn: die('wrong component group '+o)
+              nb.append('    // ---- '+f+' ----\n'+nested(b,o,n))
+             else: tb.append('// ---- '+f+' ----\n'+demote(b,o))
+            if t=='HcfUITheme.java':tb.append(BACK)
+            z=[f'package {P};','']+[f'import {"static " if st else ""}{q};' for st,q in sorted(MI,key=lambda x:(not x[0],x[1]))]+['',f'public final class {cn} {{',f'    private {cn}() {{}}']
+            if nb:z+=['','\n\n'.join(nb)]
+            z+=['}']
+            if tb:z+=['','\n\n'.join(tb)]
+            gen[t]='\n'.join(z)
+           for t,x in gen.items():wr(J/t,x)
+           for p in list(J.glob('*.java')):
+            if p.name not in OUT:p.unlink()
+           m=rd(S/'AndroidManifest.xml')
+           for o,(c,n) in C.items():
+            a=f'{P}.{o}';b=f'{P}.{c}${n}'
+            if a not in m:die('manifest missing '+a)
+            m=m.replace(a,b)
+           wr(S/'AndroidManifest.xml',m)
+           L=S/'res/layout/activity_main.xml';x=rd(L)
+           if 'urlBackButton' not in x:
+            k='''            <ImageButton\n                android:gravity="center"\n                android:id="@+id/reloadButton"''';i=x.find(k)
+            if i<0:die('reloadButton not found')
+            q='''            <ImageButton\n                android:gravity="center"\n                android:id="@+id/urlBackButton"\n                android:background="@drawable/nav_button_background"\n                android:padding="0dp"\n                android:layout_width="@dimen/url_reload_button"\n                android:layout_height="@dimen/url_reload_button"\n                android:src="@drawable/fa_arrow_left"\n                android:scaleType="center"\n                android:tint="@color/hcf_cyan_bright"\n                android:minWidth="0dp"\n                android:minHeight="0dp"\n                android:contentDescription="Back"\n                android:layout_marginEnd="6dp"/>\n''';x=x[:i]+q+x[i:]
+           wr(L,x)
+           V=R/'.github/scripts/verify-release-readiness.py';v=rd(V)
+           mp={'BuildInfo.java':'HcfApplication.java','AppPrefs.java':'HcfSecurityAndPrefs.java','AppSecurity.java':'HcfSecurityAndPrefs.java','AppUpdateDownloader.java':'HcfUpdateEngine.java','UpdateChecker.java':'HcfUpdateEngine.java','NotificationHelper.java':'HcfNotificationEngine.java','MainActivity.java':'HcfMainActivities.java','SetupCenter.java':'HcfMainActivities.java'}
+           for a,b in mp.items():v=v.replace('src/com/harleytg/forum/'+a,'src/com/harleytg/forum/'+b)
+           v=v.replace("f'{EXPECTED_PACKAGE}.SetupActivity'","f'{EXPECTED_PACKAGE}.HcfMainActivities$SetupActivity'")
+           gate='''expected_java_files = {"HcfApplication.java","HcfSecurityAndPrefs.java","HcfUpdateEngine.java","HcfNotificationEngine.java","HcfForumEngine.java","HcfMainActivities.java","HcfSubActivities.java","HcfUITheme.java"}\nactual_java_files = {p.name for p in (source / "src/com/harleytg/forum").glob("*.java")}\nrequire("Java runtime must contain exactly 8 consolidated source files", actual_java_files == expected_java_files)\nrequire("URL-bar back button missing", 'android:id="@+id/urlBackButton"' in text(source / "res/layout/activity_main.xml"))\n'''
+           if 'expected_java_files = {' not in v:v=v.replace('production_files = list((source / "src").rglob("*.java"))',gate+'\nproduction_files = list((source / "src").rglob("*.java"))')
+           wr(V,v)
+           A=R/'.github/scripts/verify-hcf-alerts-ui.py';a=rd(A).replace('SettingsActivity.java','HcfSubActivities.java').replace('source.find("    private View mainAlertsCard() {")','source.find("private View mainAlertsCard() {")').replace('source.find("    private String hcfAlertSyncAge(", start)','source.find("private String hcfAlertSyncAge(", start)');wr(A,a)
+           if {p.name for p in J.glob('*.java')}!=OUT:die('not exactly 8 outputs')
+           print('8-file consolidation generated')
+          main()
+          PYCODE
+          python3 /tmp/c.py
+          test "$(find 'source code/src/com/harleytg/forum' -maxdepth 1 -name '*.java' | wc -l)" -eq 8
+          python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
+          python3 .github/scripts/verify-release-readiness.py .
+      - uses: android-actions/setup-android@v3
+      - name: Compile
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          ROOT="$GITHUB_WORKSPACE/source code"; BT="$ANDROID_HOME/build-tools/35.0.0"; AJ="$ANDROID_HOME/platforms/android-35/android.jar"; W="$RUNNER_TEMP/c"
+          mkdir -p "$W/gen" "$W/classes"
+          "$BT/aapt" package -f -m -J "$W/gen" -M "$ROOT/AndroidManifest.xml" -S "$ROOT/res" -A "$ROOT/assets" -I "$AJ" -F "$W/r.apk"
+          mapfile -t F < <(find "$W/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$AJ" -d "$W/classes" "${F[@]}"
+      - name: Commit refactor
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'source code' .github/scripts/verify-release-readiness.py .github/scripts/verify-hcf-alerts-ui.py
+          git commit -m 'Refactor Java runtime into 8 consolidated source files'
+          git push origin HEAD:dev
