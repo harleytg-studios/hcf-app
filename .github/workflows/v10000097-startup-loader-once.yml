@@ -1,0 +1,99 @@
+name: One-time v10000097 Startup Loader APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/v10000097-startup-loader-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current dev source
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Publish run locator
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:refs/heads/status/v10000097-startup-loader-run-${GITHUB_RUN_ID} --force
+
+      - name: Run source gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
+          python3 .github/scripts/verify-release-readiness.py .
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Compile v10000097
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          W="$RUNNER_TEMP/hcf-v10000097-startup"
+          O="$GITHUB_WORKSPACE/out-v10000097-startup"
+          mkdir -p "$W/gen" "$W/classes" "$W/dex" "$O/signing-tools/lib"
+
+          "$BT/aapt" package -f -m \
+            -J "$W/gen" \
+            -M "$ROOT/AndroidManifest.xml" \
+            -S "$ROOT/res" \
+            -A "$ROOT/assets" \
+            -I "$ANDROID_JAR" \
+            -F "$W/resources.apk"
+
+          mapfile -t JAVA_FILES < <(find "$W/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$W/classes" "${JAVA_FILES[@]}"
+          mapfile -t CLASS_FILES < <(find "$W/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$W/dex" "${CLASS_FILES[@]}"
+
+          cp "$W/resources.apk" "$W/unsigned.apk"
+          (cd "$W/dex" && "$BT/aapt" add "$W/unsigned.apk" classes.dex)
+          APK="$O/HCF-Beta-v10000097-StartupLoader-aligned-unsigned.apk"
+          "$BT/zipalign" -f -p 4 "$W/unsigned.apk" "$APK"
+          "$BT/zipalign" -c -p 4 "$APK"
+
+          "$BT/aapt" dump badging "$APK" | head -1 | tee "$O/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum.dev'" "$O/APK-BADGING.txt"
+          grep -q "versionCode='10000097'" "$O/APK-BADGING.txt"
+          grep -q "versionName='1.0 (10000097)'" "$O/APK-BADGING.txt"
+
+          unzip -p "$APK" classes.dex | strings > "$O/DEX-STRINGS.txt"
+          grep -Fq 'Starting Harley' "$O/DEX-STRINGS.txt"
+          grep -Fq 'Systems ready' "$O/DEX-STRINGS.txt"
+          grep -Fq 'hcf_startup_handoff' "$O/DEX-STRINGS.txt"
+          grep -Fq 'HcfUITheme$StartupActivity' <(jar tf "$W/classes.jar" 2>/dev/null || true) || true
+          ! grep -Fq 'Method not decompiled' "$O/DEX-STRINGS.txt"
+          ! grep -Fq 'Code decompiled incorrectly' "$O/DEX-STRINGS.txt"
+
+          cp "$BT/apksigner" "$O/signing-tools/apksigner"
+          cp "$BT/lib/apksigner.jar" "$O/signing-tools/lib/apksigner.jar"
+          chmod +x "$O/signing-tools/apksigner"
+          sha256sum "$APK" | tee "$O/SHA256SUMS.txt"
+
+      - name: Upload startup-loader artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-Beta-v10000097-StartupLoader-Unsigned
+          path: out-v10000097-startup/
+          if-no-files-found: error
+          retention-days: 7
