@@ -33,17 +33,17 @@ if len(sys.argv) > 2:
 root = Path(sys.argv[1]).resolve() if len(sys.argv) == 2 else Path.cwd().resolve()
 source = root / "source code"
 manifest = text(source / "AndroidManifest.xml")
-build_info = text(source / "src/com/harleytg/forum/BuildInfo.java")
+build_info = text(source / "src/com/harleytg/forum/HcfApplication.java")
 readme = text(root / "README.md")
 build_script = text(source / "build-release.sh")
-app_prefs = text(source / "src/com/harleytg/forum/AppPrefs.java")
-app_security = text(source / "src/com/harleytg/forum/AppSecurity.java")
-downloader = text(source / "src/com/harleytg/forum/AppUpdateDownloader.java")
-update_checker = text(source / "src/com/harleytg/forum/UpdateChecker.java")
-notification_helper = text(source / "src/com/harleytg/forum/NotificationHelper.java")
-main_activity = text(source / "src/com/harleytg/forum/MainActivity.java")
+app_prefs = text(source / "src/com/harleytg/forum/HcfSecurityAndPrefs.java")
+app_security = text(source / "src/com/harleytg/forum/HcfSecurityAndPrefs.java")
+downloader = text(source / "src/com/harleytg/forum/HcfUpdateEngine.java")
+update_checker = text(source / "src/com/harleytg/forum/HcfUpdateEngine.java")
+notification_helper = text(source / "src/com/harleytg/forum/HcfNotificationEngine.java")
+main_activity = text(source / "src/com/harleytg/forum/HcfMainActivities.java")
 hcf_application = text(source / "src/com/harleytg/forum/HcfApplication.java")
-setup_center = text(source / "src/com/harleytg/forum/SetupCenter.java")
+setup_center = text(source / "src/com/harleytg/forum/HcfMainActivities.java")
 assetlinks = text(root / "configs/app-links/assetlinks.json")
 app_links_readme = text(root / "configs/app-links/README.md")
 workflows = list((root / ".github/workflows").glob("*.yml"))
@@ -73,6 +73,11 @@ require("README internal build mismatch", f"Internal build: `{EXPECTED_INTERNAL_
 require("brand spelling regression", "Harley's Studios" in build_info and "Harley&apos;s Studios" in manifest)
 require("obsolete brand spelling remains", "Harley's Studio's" not in build_info and "Studio&apos;s" not in manifest)
 
+expected_java_files = {"HcfApplication.java","HcfSecurityAndPrefs.java","HcfUpdateEngine.java","HcfNotificationEngine.java","HcfForumEngine.java","HcfMainActivities.java","HcfSubActivities.java","HcfUITheme.java"}
+actual_java_files = {p.name for p in (source / "src/com/harleytg/forum").glob("*.java")}
+require("Java runtime must contain exactly 8 consolidated source files", actual_java_files == expected_java_files)
+require("URL-bar back button missing", 'android:id="@+id/urlBackButton"' in text(source / "res/layout/activity_main.xml"))
+
 production_files = list((source / "src").rglob("*.java"))
 for path in production_files:
     body = text(path)
@@ -86,7 +91,7 @@ require("primary forum host missing", "forum.harleytg.com" in all_runtime_text)
 require("backup forum host missing", "harleysclan.freeflarum.com" in all_runtime_text)
 require("KaiOS source must not be bundled", "kaios" not in all_runtime_text.lower())
 
-require("SetupActivity missing from manifest", f'{EXPECTED_PACKAGE}.SetupActivity' in manifest)
+require("SetupActivity missing from manifest", f'{EXPECTED_PACKAGE}.HcfMainActivities$SetupActivity' in manifest)
 require("Setup Center lifecycle launch missing", "SetupCenter.maybeLaunchForMainActivity" in hcf_application)
 require("Setup Center drawer entry missing", 'setup.setText("App Setup")' in setup_center)
 require("legacy permission onboarding guard missing", "PERMISSION_ONBOARDING_DONE" in hcf_application)
