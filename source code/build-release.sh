@@ -6,12 +6,12 @@ sdk_root="${ANDROID_SDK_ROOT:?Set ANDROID_SDK_ROOT}"
 build_tools="$sdk_root/build-tools/${BUILD_TOOLS_VERSION:-35.0.0}"
 android_jar="$sdk_root/platforms/android-${ANDROID_PLATFORM_VERSION:-35}/android.jar"
 manifest="$project_dir/AndroidManifest.xml"
-build_info="$project_dir/src/com/harleytg/forum/BuildInfo.java"
+build_info="$project_dir/src/com/harleytg/forum/HcfApplication.java"
 ui_verifier="$project_dir/../.github/scripts/verify-hcf-alerts-ui.py"
 release_verifier="$project_dir/../.github/scripts/verify-release-readiness.py"
 
 [[ -f "$manifest" ]] || { echo "Missing AndroidManifest.xml" >&2; exit 2; }
-[[ -f "$build_info" ]] || { echo "Missing BuildInfo.java" >&2; exit 2; }
+[[ -f "$build_info" ]] || { echo "Missing HcfApplication.java" >&2; exit 2; }
 [[ -f "$ui_verifier" ]] || { echo "Missing HCF Alerts UI verifier" >&2; exit 24; }
 [[ -f "$release_verifier" ]] || { echo "Missing release-readiness verifier" >&2; exit 25; }
 python3 "$ui_verifier" "$project_dir"
