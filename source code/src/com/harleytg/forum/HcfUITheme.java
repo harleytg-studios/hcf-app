@@ -176,6 +176,11 @@ public final class HcfUITheme {
             urlBar = findViewById(R.id.urlBar);
             startupWebView = findViewById(R.id.webView);
 
+            // MainActivity always applies the compact chrome profile. Apply the exact
+            // same dimensions before the startup chrome can ever become visible so
+            // the URL bar cannot appear at XML/default size and then snap smaller.
+            applyStartupChromeDensity();
+
             if (topAppBar != null) {
                 topAppBar.animate().cancel();
                 topAppBar.setAlpha(0.0f);
@@ -221,6 +226,57 @@ public final class HcfUITheme {
             if (subtitle != null) {
                 subtitle.setText("Native startup • System checks");
             }
+        }
+
+        private void applyStartupChromeDensity() {
+            setStartupHeight(topAppBar, R.dimen.compact_app_header_height);
+            setStartupSquare(findViewById(R.id.drawerButton), R.dimen.compact_app_header_button);
+            setStartupSquare(findViewById(R.id.appHeaderLogo), R.dimen.compact_app_header_logo);
+            setStartupSquare(findViewById(R.id.headerNotificationsButton), R.dimen.compact_app_header_button);
+
+            TextView title = findViewById(R.id.appHeaderTitle);
+            if (title != null) {
+                title.setTextSize(TypedValue.COMPLEX_UNIT_PX,
+                        getResources().getDimension(R.dimen.compact_app_header_title_text));
+            }
+
+            setStartupHeight(urlBar, R.dimen.compact_url_bar_height);
+            setStartupHeight(findViewById(R.id.urlBarInner), R.dimen.compact_url_bar_inner_height);
+            setStartupSquare(findViewById(R.id.urlBackButton), R.dimen.compact_url_reload_button);
+            setStartupSquare(findViewById(R.id.reloadButton), R.dimen.compact_url_reload_button);
+            setStartupSquare(findViewById(R.id.copyUrlButton), R.dimen.compact_url_copy_button);
+            setStartupSquare(findViewById(R.id.urlHomeButton), R.dimen.compact_url_reload_button);
+
+            if (topAppBar != null) {
+                int side = dp(6);
+                topAppBar.setPadding(side, 0, side, 0);
+            }
+            if (urlBar != null) {
+                int side = dp(6);
+                int vertical = dp(2);
+                urlBar.setPadding(side, vertical, side, vertical);
+            }
+
+            View secureLabel = findViewById(R.id.secureForumLabel);
+            if (secureLabel != null) secureLabel.setVisibility(View.GONE);
+        }
+
+        private void setStartupHeight(View view, int dimenRes) {
+            if (view == null || view.getLayoutParams() == null) return;
+            ViewGroup.LayoutParams lp = view.getLayoutParams();
+            lp.height = getResources().getDimensionPixelSize(dimenRes);
+            view.setLayoutParams(lp);
+            view.requestLayout();
+        }
+
+        private void setStartupSquare(View view, int dimenRes) {
+            if (view == null || view.getLayoutParams() == null) return;
+            int size = getResources().getDimensionPixelSize(dimenRes);
+            ViewGroup.LayoutParams lp = view.getLayoutParams();
+            lp.width = size;
+            lp.height = size;
+            view.setLayoutParams(lp);
+            view.requestLayout();
         }
 
         private void installStartupOverlay() {
