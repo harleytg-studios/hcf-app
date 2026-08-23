@@ -6,8 +6,8 @@ import re
 import sys
 
 
-EXPECTED_VERSION_CODE = 10000095
-EXPECTED_INTERNAL_BUILD = 115
+EXPECTED_VERSION_CODE = 10000097
+EXPECTED_INTERNAL_BUILD = 117
 EXPECTED_PACKAGE = "com.harleytg.forum.dev"
 EXPECTED_SIGNER = "93:D4:9B:F9:A8:77:C7:CF:B1:B3:7F:90:64:BD:95:5C:D6:7B:D7:DD:8D:B7:3A:9E:3F:76:6B:59:C4:BC:CE:63"
 
@@ -123,7 +123,7 @@ require("What's New is not rescheduled after Setup", "scheduleWhatsNew(true);" i
 require("v1 signing compatibility floor missing", "--min-sdk-version 23" in build_script)
 require("v4 signature sidecar check missing", "Missing APK Signature Scheme v4 sidecar" in build_script)
 require("release gate is not called by build", "verify-release-readiness.py" in build_script)
-require("canonical v10000095 workflow missing", any(path.name == "build-dev-v10000095.yml" for path in workflows))
+require("canonical v10000097 workflow missing", any(path.name == "build-dev-v10000097.yml" for path in workflows))
 for path in workflows:
     require(f"release workflow must not write repository contents: {path.name}", "contents: write" not in text(path))
 
