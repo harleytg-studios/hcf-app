@@ -1,0 +1,269 @@
+name: One-time v10000097 UI Playground Redesign
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/v10000097-ui-playground-redesign-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Publish run locator
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:refs/heads/status/v10000097-uiplayground-run-${GITHUB_RUN_ID} --force
+
+      - name: Redesign UI Playground shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('source code/src/com/harleytg/forum/HcfSubActivities.java')
+          text = p.read_text(encoding='utf-8')
+
+          pattern = re.compile(
+              r'        private void showUiPlayground\(\) \{.*?\n        \}\n\n        private void showUiPlaygroundDialogPreview\(\) \{',
+              re.S,
+          )
+
+          replacement = r'''        private void showUiPlayground() {
+            AppLogger.info(this, "ui_playground_open", BuildInfo.VERSION);
+
+            final android.app.Dialog dialog = new android.app.Dialog(this);
+            dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+            dialog.setCancelable(true);
+
+            LinearLayout shell = new LinearLayout(this);
+            shell.setOrientation(LinearLayout.VERTICAL);
+            shell.setBackgroundResource(R.drawable.dialog_background);
+            shell.setPadding(dp(12), dp(12), dp(12), dp(10));
+
+            LinearLayout header = new LinearLayout(this);
+            header.setOrientation(LinearLayout.HORIZONTAL);
+            header.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            header.setPadding(dp(6), dp(4), dp(6), dp(10));
+
+            ImageView icon = new ImageView(this);
+            icon.setImageResource(R.drawable.fa_bug);
+            icon.setColorFilter(getColor(R.color.hcf_cyan_bright));
+            icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            header.addView(icon, new LinearLayout.LayoutParams(dp(34), dp(34)));
+
+            LinearLayout titleStack = new LinearLayout(this);
+            titleStack.setOrientation(LinearLayout.VERTICAL);
+            LinearLayout.LayoutParams titleStackLp = new LinearLayout.LayoutParams(0, -2, 1.0f);
+            titleStackLp.leftMargin = dp(10);
+            header.addView(titleStack, titleStackLp);
+
+            TextView title = text("UI Playground", 20, getColor(R.color.hcf_text));
+            title.setTypeface(null, Typeface.BOLD);
+            titleStack.addView(title);
+
+            TextView subtitle = text("Developer visual test workspace", 10, getColor(R.color.hcf_meta));
+            subtitle.setMaxLines(1);
+            subtitle.setEllipsize(TextUtils.TruncateAt.END);
+            titleStack.addView(subtitle);
+
+            TextView devBadge = text("DEV / BETA", 9, getColor(R.color.hcf_cyan_bright));
+            devBadge.setTypeface(null, Typeface.BOLD);
+            devBadge.setGravity(android.view.Gravity.CENTER);
+            devBadge.setBackgroundResource(R.drawable.dev_badge_background);
+            devBadge.setPadding(dp(9), dp(5), dp(9), dp(5));
+            header.addView(devBadge, new LinearLayout.LayoutParams(-2, -2));
+            shell.addView(header);
+
+            TextView safetyNote = text(
+                    "Preview screens and reusable HCF components here. These visual tests do not change normal app settings.",
+                    10,
+                    getColor(R.color.hcf_muted));
+            safetyNote.setLineSpacing(0.0f, 1.12f);
+            safetyNote.setBackgroundResource(R.drawable.settings_section_body);
+            safetyNote.setPadding(dp(12), dp(10), dp(12), dp(10));
+            LinearLayout.LayoutParams noteLp = new LinearLayout.LayoutParams(-1, -2);
+            noteLp.bottomMargin = dp(8);
+            shell.addView(safetyNote, noteLp);
+
+            ScrollView scroll = new ScrollView(this);
+            scroll.setFillViewport(false);
+            scroll.setVerticalScrollBarEnabled(false);
+            scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+
+            LinearLayout content = new LinearLayout(this);
+            content.setOrientation(LinearLayout.VERTICAL);
+            content.setPadding(dp(4), dp(2), dp(4), dp(8));
+            scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
+
+            content.addView(settingsInfoCard(
+                    "Visual test workspace",
+                    "Check real HCF screens, card surfaces, typography, spacing and feedback components without leaving Developer Tools.",
+                    R.drawable.fa_bug
+            ));
+
+            content.addView(settingsSubsectionHeader(
+                    "Screen previews",
+                    "Open real app screens to check theme, spacing and responsive layout",
+                    R.drawable.fa_circle_info
+            ));
+            content.addView(actionButton("Preview App Setup Center", v ->
+                    startActivity(new Intent(this, HcfMainActivities.SetupActivity.class))));
+
+            content.addView(settingsSubsectionHeader(
+                    "Component tests",
+                    "Preview common HCF feedback and reusable component states",
+                    R.drawable.fa_gear
+            ));
+            content.addView(settingsInfoCard(
+                    "Sample information card",
+                    "This uses the same HCF surface, border, typography and spacing system as App Settings.",
+                    R.drawable.fa_circle_info
+            ));
+            content.addView(actionButton("Test HCF Dialog", v -> showUiPlaygroundDialogPreview()));
+            content.addView(actionButton("Test Toast", v ->
+                    Toast.makeText(this, "UI Playground test toast", Toast.LENGTH_SHORT).show()));
+
+            LinearLayout.LayoutParams scrollLp = new LinearLayout.LayoutParams(-1, 0, 1.0f);
+            shell.addView(scroll, scrollLp);
+
+            LinearLayout footer = new LinearLayout(this);
+            footer.setOrientation(LinearLayout.HORIZONTAL);
+            footer.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            footer.setPadding(dp(4), dp(8), dp(4), 0);
+
+            TextView footerText = text("Developer tools • local visual testing", 9, getColor(R.color.hcf_hint));
+            footer.addView(footerText, new LinearLayout.LayoutParams(0, -2, 1.0f));
+
+            Button done = actionButton("Done", v -> dialog.dismiss());
+            LinearLayout.LayoutParams doneLp = new LinearLayout.LayoutParams(dp(108), dp(44));
+            doneLp.leftMargin = dp(8);
+            footer.addView(done, doneLp);
+            shell.addView(footer);
+
+            dialog.setContentView(shell);
+            dialog.show();
+
+            android.view.Window window = dialog.getWindow();
+            if (window != null) {
+                window.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                android.view.WindowManager.LayoutParams attrs = window.getAttributes();
+                attrs.dimAmount = 0.72f;
+                window.setAttributes(attrs);
+                window.getDecorView().setPadding(0, 0, 0, 0);
+
+                android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+                boolean landscape = getResources().getConfiguration().orientation
+                        == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+                int width = landscape ? (int) (dm.widthPixels * 0.78f) : dm.widthPixels - dp(22);
+                int height = landscape ? (int) (dm.heightPixels * 0.92f) : (int) (dm.heightPixels * 0.84f);
+                window.setLayout(width, height);
+            }
+        }
+
+        private void showUiPlaygroundDialogPreview() {'''
+
+          new_text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'expected exactly one UI Playground method block, replaced {count}')
+
+          p.write_text(new_text, encoding='utf-8')
+          PY
+
+      - name: Commit redesign to dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Harleys Studios Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add 'source code/src/com/harleytg/forum/HcfSubActivities.java'
+          git diff --cached --check
+          git commit -m 'Redesign UI Playground dialog'
+          git push origin HEAD:dev
+
+      - name: Verify UI Playground redesign
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE='source code/src/com/harleytg/forum/HcfSubActivities.java'
+          grep -Fq 'final android.app.Dialog dialog = new android.app.Dialog(this);' "$FILE"
+          grep -Fq 'R.drawable.dialog_background' "$FILE"
+          grep -Fq 'DEV / BETA' "$FILE"
+          grep -Fq 'Developer tools • local visual testing' "$FILE"
+          if sed -n '/private void showUiPlayground()/,/private void showUiPlaygroundDialogPreview()/p' "$FILE" | grep -Fq 'new AlertDialog.Builder(this)'; then
+            echo 'stock AlertDialog still present in UI Playground' >&2
+            exit 1
+          fi
+          grep -Fq 'android:versionCode="10000097"' 'source code/AndroidManifest.xml'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Compile redesigned v10000097 APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-beta-v10000097-uiplayground"
+          OUT="$GITHUB_WORKSPACE/out-v10000097-uiplayground"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT/signing-tools/lib"
+
+          "$BT/aapt" package -f -m \
+            -J "$WORK/gen" \
+            -M "$ROOT/AndroidManifest.xml" \
+            -S "$ROOT/res" \
+            -A "$ROOT/assets" \
+            -I "$ANDROID_JAR" \
+            -F "$WORK/resources.apk"
+
+          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
+          mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
+
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
+          APK="$OUT/HCF-Beta-v10000097-UIPlaygroundRedesign-aligned-unsigned.apk"
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$APK"
+          "$BT/zipalign" -c -p 4 "$APK"
+
+          "$BT/aapt" dump badging "$APK" | head -1 | tee "$OUT/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
+          grep -q "versionCode='10000097'" "$OUT/APK-BADGING.txt"
+          unzip -p "$APK" classes.dex | strings > "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'UI Playground' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Developer visual test workspace' "$OUT/DEX-STRINGS.txt"
+          sha256sum "$APK" | tee "$OUT/SHA256SUMS.txt"
+
+          cp "$BT/apksigner" "$OUT/signing-tools/apksigner"
+          cp "$BT/lib/apksigner.jar" "$OUT/signing-tools/lib/apksigner.jar"
+
+      - name: Upload UI Playground redesign APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-Beta-v10000097-UIPlaygroundRedesign-Unsigned
+          path: out-v10000097-uiplayground/
+          if-no-files-found: error
+          retention-days: 7
