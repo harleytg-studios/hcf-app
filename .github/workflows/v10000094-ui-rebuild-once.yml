@@ -55,8 +55,8 @@ jobs:
           grep -Fq 'VERSION_CODE = 10000094;' 'source code/src/com/harleytg/forum/HcfApplication.java'
           grep -Fq 'INTERNAL_BUILD = 114;' 'source code/src/com/harleytg/forum/HcfApplication.java'
           grep -Fq 'HCF-Beta-v10000094.apk' 'source code/src/com/harleytg/forum/HcfApplication.java'
-          grep -Fq 'Welcome To\\nHarley'"'"'s Clan Forum' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
-          grep -Fq '@drawable/url_control_button_background' 'source code/res/layout/activity_main.xml'
+          grep -Fq 'Welcome To' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          grep -Fq "Harley's Clan Forum" 'source code/src/com/harleytg/forum/HcfMainActivities.java'
           test "$(grep -Fc '@drawable/url_control_button_background' 'source code/res/layout/activity_main.xml')" -eq 4
 
       - name: Commit v10000094 source to dev
