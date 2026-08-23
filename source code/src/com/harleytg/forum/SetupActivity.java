@@ -121,7 +121,7 @@ public final class SetupActivity extends ThemedActivity {
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(14), dp(12), dp(14), dp(24));
+        content.setPadding(dp(16), dp(12), dp(16), dp(24));
         scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
 
         content.addView(setupIntroCard());
@@ -130,17 +130,17 @@ public final class SetupActivity extends ThemedActivity {
         content.addView(backgroundHealthCard());
         content.addView(securityAndPrivacyCard());
 
-        Button finish = primaryButton("Finish Setup");
+        Button finish = primaryButton("Finish Setup   ›");
         finish.setOnClickListener(v -> {
             SetupCenter.markCompleted(this);
             AppLogger.info(this, "app_setup", "completed_v" + SetupCenter.CURRENT_SETUP_VERSION);
             finish();
         });
-        LinearLayout.LayoutParams finishLp = new LinearLayout.LayoutParams(-1, dp(50));
-        finishLp.topMargin = dp(4);
+        LinearLayout.LayoutParams finishLp = new LinearLayout.LayoutParams(-1, dp(52));
+        finishLp.topMargin = dp(8);
         content.addView(finish, finishLp);
 
-        Button continueNow = actionButton("Continue for now");
+        Button continueNow = secondaryButton("Continue for now   ›");
         continueNow.setOnClickListener(v -> {
             if (!prefs.getBoolean(AppPrefs.SETUP_COMPLETED, false)) {
                 SetupCenter.markSkipped(this);
@@ -150,17 +150,17 @@ public final class SetupActivity extends ThemedActivity {
             finish();
         });
         LinearLayout.LayoutParams continueLp = new LinearLayout.LayoutParams(-1, dp(48));
-        continueLp.topMargin = dp(8);
+        continueLp.topMargin = dp(10);
         content.addView(continueNow, continueLp);
 
         TextView footer = text(
                 "Setup Center v" + SetupCenter.CURRENT_SETUP_VERSION
                         + " • " + BuildInfo.VERSION_BUILD_LINE,
-                9,
+                10,
                 getColor(R.color.hcf_hint)
         );
         footer.setGravity(Gravity.CENTER);
-        footer.setPadding(0, dp(14), 0, 0);
+        footer.setPadding(0, dp(16), 0, 0);
         content.addView(footer);
 
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1.0f));
@@ -171,7 +171,7 @@ public final class SetupActivity extends ThemedActivity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(8), dp(5), dp(8), dp(5));
+        row.setPadding(dp(12), dp(8), dp(12), dp(8));
         row.setMinimumHeight(dp(56));
         row.setBackgroundColor(
                 ThemeManager.isAmoled(this) ? Color.BLACK : getColor(R.color.hcf_app_bar)
@@ -179,37 +179,35 @@ public final class SetupActivity extends ThemedActivity {
 
         ImageButton back = new ImageButton(this);
         back.setImageResource(R.drawable.fa_arrow_left);
-        back.setImageTintList(ColorStateList.valueOf(getColor(R.color.hcf_cyan_bright)));
+        back.setImageTintList(ColorStateList.valueOf(getColor(R.color.hcf_cyan)));
         back.setBackgroundResource(R.drawable.nav_button_background);
         back.setScaleType(ImageView.ScaleType.CENTER);
-        back.setPadding(0, 0, 0, 0);
         back.setContentDescription("Back");
         back.setOnClickListener(v -> onBackPressed());
-        row.addView(back, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        row.addView(back, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.drawable.htg_app_logo);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(dp(40), dp(40));
-        logoLp.leftMargin = dp(5);
+        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(dp(36), dp(36));
+        logoLp.leftMargin = dp(8);
         row.addView(logo, logoLp);
 
         LinearLayout labels = new LinearLayout(this);
         labels.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams labelsLp = new LinearLayout.LayoutParams(0, -2, 1.0f);
-        labelsLp.leftMargin = dp(10);
+        labelsLp.leftMargin = dp(12);
         row.addView(labels, labelsLp);
 
-        TextView title = text("App Setup", 18, getColor(R.color.hcf_text));
+        TextView title = text("App Setup Center", 17, getColor(R.color.hcf_text));
         title.setTypeface(null, 1);
         labels.addView(title);
 
         TextView subtitle = text(
-                "Appearance, performance and Android integration",
-                10,
-                getColor(R.color.hcf_meta)
+                "Appearance, performance & Android features",
+                11,
+                getColor(R.color.hcf_cyan)
         );
-        subtitle.setTypeface(null, 1);
         labels.addView(subtitle);
 
         return row;
@@ -219,16 +217,16 @@ public final class SetupActivity extends ThemedActivity {
         LinearLayout card = settingsCard();
         card.addView(sectionTitle(
                 "Set up this device",
-                "Choose how HCF looks and performs, then connect the Android features you want."
+                "Choose how HCF looks and performs, then connect optional Android features."
         ));
 
         TextView intro = text(
-                "Dark is the app default, and Auto performance is recommended. "
-                        + "You can change either choice now or later in App Settings → Appearance & Performance. "
-                        + "Android permissions and link settings stay optional and never block forum access.",
-                11,
+                "Night (Dark) is default, and Auto performance is recommended. "
+                        + "You can change choices now or later in Settings. Permissions stay optional and never block forum access.",
+                12,
                 getColor(R.color.hcf_muted)
         );
+        intro.setLineSpacing(0.0f, 1.12f);
         card.addView(intro);
         return card;
     }
@@ -240,44 +238,38 @@ public final class SetupActivity extends ThemedActivity {
                 "Same controls used by App Settings"
         ));
 
-        TextView themeTitle = settingTitle("Theme");
-        FaIcons.applyStart(themeTitle, R.drawable.fa_circle_info);
-        card.addView(themeTitle);
+        card.addView(settingRowHeader(R.drawable.fa_circle_info, "Theme"));
 
         themeValue = settingValue("");
         card.addView(themeValue);
 
-        Button themeButton = actionButton("Choose Theme");
+        Button themeButton = actionButton("Choose Theme   ›");
         themeButton.setOnClickListener(v -> showThemeDialog());
-        card.addView(withTopMargin(themeButton, 7, 44));
+        card.addView(withTopMargin(themeButton, 8, 44));
 
         TextView themeHelp = text(
-                "Night (Dark) is the default. AMOLED uses a true-black shell. "
-                        + "Phone Auto follows Android; Forum Auto follows the forum's day/night mode.",
-                10,
+                "Night is default. AMOLED uses a true-black shell. Phone Auto follows Android; Forum Auto follows forum night mode.",
+                11,
                 getColor(R.color.hcf_muted)
         );
-        themeHelp.setPadding(0, dp(6), 0, dp(12));
+        themeHelp.setPadding(0, dp(6), 0, dp(14));
         card.addView(themeHelp);
 
-        TextView performanceTitle = settingTitle("Performance Profile");
-        FaIcons.applyStart(performanceTitle, R.drawable.fa_gear);
-        card.addView(performanceTitle);
+        card.addView(settingRowHeader(R.drawable.fa_gear, "Performance Profile"));
 
         performanceValue = settingValue("");
         card.addView(performanceValue);
 
-        Button performanceButton = actionButton("Choose Performance Profile");
+        Button performanceButton = actionButton("Choose Performance Profile   ›");
         performanceButton.setOnClickListener(v -> showPerformanceDialog());
-        card.addView(withTopMargin(performanceButton, 7, 44));
+        card.addView(withTopMargin(performanceButton, 8, 44));
 
         TextView performanceHelp = text(
-                "Auto is recommended and adapts to memory, CPU, battery, thermal and network conditions. "
-                        + "Manual profiles remain available for users who prefer a fixed behavior.",
-                10,
+                "Auto is recommended and adapts to memory, CPU, battery, thermal and network conditions.",
+                11,
                 getColor(R.color.hcf_muted)
         );
-        performanceHelp.setPadding(0, dp(6), 0, 0);
+        performanceHelp.setPadding(0, dp(6), 0, dp(4));
         card.addView(performanceHelp);
 
         refreshChoiceLabels();
@@ -291,9 +283,9 @@ public final class SetupActivity extends ThemedActivity {
                 "Recommended setup items for alerts, links and verified app updates"
         ));
 
-        notificationStatus = statusText();
+        notificationStatus = statusBadge();
         notificationDetail = detailText();
-        notificationAction = actionButton("Allow Notifications");
+        notificationAction = actionButton("Allow Notifications   ›");
         notificationAction.setOnClickListener(v -> handleNotificationAction());
         card.addView(integrationBlock(
                 "Notifications",
@@ -303,9 +295,9 @@ public final class SetupActivity extends ThemedActivity {
                 notificationAction
         ));
 
-        linksStatus = statusText();
+        linksStatus = statusBadge();
         linksDetail = detailText();
-        linksAction = actionButton("Configure Forum Links");
+        linksAction = actionButton("Configure Forum Links   ›");
         linksAction.setOnClickListener(
                 v -> SetupCenter.openForumLinkSettings(this, REQUEST_FORUM_LINKS)
         );
@@ -317,9 +309,9 @@ public final class SetupActivity extends ThemedActivity {
                 linksAction
         ));
 
-        updateStatus = statusText();
+        updateStatus = statusBadge();
         updateDetail = detailText();
-        updateAction = actionButton("Allow Secure Updates");
+        updateAction = actionButton("Allow Secure Updates   ›");
         updateAction.setOnClickListener(
                 v -> SetupCenter.openInstallSourceSettings(this, REQUEST_INSTALL_SOURCE)
         );
@@ -341,13 +333,13 @@ public final class SetupActivity extends ThemedActivity {
                 "Confirm that HCF Alerts can keep working outside the foreground app"
         ));
 
-        healthStatus = statusText();
+        healthStatus = statusBadge();
         healthDetail = detailText();
-        healthAction = actionButton("Notification Settings");
+        healthAction = actionButton("Notification Settings   ›");
         healthAction.setOnClickListener(v -> NotificationHelper.openAppNotificationSettings(this));
 
         card.addView(integrationBlock(
-                "Notification / Background Alert Health",
+                "Notification / Background Health",
                 R.drawable.fa_circle_info,
                 healthStatus,
                 healthDetail,
@@ -363,29 +355,35 @@ public final class SetupActivity extends ThemedActivity {
                 "Only the Android access HCF actually needs for these features"
         ));
 
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+
+        TextView paw = text("🐾", 16, getColor(R.color.hcf_cyan));
+        row.addView(paw);
+
         TextView securityNote = text(
-                "HCF does not request location, contacts, microphone, camera, or broad storage access here. "
-                        + "Update APKs remain restricted to the trusted HCF release source and are verified "
-                        + "for package name, version/revision rules, and matching signing certificate before installation.",
-                10,
+                "HCF does not request location, contacts, microphone, camera, or broad storage access. "
+                        + "Update APKs remain restricted to the trusted HCF release source and are verified before installation.",
+                11,
                 getColor(R.color.hcf_muted)
         );
-        card.addView(securityNote);
+        securityNote.setLineSpacing(0.0f, 1.1f);
+        LinearLayout.LayoutParams noteLp = new LinearLayout.LayoutParams(0, -2, 1.0f);
+        noteLp.leftMargin = dp(8);
+        row.addView(securityNote, noteLp);
+
+        card.addView(row);
         return card;
     }
 
     private LinearLayout settingsCard() {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        if (ThemeManager.isAmoled(this)) {
-            card.setBackgroundColor(Color.rgb(3, 5, 7));
-        } else {
-            card.setBackgroundResource(R.drawable.card_background);
-        }
-        card.setPadding(dp(15), dp(13), dp(15), dp(13));
+        card.setBackgroundResource(R.drawable.card_background);
+        card.setPadding(dp(16), dp(14), dp(16), dp(14));
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-        lp.bottomMargin = dp(9);
+        lp.bottomMargin = dp(12);
         card.setLayoutParams(lp);
         return card;
     }
@@ -393,18 +391,39 @@ public final class SetupActivity extends ThemedActivity {
     private View sectionTitle(String title, String subtitle) {
         LinearLayout block = new LinearLayout(this);
         block.setOrientation(LinearLayout.VERTICAL);
-        block.setPadding(0, 0, 0, dp(8));
+        block.setPadding(0, 0, 0, dp(10));
 
-        TextView titleView = text(title, 16, getColor(R.color.hcf_accent_text));
+        TextView titleView = text(title, 15, getColor(R.color.hcf_cyan_bright));
         titleView.setTypeface(null, 1);
         block.addView(titleView);
 
         if (subtitle != null && !subtitle.trim().isEmpty()) {
-            TextView subtitleView = text(subtitle, 10, getColor(R.color.hcf_muted));
+            TextView subtitleView = text(subtitle, 11, getColor(R.color.hcf_muted));
             subtitleView.setPadding(0, dp(2), 0, 0);
             block.addView(subtitleView);
         }
         return block;
+    }
+
+    private View settingRowHeader(int iconRes, String titleText) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(4), 0, dp(2));
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconRes);
+        icon.setImageTintList(ColorStateList.valueOf(getColor(R.color.hcf_cyan)));
+        icon.setBackgroundResource(R.drawable.quick_action_background);
+        icon.setPadding(dp(6), dp(6), dp(6), dp(6));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(28), dp(28)));
+
+        TextView heading = settingTitle(titleText);
+        LinearLayout.LayoutParams headingLp = new LinearLayout.LayoutParams(-1, -2);
+        headingLp.leftMargin = dp(8);
+        row.addView(heading, headingLp);
+
+        return row;
     }
 
     private View integrationBlock(
@@ -417,20 +436,26 @@ public final class SetupActivity extends ThemedActivity {
         LinearLayout block = new LinearLayout(this);
         block.setOrientation(LinearLayout.VERTICAL);
         block.setBackgroundResource(R.drawable.quick_action_background);
-        block.setPadding(dp(13), dp(11), dp(13), dp(11));
+        block.setPadding(dp(12), dp(12), dp(12), dp(12));
 
         LinearLayout.LayoutParams blockLp = new LinearLayout.LayoutParams(-1, -2);
-        blockLp.bottomMargin = dp(8);
+        blockLp.bottomMargin = dp(10);
         block.setLayoutParams(blockLp);
 
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
 
-        TextView heading = text(title, 14, getColor(R.color.hcf_text));
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconRes);
+        icon.setImageTintList(ColorStateList.valueOf(getColor(R.color.hcf_cyan_bright)));
+        top.addView(icon, new LinearLayout.LayoutParams(dp(20), dp(20)));
+
+        TextView heading = text(title, 13, getColor(R.color.hcf_text));
         heading.setTypeface(null, 1);
-        FaIcons.applyStart(heading, iconRes);
-        top.addView(heading, new LinearLayout.LayoutParams(0, -2, 1.0f));
+        LinearLayout.LayoutParams headingLp = new LinearLayout.LayoutParams(0, -2, 1.0f);
+        headingLp.leftMargin = dp(8);
+        top.addView(heading, headingLp);
         top.addView(status, new LinearLayout.LayoutParams(-2, -2));
         block.addView(top);
 
@@ -439,7 +464,7 @@ public final class SetupActivity extends ThemedActivity {
         block.addView(detail, detailLp);
 
         LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(-1, dp(42));
-        actionLp.topMargin = dp(8);
+        actionLp.topMargin = dp(10);
         block.addView(action, actionLp);
 
         return block;
@@ -703,10 +728,12 @@ public final class SetupActivity extends ThemedActivity {
         view.setTextColor(getColor(ready ? R.color.hcf_cyan_bright : R.color.hcf_error));
     }
 
-    private TextView statusText() {
+    private TextView statusBadge() {
         TextView view = text("Checking…", 10, getColor(R.color.hcf_cyan_bright));
         view.setTypeface(null, 1);
-        view.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        view.setGravity(Gravity.CENTER);
+        view.setBackgroundResource(R.drawable.status_chip_background);
+        view.setPadding(dp(8), dp(4), dp(8), dp(4));
         return view;
     }
 
@@ -743,6 +770,18 @@ public final class SetupActivity extends ThemedActivity {
         button.setTextSize(13.0f);
         button.setTextColor(getColor(R.color.hcf_on_accent));
         button.setBackgroundResource(R.drawable.error_primary_button_background);
+        button.setGravity(Gravity.CENTER);
+        button.setStateListAnimator(null);
+        return button;
+    }
+
+    private Button secondaryButton(String label) {
+        Button button = new Button(this);
+        UiButtons.normalizeText(button);
+        button.setText(label);
+        button.setTextSize(12.0f);
+        button.setTextColor(getColor(R.color.hcf_cyan_bright));
+        button.setBackgroundResource(R.drawable.error_secondary_button_background);
         button.setGravity(Gravity.CENTER);
         button.setStateListAnimator(null);
         return button;
