@@ -5042,7 +5042,7 @@ public final class HcfMainActivities {
         }
 
         private CharSequence welcomeTitle() {
-            String value = "Welcome to Harley's Clan Forum";
+            String value = "Welcome To\nHarley's Clan Forum";
             SpannableString styled = new SpannableString(value);
             String forum = "Harley's Clan Forum";
             int start = value.indexOf(forum);
