@@ -1,4 +1,5 @@
 name: One-time v10000097 UI Playground Redesign
+# retrigger after workflow registration
 
 on:
   push:
@@ -35,12 +36,7 @@ jobs:
 
           p = Path('source code/src/com/harleytg/forum/HcfSubActivities.java')
           text = p.read_text(encoding='utf-8')
-
-          pattern = re.compile(
-              r'        private void showUiPlayground\(\) \{.*?\n        \}\n\n        private void showUiPlaygroundDialogPreview\(\) \{',
-              re.S,
-          )
-
+          pattern = re.compile(r'        private void showUiPlayground\(\) \{.*?\n        \}\n\n        private void showUiPlaygroundDialogPreview\(\) \{', re.S)
           replacement = r'''        private void showUiPlayground() {
             AppLogger.info(this, "ui_playground_open", BuildInfo.VERSION);
 
@@ -175,11 +171,9 @@ jobs:
         }
 
         private void showUiPlaygroundDialogPreview() {'''
-
           new_text, count = pattern.subn(replacement, text, count=1)
           if count != 1:
               raise SystemExit(f'expected exactly one UI Playground method block, replaced {count}')
-
           p.write_text(new_text, encoding='utf-8')
           PY
 
