@@ -176,8 +176,16 @@ public final class HcfUITheme {
             urlBar = findViewById(R.id.urlBar);
             startupWebView = findViewById(R.id.webView);
 
-            if (topAppBar != null) topAppBar.setAlpha(0.0f);
-            if (urlBar != null) urlBar.setAlpha(0.0f);
+            if (topAppBar != null) {
+                topAppBar.animate().cancel();
+                topAppBar.setAlpha(0.0f);
+                topAppBar.setVisibility(View.INVISIBLE);
+            }
+            if (urlBar != null) {
+                urlBar.animate().cancel();
+                urlBar.setAlpha(0.0f);
+                urlBar.setVisibility(View.INVISIBLE);
+            }
 
             hideView(R.id.welcomeBanner);
             hideView(R.id.bottomNav);
@@ -438,15 +446,32 @@ public final class HcfUITheme {
                 subtitle.setText("Live forum • " + (SetupCenter.BACKUP_FORUM_HOST.equalsIgnoreCase(preferredHost()) ? "Backup" : "Primary"));
             }
 
-            loaderBackdrop.animate()
-                    .alpha(0.0f)
-                    .setDuration(BACKDROP_REVEAL_MS)
-                    .withEndAction(new Runnable() {
-                        @Override public void run() {
-                            animateHeaderIn();
-                        }
-                    })
-                    .start();
+            // Keep the loader visually present while exposing only the real native chrome.
+            // Moving the opaque backdrop into contentFrame avoids the old blank-shell flash.
+            dockBackdropBelowChrome();
+            animateHeaderIn();
+        }
+
+        private void dockBackdropBelowChrome() {
+            if (loaderBackdrop == null) return;
+            try {
+                View content = findViewById(R.id.contentFrame);
+                if (!(content instanceof ViewGroup)) return;
+
+                ViewGroup currentParent = loaderBackdrop.getParent() instanceof ViewGroup
+                        ? (ViewGroup) loaderBackdrop.getParent() : null;
+                if (currentParent != null) currentParent.removeView(loaderBackdrop);
+
+                loaderBackdrop.animate().cancel();
+                loaderBackdrop.setAlpha(1.0f);
+                loaderBackdrop.setVisibility(View.VISIBLE);
+
+                ((ViewGroup) content).addView(loaderBackdrop, new ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT));
+            } catch (Throwable error) {
+                AppLogger.warn(this, "startup_chrome", "dock backdrop: " + error.getClass().getSimpleName());
+            }
         }
 
         private void animateHeaderIn() {
@@ -454,6 +479,9 @@ public final class HcfUITheme {
                 animateUrlBarIn();
                 return;
             }
+            topAppBar.animate().cancel();
+            topAppBar.setAlpha(0.0f);
+            topAppBar.setVisibility(View.VISIBLE);
             topAppBar.animate()
                     .alpha(1.0f)
                     .setDuration(HEADER_FADE_MS)
@@ -470,6 +498,9 @@ public final class HcfUITheme {
                 fadeLoaderOut();
                 return;
             }
+            urlBar.animate().cancel();
+            urlBar.setAlpha(0.0f);
+            urlBar.setVisibility(View.VISIBLE);
             urlBar.animate()
                     .alpha(1.0f)
                     .setDuration(URL_FADE_MS)
@@ -482,20 +513,41 @@ public final class HcfUITheme {
         }
 
         private void fadeLoaderOut() {
-            if (loaderPanel == null) {
+            if (loaderPanel == null && loaderBackdrop == null) {
                 scheduleForumHandoff();
                 return;
             }
-            loaderPanel.animate()
-                    .alpha(0.0f)
-                    .setDuration(LOADER_FADE_MS)
-                    .withEndAction(new Runnable() {
-                        @Override public void run() {
-                            if (loaderOverlay != null) loaderOverlay.setVisibility(View.GONE);
-                            scheduleForumHandoff();
-                        }
-                    })
-                    .start();
+
+            if (loaderPanel != null) {
+                loaderPanel.animate().cancel();
+                loaderPanel.animate()
+                        .alpha(0.0f)
+                        .setDuration(LOADER_FADE_MS)
+                        .start();
+            }
+
+            if (loaderBackdrop != null) {
+                loaderBackdrop.animate().cancel();
+                loaderBackdrop.animate()
+                        .alpha(0.0f)
+                        .setDuration(LOADER_FADE_MS)
+                        .withEndAction(new Runnable() {
+                            @Override public void run() {
+                                if (loaderOverlay != null) loaderOverlay.setVisibility(View.GONE);
+                                scheduleForumHandoff();
+                            }
+                        })
+                        .start();
+            } else {
+                loaderPanel.animate()
+                        .withEndAction(new Runnable() {
+                            @Override public void run() {
+                                if (loaderOverlay != null) loaderOverlay.setVisibility(View.GONE);
+                                scheduleForumHandoff();
+                            }
+                        })
+                        .start();
+            }
         }
 
         private void scheduleForumHandoff() {

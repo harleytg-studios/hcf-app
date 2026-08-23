@@ -295,7 +295,15 @@ public final class HcfMainActivities {
                     home = ForumUrlRouter.home(this.activeHost);
                 }
                 updateUrlChrome(home);
-                showChecking(this.activeHost);
+                boolean startupHandoff = getIntent() != null
+                        && getIntent().getBooleanExtra("hcf_startup_handoff", false);
+                if (startupHandoff) {
+                    // The native startup loader already completed. Do not flash the old
+                    // content-only checking overlay before the forum's own loader appears.
+                    hideStatus();
+                } else {
+                    showChecking(this.activeHost);
+                }
                 AppLogger.info(this, "initial_navigation", AppLogger.safeUrl(home));
                 this.webView.loadUrl(home);
                 scheduleDeferredNativeSetup();
