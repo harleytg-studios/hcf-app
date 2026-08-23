@@ -11,7 +11,10 @@ import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.util.AttributeSet;
+import android.util.TypedValue;
 import android.view.KeyEvent;
+import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.WebView;
@@ -19,6 +22,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import java.util.Locale;
 
@@ -341,6 +345,15 @@ abstract class ThemedActivity extends Activity implements SharedPreferences.OnSh
         }
     }
 
+    @Override
+    public void setContentView(View view) {
+        super.setContentView(view);
+        try {
+            WelcomeScreenFitter.apply(this, view);
+        } catch (Throwable ignored) {
+        }
+    }
+
     @Override // android.app.Activity
     protected void onStart() {
         super.onStart();
@@ -384,8 +397,8 @@ abstract class ThemedActivity extends Activity implements SharedPreferences.OnSh
                 return;
             }
             this.themeRecreatePending = true;
-            getWindow().getDecorView().postDelayed(new Runnable() { // from class: com.harleytg.forum.dev.ThemedActivity$$ExternalSyntheticLambda0
-                @Override // java.lang.Runnable
+            getWindow().getDecorView().postDelayed(new Runnable() {
+                @Override
                 public final void run() {
                     ThemedActivity.this.m210xc87fab7b();
                 }
@@ -394,7 +407,6 @@ abstract class ThemedActivity extends Activity implements SharedPreferences.OnSh
         }
     }
 
-    /* renamed from: lambda$recreateForThemeIfNeeded$0$com-harleytg-forum-dev-ThemedActivity, reason: not valid java name */
     /* synthetic */ void m210xc87fab7b() {
         if (isFinishing() || isDestroyed()) {
             return;
@@ -404,6 +416,100 @@ abstract class ThemedActivity extends Activity implements SharedPreferences.OnSh
         } catch (Throwable unused) {
             this.themeRecreatePending = false;
         }
+    }
+}
+
+/** Welcome-only layout fitter. Keeps the first-run screen on one phone viewport. */
+final class WelcomeScreenFitter {
+    private WelcomeScreenFitter() {}
+
+    static void apply(Activity activity, View root) {
+        if (activity == null || root == null || !(activity instanceof HcfMainActivities.WelcomeActivity)) {
+            return;
+        }
+
+        int screenHeightDp = activity.getResources().getConfiguration().screenHeightDp;
+        if (screenHeightDp > 860) {
+            return;
+        }
+
+        final float layoutScale = screenHeightDp <= 680 ? 0.68f
+                : screenHeightDp <= 780 ? 0.78f
+                : 0.90f;
+        final float textScale = screenHeightDp <= 680 ? 0.84f
+                : screenHeightDp <= 780 ? 0.91f
+                : 0.96f;
+
+        if (root instanceof ScrollView) {
+            ScrollView scroll = (ScrollView) root;
+            scroll.setVerticalScrollBarEnabled(false);
+            scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        }
+
+        root.post(new Runnable() {
+            @Override
+            public void run() {
+                compact(root, layoutScale, textScale);
+                root.requestLayout();
+            }
+        });
+    }
+
+    private static void compact(View view, float layoutScale, float textScale) {
+        if (view == null) {
+            return;
+        }
+
+        view.setPadding(
+                scaled(view.getPaddingLeft(), layoutScale),
+                scaled(view.getPaddingTop(), layoutScale),
+                scaled(view.getPaddingRight(), layoutScale),
+                scaled(view.getPaddingBottom(), layoutScale)
+        );
+
+        ViewGroup.LayoutParams params = view.getLayoutParams();
+        if (params != null) {
+            if (params.width > 0) {
+                params.width = scaled(params.width, layoutScale);
+            }
+            if (params.height > 0) {
+                params.height = scaled(params.height, layoutScale);
+            }
+            if (params instanceof ViewGroup.MarginLayoutParams) {
+                ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) params;
+                margins.leftMargin = scaled(margins.leftMargin, layoutScale);
+                margins.topMargin = scaled(margins.topMargin, layoutScale);
+                margins.rightMargin = scaled(margins.rightMargin, layoutScale);
+                margins.bottomMargin = scaled(margins.bottomMargin, layoutScale);
+            }
+            view.setLayoutParams(params);
+        }
+
+        int minWidth = view.getMinimumWidth();
+        int minHeight = view.getMinimumHeight();
+        if (minWidth > 0) {
+            view.setMinimumWidth(scaled(minWidth, layoutScale));
+        }
+        if (minHeight > 0) {
+            view.setMinimumHeight(scaled(minHeight, layoutScale));
+        }
+
+        if (view instanceof TextView) {
+            TextView text = (TextView) view;
+            text.setTextSize(TypedValue.COMPLEX_UNIT_PX, text.getTextSize() * textScale);
+            text.setLineSpacing(text.getLineSpacingExtra() * textScale, text.getLineSpacingMultiplier());
+        }
+
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                compact(group.getChildAt(i), layoutScale, textScale);
+            }
+        }
+    }
+
+    private static int scaled(int value, float scale) {
+        return value == 0 ? 0 : Math.max(1, Math.round(value * scale));
     }
 }
 
