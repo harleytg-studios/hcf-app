@@ -123,10 +123,8 @@ require("What's New is not rescheduled after Setup", "scheduleWhatsNew(true);" i
 require("v1 signing compatibility floor missing", "--min-sdk-version 23" in build_script)
 require("v4 signature sidecar check missing", "Missing APK Signature Scheme v4 sidecar" in build_script)
 require("release gate is not called by build", "verify-release-readiness.py" in build_script)
-require("canonical v10000092 workflow missing", any(path.name == "build-dev-v10000092.yml" for path in workflows))
+require("canonical v10000093 workflow missing", any(path.name == "build-dev-v10000093.yml" for path in workflows))
 for path in workflows:
-    if path.name == "bump-dev-v10000093-once.yml":
-        continue
     require(f"release workflow must not write repository contents: {path.name}", "contents: write" not in text(path))
 
 print(
