@@ -7,3 +7,4 @@ No-root Android privacy utility for checking and managing per-app Camera and Mic
 - Minimum Android: 8.0 / API 26
 - Target Android: API 35
 - No root, Shizuku, ADB, analytics, or Internet permission
+- Build output: `HardwareGuard-v0.1.0.apk`
