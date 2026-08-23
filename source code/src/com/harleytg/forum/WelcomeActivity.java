@@ -2,7 +2,9 @@ package com.harleytg.forum.dev;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.text.SpannableString;
 import android.text.Spanned;
@@ -104,34 +106,15 @@ public final class WelcomeActivity extends ThemedActivity {
         welcomeLp.topMargin = dp(16);
         hero.addView(welcome, welcomeLp);
 
-        LinearLayout setupInfo = new LinearLayout(this);
-        setupInfo.setOrientation(LinearLayout.VERTICAL);
-        setupInfo.setBackgroundResource(R.drawable.quick_action_background);
-        setupInfo.setPadding(dp(16), dp(15), dp(16), dp(15));
-        LinearLayout.LayoutParams infoLp = new LinearLayout.LayoutParams(-1, -2);
-        infoLp.topMargin = dp(16);
-        page.addView(setupInfo, infoLp);
+        View featureGrid = buildFeatureGrid();
+        LinearLayout.LayoutParams featureGridLp = new LinearLayout.LayoutParams(-1, -2);
+        featureGridLp.topMargin = dp(16);
+        page.addView(featureGrid, featureGridLp);
 
-        TextView setupTitle = text("What App Setup helps with", 14, getColor(R.color.hcf_text));
-        setupTitle.setTypeface(null, 1);
-        setupInfo.addView(setupTitle);
-
-        TextView setupBody = text(
-                "• Forum notifications\n• Opening supported forum links in the app\n• Secure app update permission\n• Background alert health",
-                12, getColor(R.color.hcf_muted));
-        setupBody.setLineSpacing(dp(2), 1.08f);
-        LinearLayout.LayoutParams bodyLp = new LinearLayout.LayoutParams(-1, -2);
-        bodyLp.topMargin = dp(8);
-        setupInfo.addView(setupBody, bodyLp);
-
-        TextView note = text(
-                "🐾 No worries — you can always open App Setup later from the app drawer → App Setup.",
-                11, getColor(R.color.hcf_hint));
-        note.setGravity(Gravity.CENTER);
-        note.setLineSpacing(0.0f, 1.1f);
-        LinearLayout.LayoutParams noteLp = new LinearLayout.LayoutParams(-1, -2);
-        noteLp.topMargin = dp(14);
-        page.addView(note, noteLp);
+        View pawNote = buildPawNoteCard();
+        LinearLayout.LayoutParams pawNoteLp = new LinearLayout.LayoutParams(-1, -2);
+        pawNoteLp.topMargin = dp(14);
+        page.addView(pawNote, pawNoteLp);
 
         Button startSetup = primaryButton("Start App Setup");
         startSetup.setOnClickListener(v -> startAppSetup());
@@ -152,6 +135,104 @@ public final class WelcomeActivity extends ThemedActivity {
         page.addView(footer, footerLp);
 
         return scroll;
+    }
+
+    /** Four-column overview of the optional Android integrations App Setup can configure. */
+    private View buildFeatureGrid() {
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setBackground(cyanOutlineCardBackground());
+        container.setPadding(dp(16), dp(16), dp(16), dp(18));
+
+        TextView header = text("What App Setup helps with", 13, getColor(R.color.hcf_cyan));
+        header.setTypeface(null, 1);
+        header.setGravity(Gravity.CENTER);
+        container.addView(header, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.HORIZONTAL);
+        grid.setGravity(Gravity.TOP);
+        LinearLayout.LayoutParams gridLp = new LinearLayout.LayoutParams(-1, -2);
+        gridLp.topMargin = dp(16);
+        container.addView(grid, gridLp);
+
+        grid.addView(buildFeatureItem(R.drawable.fa_bell, "Forum\nNotifications"));
+        grid.addView(buildFeatureItem(R.drawable.fa_globe, "Open Forum\nLinks in App"));
+        grid.addView(buildFeatureItem(R.drawable.fa_shield, "Secure App\nUpdate Permission"));
+        grid.addView(buildFeatureItem(R.drawable.fa_circle_info, "Background\nAlert Health"));
+
+        return container;
+    }
+
+    private View buildFeatureItem(int iconRes, String label) {
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.VERTICAL);
+        item.setGravity(Gravity.CENTER_HORIZONTAL);
+        item.setPadding(dp(3), 0, dp(3), 0);
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconRes);
+        icon.setImageTintList(ColorStateList.valueOf(getColor(R.color.hcf_cyan)));
+        icon.setBackground(circleCyanBorderBackground());
+        icon.setPadding(dp(12), dp(12), dp(12), dp(12));
+        icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        item.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
+
+        TextView tv = text(label, 10, getColor(R.color.hcf_text));
+        tv.setGravity(Gravity.CENTER);
+        tv.setLineSpacing(0.0f, 1.05f);
+        LinearLayout.LayoutParams textLp = new LinearLayout.LayoutParams(-1, -2);
+        textLp.topMargin = dp(8);
+        item.addView(tv, textLp);
+
+        item.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1.0f));
+        return item;
+    }
+
+    /** Reminder that Setup Center stays available after the welcome screen. */
+    private View buildPawNoteCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setBackground(cyanOutlineCardBackground());
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+
+        ImageView paw = new ImageView(this);
+        paw.setImageResource(R.drawable.ic_notification_paw);
+        paw.setImageTintList(ColorStateList.valueOf(getColor(R.color.hcf_cyan)));
+        paw.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        card.addView(paw, new LinearLayout.LayoutParams(dp(28), dp(28)));
+
+        TextView note = text(
+                "No worries — you can always open App Setup later from the app drawer → App Setup.",
+                11,
+                getColor(R.color.hcf_muted)
+        );
+        note.setLineSpacing(0.0f, 1.1f);
+        LinearLayout.LayoutParams noteLp = new LinearLayout.LayoutParams(0, -2, 1.0f);
+        noteLp.leftMargin = dp(12);
+        card.addView(note, noteLp);
+
+        return card;
+    }
+
+    private GradientDrawable cyanOutlineCardBackground() {
+        GradientDrawable background = new GradientDrawable();
+        background.setShape(GradientDrawable.RECTANGLE);
+        background.setColor(
+                ThemeManager.isAmoled(this) ? Color.rgb(3, 5, 7) : getColor(R.color.hcf_card_bg)
+        );
+        background.setStroke(dp(1), getColor(R.color.hcf_cyan));
+        background.setCornerRadius(dp(14));
+        return background;
+    }
+
+    private GradientDrawable circleCyanBorderBackground() {
+        GradientDrawable background = new GradientDrawable();
+        background.setShape(GradientDrawable.OVAL);
+        background.setColor(getColor(R.color.hcf_quick_bg));
+        background.setStroke(dp(1), getColor(R.color.hcf_cyan));
+        return background;
     }
 
     private CharSequence welcomeTitle() {
