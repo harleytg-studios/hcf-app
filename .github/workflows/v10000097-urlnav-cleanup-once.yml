@@ -1,0 +1,161 @@
+name: One-time v10000097 URL Navigation Cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/v10000097-urlnav-cleanup-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Publish run locator
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:refs/heads/status/v10000097-urlnav-run-${GITHUB_RUN_ID} --force
+
+      - name: Normalize URL navigation controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          main = Path('source code/src/com/harleytg/forum/HcfMainActivities.java')
+          startup = Path('source code/src/com/harleytg/forum/HcfUITheme.java')
+
+          def replace_once(text, old, new, label):
+              if old not in text:
+                  raise SystemExit(f'missing expected block: {label}')
+              return text.replace(old, new, 1)
+
+          text = main.read_text(encoding='utf-8')
+
+          text = replace_once(text,
+              '''        private ImageButton reloadButton;\n''',
+              '''        private ImageButton reloadButton;\n        private ImageButton urlBackButton;\n''',
+              'url back field')
+
+          text = replace_once(text,
+              '''            this.reloadButton = (ImageButton) findViewById(R.id.reloadButton);\n            this.urlHomeButton = (ImageButton) findViewById(R.id.urlHomeButton);\n            this.copyUrlButton = (ImageButton) findViewById(R.id.copyUrlButton);''',
+              '''            this.reloadButton = (ImageButton) findViewById(R.id.reloadButton);\n            this.urlBackButton = (ImageButton) findViewById(R.id.urlBackButton);\n            this.urlHomeButton = (ImageButton) findViewById(R.id.urlHomeButton);\n            this.copyUrlButton = (ImageButton) findViewById(R.id.copyUrlButton);''',
+              'bind url back')
+
+          text = replace_once(text,
+              '''                configureCenteredHeaderIcon(this.copyUrlButton, R.drawable.fa_copy, R.color.hcf_muted);\n                configureCenteredHeaderIcon(this.reloadButton, R.drawable.fa_rotate_right, R.color.hcf_cyan_bright);\n                configureCenteredHeaderIcon(this.urlHomeButton, R.drawable.fa_house, R.color.hcf_cyan_bright);''',
+              '''                configureCenteredHeaderIcon(this.urlBackButton, R.drawable.fa_arrow_left, R.color.hcf_cyan_bright);\n                configureCenteredHeaderIcon(this.reloadButton, R.drawable.fa_rotate_right, R.color.hcf_cyan_bright);\n                configureCenteredHeaderIcon(this.copyUrlButton, R.drawable.fa_copy, R.color.hcf_cyan_bright);\n                configureCenteredHeaderIcon(this.urlHomeButton, R.drawable.fa_house, R.color.hcf_cyan_bright);\n                if (this.urlBackButton != null) {\n                    this.urlBackButton.setOnClickListener(new View.OnClickListener() {\n                        @Override public void onClick(View view) {\n                            MainActivity.this.onBackPressed();\n                        }\n                    });\n                }''',
+              'unified nav styling')
+
+          text = replace_once(text,
+              '''            setViewHeight(this.urlBar, i5);\n            setViewHeight(this.urlBarInner, i6);\n            setSquareSize(this.copyUrlButton, i7);\n            setSquareSize(this.reloadButton, i8);\n            setSquareSize(this.urlHomeButton, i8);''',
+              '''            setViewHeight(this.urlBar, i5);\n            setViewHeight(this.urlBarInner, i6);\n            setSquareSize(this.urlBackButton, i8);\n            setSquareSize(this.reloadButton, i8);\n            setSquareSize(this.copyUrlButton, i7);\n            setSquareSize(this.urlHomeButton, i8);''',
+              'nav compact sizing')
+
+          text = replace_once(text,
+              '''            imageButton.setImageResource(i);\n            imageButton.setScaleType(ImageView.ScaleType.CENTER);\n            imageButton.setPadding(0, 0, 0, 0);''',
+              '''            imageButton.setImageResource(i);\n            imageButton.setBackgroundResource(R.drawable.nav_button_background);\n            imageButton.setScaleType(ImageView.ScaleType.CENTER);\n            imageButton.setPadding(0, 0, 0, 0);''',
+              'normalized nav background')
+
+          main.write_text(text, encoding='utf-8')
+
+          text = startup.read_text(encoding='utf-8')
+          old = '''            setStartupSquare(findViewById(R.id.urlBackButton), R.dimen.compact_url_reload_button);\n            setStartupSquare(findViewById(R.id.reloadButton), R.dimen.compact_url_reload_button);\n            setStartupSquare(findViewById(R.id.copyUrlButton), R.dimen.compact_url_copy_button);\n            setStartupSquare(findViewById(R.id.urlHomeButton), R.dimen.compact_url_reload_button);'''
+          new = '''            setStartupSquare(findViewById(R.id.urlBackButton), R.dimen.compact_url_reload_button);\n            setStartupSquare(findViewById(R.id.reloadButton), R.dimen.compact_url_reload_button);\n            setStartupSquare(findViewById(R.id.copyUrlButton), R.dimen.compact_url_copy_button);\n            setStartupSquare(findViewById(R.id.urlHomeButton), R.dimen.compact_url_reload_button);\n            styleStartupUrlNav(R.id.urlBackButton, R.drawable.fa_arrow_left);\n            styleStartupUrlNav(R.id.reloadButton, R.drawable.fa_rotate_right);\n            styleStartupUrlNav(R.id.copyUrlButton, R.drawable.fa_copy);\n            styleStartupUrlNav(R.id.urlHomeButton, R.drawable.fa_house);'''
+          text = replace_once(text, old, new, 'startup nav styling calls')
+
+          marker = '''        private void setStartupHeight(View view, int dimenRes) {\n'''
+          helper = '''        private void styleStartupUrlNav(int viewId, int iconRes) {\n            View view = findViewById(viewId);\n            if (!(view instanceof ImageButton)) return;\n            ImageButton button = (ImageButton) view;\n            button.setImageResource(iconRes);\n            button.setBackgroundResource(R.drawable.nav_button_background);\n            button.setScaleType(ImageView.ScaleType.CENTER);\n            button.setPadding(0, 0, 0, 0);\n            button.setMinimumWidth(0);\n            button.setMinimumHeight(0);\n            button.setStateListAnimator(null);\n            button.setImageTintList(ColorStateList.valueOf(getColor(R.color.hcf_cyan_bright)));\n        }\n\n'''
+          if marker not in text:
+              raise SystemExit('missing startup helper insertion marker')
+          text = text.replace(marker, helper + marker, 1)
+          startup.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit cleanup to dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Harleys Studios Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add 'source code/src/com/harleytg/forum/HcfMainActivities.java' 'source code/src/com/harleytg/forum/HcfUITheme.java'
+          git diff --cached --check
+          git commit -m 'Unify URL navigation button design'
+          git push origin HEAD:dev
+
+      - name: Verify navigation cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'private ImageButton urlBackButton;' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          grep -Fq 'MainActivity.this.onBackPressed();' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          grep -Fq 'styleStartupUrlNav(R.id.copyUrlButton' 'source code/src/com/harleytg/forum/HcfUITheme.java'
+          grep -Fq 'R.drawable.nav_button_background' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Compile cleaned v10000097 APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-beta-v10000097-urlnav"
+          OUT="$GITHUB_WORKSPACE/out-v10000097-urlnav"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT/signing-tools/lib"
+
+          "$BT/aapt" package -f -m \
+            -J "$WORK/gen" \
+            -M "$ROOT/AndroidManifest.xml" \
+            -S "$ROOT/res" \
+            -A "$ROOT/assets" \
+            -I "$ANDROID_JAR" \
+            -F "$WORK/resources.apk"
+
+          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
+          mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
+
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
+          APK="$OUT/HCF-Beta-v10000097-URLNavCleanup-aligned-unsigned.apk"
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$APK"
+          "$BT/zipalign" -c -p 4 "$APK"
+
+          "$BT/aapt" dump badging "$APK" | head -1 | tee "$OUT/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
+          grep -q "versionCode='10000097'" "$OUT/APK-BADGING.txt"
+          unzip -p "$APK" classes.dex | strings > "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'urlBackButton' "$OUT/DEX-STRINGS.txt"
+          sha256sum "$APK" | tee "$OUT/SHA256SUMS.txt"
+
+          cp "$BT/apksigner" "$OUT/signing-tools/apksigner"
+          cp "$BT/lib/apksigner.jar" "$OUT/signing-tools/lib/apksigner.jar"
+
+      - name: Upload URL navigation cleanup APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-Beta-v10000097-URLNavCleanup-Unsigned
+          path: out-v10000097-urlnav/
+          if-no-files-found: error
+          retention-days: 7
