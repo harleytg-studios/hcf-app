@@ -1,16 +1,15 @@
 name: One-time v10000096 Responsive Welcome
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/v10000096-welcome-fit-once.yml'
+  issues:
+    types: [opened]
 
 permissions:
   contents: write
 
 jobs:
   patch-build:
+    if: github.event.issue.title == 'RUN HCF v10000096 WELCOME FIT'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout dev
