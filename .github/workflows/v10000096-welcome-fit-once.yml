@@ -1,0 +1,352 @@
+name: One-time v10000096 Responsive Welcome
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/v10000096-welcome-fit-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Publish run locator
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:refs/heads/status/v10000096-run-${GITHUB_RUN_ID} --force
+
+      - name: Make Welcome screen fit without normal scrolling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path.cwd()
+          main = root / 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          manifest = root / 'source code/AndroidManifest.xml'
+          app = root / 'source code/src/com/harleytg/forum/HcfApplication.java'
+          readme = root / 'README.md'
+
+          def replace_once(text, old, new, label):
+              if old not in text:
+                  raise SystemExit(f'missing {label}')
+              return text.replace(old, new, 1)
+
+          text = main.read_text(encoding='utf-8')
+
+          old = '''        private View buildUi() {
+            int bg = ThemeManager.isAmoled(this) ? Color.BLACK : getColor(R.color.hcf_bg);
+
+            ScrollView scroll = new ScrollView(this);
+            scroll.setFillViewport(true);
+            scroll.setBackgroundColor(bg);
+
+            LinearLayout page = new LinearLayout(this);
+            page.setOrientation(LinearLayout.VERTICAL);
+            page.setGravity(Gravity.CENTER_HORIZONTAL);
+            page.setPadding(dp(18), dp(28), dp(18), dp(28));
+            scroll.addView(page, new ScrollView.LayoutParams(-1, -1));
+'''
+          new = '''        private View buildUi() {
+            int bg = ThemeManager.isAmoled(this) ? Color.BLACK : getColor(R.color.hcf_bg);
+            int screenHeightDp = getResources().getConfiguration().screenHeightDp;
+            boolean compact = screenHeightDp <= 780;
+            boolean veryCompact = screenHeightDp <= 680;
+
+            ScrollView scroll = new ScrollView(this);
+            scroll.setFillViewport(true);
+            scroll.setBackgroundColor(bg);
+            scroll.setVerticalScrollBarEnabled(false);
+            scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+
+            LinearLayout page = new LinearLayout(this);
+            page.setOrientation(LinearLayout.VERTICAL);
+            page.setGravity(Gravity.CENTER_HORIZONTAL);
+            int sidePadding = compact ? dp(12) : dp(18);
+            int verticalPadding = veryCompact ? dp(5) : (compact ? dp(8) : dp(20));
+            page.setPadding(sidePadding, verticalPadding, sidePadding, verticalPadding);
+            scroll.addView(page, new ScrollView.LayoutParams(-1, -1));
+'''
+          text = replace_once(text, old, new, 'Welcome buildUi header')
+
+          old = '''            hero.setBackgroundResource(R.drawable.settings_hero_background);
+            hero.setPadding(dp(22), dp(24), dp(22), dp(24));
+            LinearLayout.LayoutParams heroLp = new LinearLayout.LayoutParams(-1, -2);
+            heroLp.topMargin = dp(12);
+            page.addView(hero, heroLp);
+
+            ImageView logo = new ImageView(this);
+            logo.setImageResource(R.drawable.htg_app_logo);
+            logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            logo.setContentDescription("Harley's Clan Forum logo");
+            hero.addView(logo, new LinearLayout.LayoutParams(dp(92), dp(92)));
+
+            TextView eyebrow = text("HARLEY'S STUDIOS", 10, getColor(R.color.hcf_meta));
+'''
+          new = '''            hero.setBackgroundResource(R.drawable.settings_hero_background);
+            int heroHorizontal = compact ? dp(14) : dp(22);
+            int heroVertical = veryCompact ? dp(9) : (compact ? dp(12) : dp(20));
+            hero.setPadding(heroHorizontal, heroVertical, heroHorizontal, heroVertical);
+            LinearLayout.LayoutParams heroLp = new LinearLayout.LayoutParams(-1, -2);
+            heroLp.topMargin = compact ? 0 : dp(6);
+            page.addView(hero, heroLp);
+
+            ImageView logo = new ImageView(this);
+            logo.setImageResource(R.drawable.htg_app_logo);
+            logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            logo.setContentDescription("Harley's Clan Forum logo");
+            int logoSize = veryCompact ? dp(56) : (compact ? dp(68) : dp(84));
+            hero.addView(logo, new LinearLayout.LayoutParams(logoSize, logoSize));
+
+            TextView eyebrow = text("HARLEY'S STUDIOS", compact ? 9 : 10, getColor(R.color.hcf_meta));
+'''
+          text = replace_once(text, old, new, 'hero sizing')
+
+          text = replace_once(text,
+              '''            eyebrowLp.topMargin = dp(10);''',
+              '''            eyebrowLp.topMargin = compact ? dp(5) : dp(8);''',
+              'eyebrow margin')
+          text = replace_once(text,
+              '''            TextView title = text("", 23, getColor(R.color.hcf_text));''',
+              '''            TextView title = text("", veryCompact ? 18 : (compact ? 20 : 23), getColor(R.color.hcf_text));''',
+              'title size')
+          text = replace_once(text,
+              '''            titleLp.topMargin = dp(4);''',
+              '''            titleLp.topMargin = compact ? dp(2) : dp(4);''',
+              'title margin')
+          text = replace_once(text,
+              '''                TextView badge = text("Development Build / Beta", 10, Color.rgb(10, 14, 18));''',
+              '''                TextView badge = text("Development Build / Beta", compact ? 9 : 10, Color.rgb(10, 14, 18));''',
+              'badge size')
+          text = replace_once(text,
+              '''                badge.setPadding(dp(12), dp(5), dp(12), dp(5));''',
+              '''                badge.setPadding(compact ? dp(10) : dp(12), compact ? dp(3) : dp(5), compact ? dp(10) : dp(12), compact ? dp(3) : dp(5));''',
+              'badge padding')
+          text = replace_once(text,
+              '''                badgeLp.topMargin = dp(10);''',
+              '''                badgeLp.topMargin = compact ? dp(6) : dp(10);''',
+              'badge margin')
+          text = replace_once(text,
+              '''                    13, getColor(R.color.hcf_muted));''',
+              '''                    veryCompact ? 10 : (compact ? 11 : 13), getColor(R.color.hcf_muted));''',
+              'welcome text size')
+          text = replace_once(text,
+              '''            welcome.setLineSpacing(0.0f, 1.14f);''',
+              '''            welcome.setLineSpacing(0.0f, compact ? 1.06f : 1.12f);''',
+              'welcome line spacing')
+          text = replace_once(text,
+              '''            welcomeLp.topMargin = dp(16);''',
+              '''            welcomeLp.topMargin = veryCompact ? dp(6) : (compact ? dp(8) : dp(14));''',
+              'welcome margin')
+
+          text = replace_once(text,
+              '''            View featureGrid = buildFeatureGrid();
+            LinearLayout.LayoutParams featureGridLp = new LinearLayout.LayoutParams(-1, -2);
+            featureGridLp.topMargin = dp(16);''',
+              '''            View featureGrid = buildFeatureGrid(compact, veryCompact);
+            LinearLayout.LayoutParams featureGridLp = new LinearLayout.LayoutParams(-1, -2);
+            featureGridLp.topMargin = veryCompact ? dp(5) : (compact ? dp(8) : dp(14));''',
+              'feature grid call')
+
+          text = replace_once(text,
+              '''            View pawNote = buildPawNoteCard();
+            LinearLayout.LayoutParams pawNoteLp = new LinearLayout.LayoutParams(-1, -2);
+            pawNoteLp.topMargin = dp(14);''',
+              '''            View pawNote = buildPawNoteCard(compact, veryCompact);
+            LinearLayout.LayoutParams pawNoteLp = new LinearLayout.LayoutParams(-1, -2);
+            pawNoteLp.topMargin = veryCompact ? dp(5) : (compact ? dp(7) : dp(12));''',
+              'paw note call')
+
+          text = replace_once(text,
+              '''            LinearLayout.LayoutParams startLp = new LinearLayout.LayoutParams(-1, dp(52));
+            startLp.topMargin = dp(16);''',
+              '''            LinearLayout.LayoutParams startLp = new LinearLayout.LayoutParams(-1, veryCompact ? dp(42) : (compact ? dp(46) : dp(52)));
+            startLp.topMargin = veryCompact ? dp(5) : (compact ? dp(8) : dp(14));''',
+              'start button sizing')
+          text = replace_once(text,
+              '''            LinearLayout.LayoutParams continueLp = new LinearLayout.LayoutParams(-1, dp(50));
+            continueLp.topMargin = dp(9);''',
+              '''            LinearLayout.LayoutParams continueLp = new LinearLayout.LayoutParams(-1, veryCompact ? dp(40) : (compact ? dp(44) : dp(50)));
+            continueLp.topMargin = compact ? dp(5) : dp(8);''',
+              'continue button sizing')
+          text = replace_once(text,
+              '''            TextView footer = text(BuildInfo.VERSION_BUILD_LINE, 9, getColor(R.color.hcf_hint));''',
+              '''            TextView footer = text(BuildInfo.VERSION_BUILD_LINE, compact ? 8 : 9, getColor(R.color.hcf_hint));''',
+              'footer size')
+          text = replace_once(text,
+              '''            footerLp.topMargin = dp(20);''',
+              '''            footerLp.topMargin = veryCompact ? dp(4) : (compact ? dp(6) : dp(14));''',
+              'footer margin')
+
+          old = '''        private View buildFeatureGrid() {
+            LinearLayout container = new LinearLayout(this);
+            container.setOrientation(LinearLayout.VERTICAL);
+            container.setBackground(cyanOutlineCardBackground());
+            container.setPadding(dp(16), dp(16), dp(16), dp(18));
+
+            TextView header = text("What App Setup helps with", 13, getColor(R.color.hcf_cyan));
+'''
+          new = '''        private View buildFeatureGrid(boolean compact, boolean veryCompact) {
+            LinearLayout container = new LinearLayout(this);
+            container.setOrientation(LinearLayout.VERTICAL);
+            container.setBackground(cyanOutlineCardBackground());
+            int hPad = compact ? dp(10) : dp(16);
+            int vPad = veryCompact ? dp(7) : (compact ? dp(9) : dp(14));
+            container.setPadding(hPad, vPad, hPad, vPad);
+
+            TextView header = text("What App Setup helps with", veryCompact ? 10 : (compact ? 11 : 13), getColor(R.color.hcf_cyan));
+'''
+          text = replace_once(text, old, new, 'feature grid signature')
+          text = replace_once(text,
+              '''            gridLp.topMargin = dp(16);''',
+              '''            gridLp.topMargin = veryCompact ? dp(5) : (compact ? dp(8) : dp(12));''',
+              'feature grid margin')
+          text = replace_once(text,
+              '''            grid.addView(buildFeatureItem(R.drawable.fa_bell, "Forum\\nNotifications"));
+            grid.addView(buildFeatureItem(R.drawable.fa_globe, "Open Forum\\nLinks in App"));
+            grid.addView(buildFeatureItem(R.drawable.fa_shield, "Secure App\\nUpdate Permission"));
+            grid.addView(buildFeatureItem(R.drawable.fa_circle_info, "Background\\nAlert Health"));''',
+              '''            grid.addView(buildFeatureItem(R.drawable.fa_bell, "Forum\\nNotifications", compact, veryCompact));
+            grid.addView(buildFeatureItem(R.drawable.fa_globe, "Open Forum\\nLinks in App", compact, veryCompact));
+            grid.addView(buildFeatureItem(R.drawable.fa_shield, "Secure App\\nUpdate Permission", compact, veryCompact));
+            grid.addView(buildFeatureItem(R.drawable.fa_circle_info, "Background\\nAlert Health", compact, veryCompact));''',
+              'feature item calls')
+
+          text = replace_once(text,
+              '''        private View buildFeatureItem(int iconRes, String label) {''',
+              '''        private View buildFeatureItem(int iconRes, String label, boolean compact, boolean veryCompact) {''',
+              'feature item signature')
+          text = replace_once(text,
+              '''            icon.setPadding(dp(12), dp(12), dp(12), dp(12));
+            icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            item.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
+
+            TextView tv = text(label, 10, getColor(R.color.hcf_text));''',
+              '''            int iconPadding = veryCompact ? dp(7) : (compact ? dp(9) : dp(12));
+            icon.setPadding(iconPadding, iconPadding, iconPadding, iconPadding);
+            icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            int iconSize = veryCompact ? dp(34) : (compact ? dp(40) : dp(48));
+            item.addView(icon, new LinearLayout.LayoutParams(iconSize, iconSize));
+
+            TextView tv = text(label, veryCompact ? 8 : (compact ? 9 : 10), getColor(R.color.hcf_text));''',
+              'feature item sizing')
+          text = replace_once(text,
+              '''            textLp.topMargin = dp(8);''',
+              '''            textLp.topMargin = veryCompact ? dp(3) : (compact ? dp(5) : dp(8));''',
+              'feature label margin')
+
+          text = replace_once(text,
+              '''        private View buildPawNoteCard() {''',
+              '''        private View buildPawNoteCard(boolean compact, boolean veryCompact) {''',
+              'paw note signature')
+          text = replace_once(text,
+              '''            card.setPadding(dp(14), dp(12), dp(14), dp(12));''',
+              '''            int noteH = compact ? dp(10) : dp(14);
+            int noteV = veryCompact ? dp(6) : (compact ? dp(8) : dp(12));
+            card.setPadding(noteH, noteV, noteH, noteV);''',
+              'paw note padding')
+          text = replace_once(text,
+              '''            card.addView(paw, new LinearLayout.LayoutParams(dp(28), dp(28)));''',
+              '''            int pawSize = veryCompact ? dp(20) : (compact ? dp(24) : dp(28));
+            card.addView(paw, new LinearLayout.LayoutParams(pawSize, pawSize));''',
+              'paw size')
+          text = replace_once(text,
+              '''                    11,
+                    getColor(R.color.hcf_muted)''',
+              '''                    veryCompact ? 8 : (compact ? 9 : 11),
+                    getColor(R.color.hcf_muted)''',
+              'paw text size')
+          text = replace_once(text,
+              '''            noteLp.leftMargin = dp(12);''',
+              '''            noteLp.leftMargin = compact ? dp(8) : dp(12);''',
+              'paw note margin')
+
+          main.write_text(text, encoding='utf-8')
+
+          def rep(path, old, new):
+              body = path.read_text(encoding='utf-8')
+              if old not in body:
+                  raise SystemExit(f'missing expected version text in {path}: {old}')
+              path.write_text(body.replace(old, new), encoding='utf-8')
+
+          rep(manifest, '10000095', '10000096')
+          rep(app, '10000095', '10000096')
+          rep(app, 'static final int INTERNAL_BUILD = 115;', 'static final int INTERNAL_BUILD = 116;')
+          rep(readme, '10000095', '10000096')
+          rep(readme, 'Internal build: `115`', 'Internal build: `116`')
+          PY
+
+          test "$(find 'source code/src/com/harleytg/forum' -maxdepth 1 -name '*.java' | wc -l)" -eq 8
+          grep -Fq 'android:versionCode="10000096"' 'source code/AndroidManifest.xml'
+          grep -Fq 'VERSION_CODE = 10000096;' 'source code/src/com/harleytg/forum/HcfApplication.java'
+          grep -Fq 'INTERNAL_BUILD = 116;' 'source code/src/com/harleytg/forum/HcfApplication.java'
+          grep -Fq 'screenHeightDp <= 780' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          grep -Fq 'scroll.setVerticalScrollBarEnabled(false)' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          grep -Fq 'buildFeatureGrid(compact, veryCompact)' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          grep -Fq 'Welcome To' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          test "$(grep -Fc '@drawable/nav_button_background' 'source code/res/layout/activity_main.xml')" -ge 6
+
+      - name: Commit v10000096 source to dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'source code/src/com/harleytg/forum/HcfMainActivities.java' 'source code/AndroidManifest.xml' 'source code/src/com/harleytg/forum/HcfApplication.java' README.md
+          git commit -m 'Make Welcome screen responsive and bump v10000096'
+          git push origin HEAD:dev
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build v10000096 unsigned APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          ROOT="$GITHUB_WORKSPACE/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          AJ="$ANDROID_HOME/platforms/android-35/android.jar"
+          W="$RUNNER_TEMP/hcf-v10000096"
+          O="$GITHUB_WORKSPACE/out-v10000096"
+          mkdir -p "$W/gen" "$W/classes" "$W/dex" "$O/signing-tools/lib"
+
+          "$BT/aapt" package -f -m -J "$W/gen" -M "$ROOT/AndroidManifest.xml" -S "$ROOT/res" -A "$ROOT/assets" -I "$AJ" -F "$W/resources.apk"
+          mapfile -t JF < <(find "$W/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$AJ" -d "$W/classes" "${JF[@]}"
+          mapfile -t CF < <(find "$W/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$AJ" --min-api 26 --release --output "$W/dex" "${CF[@]}"
+          cp "$W/resources.apk" "$W/unsigned.apk"
+          (cd "$W/dex" && "$BT/aapt" add "$W/unsigned.apk" classes.dex)
+          APK="$O/HCF-Beta-v10000096-WelcomeFit-aligned-unsigned.apk"
+          "$BT/zipalign" -f -p 4 "$W/unsigned.apk" "$APK"
+          "$BT/zipalign" -c -p 4 "$APK"
+          "$BT/aapt" dump badging "$APK" | head -1 | tee "$O/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum.dev'" "$O/APK-BADGING.txt"
+          grep -q "versionCode='10000096'" "$O/APK-BADGING.txt"
+          grep -q "versionName='1.0 (10000096)'" "$O/APK-BADGING.txt"
+          unzip -p "$APK" classes.dex | strings > "$O/DEX-STRINGS.txt"
+          grep -Fq 'Welcome To' "$O/DEX-STRINGS.txt"
+          cp "$BT/apksigner" "$O/signing-tools/apksigner"
+          cp "$BT/lib/apksigner.jar" "$O/signing-tools/lib/apksigner.jar"
+          sha256sum "$APK" | tee "$O/SHA256SUMS.txt"
+
+      - name: Upload v10000096 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-Beta-v10000096-WelcomeFit-Unsigned
+          path: out-v10000096/
+          if-no-files-found: error
+          retention-days: 7
