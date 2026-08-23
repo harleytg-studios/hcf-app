@@ -172,6 +172,7 @@ public final class HcfMainActivities {
         private boolean pullFromTop;
         private float pullStartY;
         private ImageButton reloadButton;
+        private ImageButton urlBackButton;
         private boolean rendererRecoveryPending;
         private Button retryButton;
         private TextView secureForumLabel;
@@ -318,9 +319,17 @@ public final class HcfMainActivities {
             try {
                 configureCenteredHeaderIcon(this.drawerButton, R.drawable.fa_bars, R.color.hcf_cyan_bright);
                 configureCenteredHeaderIcon(this.headerNotificationsButton, R.drawable.fa_bell, R.color.hcf_cyan_bright);
-                configureCenteredHeaderIcon(this.copyUrlButton, R.drawable.fa_copy, R.color.hcf_muted);
+                configureCenteredHeaderIcon(this.urlBackButton, R.drawable.fa_arrow_left, R.color.hcf_cyan_bright);
                 configureCenteredHeaderIcon(this.reloadButton, R.drawable.fa_rotate_right, R.color.hcf_cyan_bright);
+                configureCenteredHeaderIcon(this.copyUrlButton, R.drawable.fa_copy, R.color.hcf_cyan_bright);
                 configureCenteredHeaderIcon(this.urlHomeButton, R.drawable.fa_house, R.color.hcf_cyan_bright);
+                if (this.urlBackButton != null) {
+                    this.urlBackButton.setOnClickListener(new View.OnClickListener() {
+                        @Override public void onClick(View view) {
+                            MainActivity.this.onBackPressed();
+                        }
+                    });
+                }
                 configureErrorActionButton(this.retryButton, true, R.drawable.fa_rotate_right);
                 configureErrorActionButton(this.alternateButton, false, R.drawable.fa_right_left);
                 configureErrorActionButton(this.errorDetailsButton, false, R.drawable.fa_list);
@@ -349,6 +358,7 @@ public final class HcfMainActivities {
                 return;
             }
             imageButton.setImageResource(i);
+            imageButton.setBackgroundResource(R.drawable.nav_button_background);
             imageButton.setScaleType(ImageView.ScaleType.CENTER);
             imageButton.setPadding(0, 0, 0, 0);
             imageButton.setMinimumWidth(0);
@@ -630,6 +640,7 @@ public final class HcfMainActivities {
             this.errorSupportButton = (Button) findViewById(R.id.errorSupportButton);
             this.drawerButton = (ImageButton) findViewById(R.id.drawerButton);
             this.reloadButton = (ImageButton) findViewById(R.id.reloadButton);
+            this.urlBackButton = (ImageButton) findViewById(R.id.urlBackButton);
             this.urlHomeButton = (ImageButton) findViewById(R.id.urlHomeButton);
             this.copyUrlButton = (ImageButton) findViewById(R.id.copyUrlButton);
             this.topAppBar = findViewById(R.id.topAppBar);
@@ -1399,8 +1410,9 @@ public final class HcfMainActivities {
             setTextSizeFromDimen(this.appHeaderTitle, i4);
             setViewHeight(this.urlBar, i5);
             setViewHeight(this.urlBarInner, i6);
-            setSquareSize(this.copyUrlButton, i7);
+            setSquareSize(this.urlBackButton, i8);
             setSquareSize(this.reloadButton, i8);
+            setSquareSize(this.copyUrlButton, i7);
             setSquareSize(this.urlHomeButton, i8);
             boolean z2 = getResources().getConfiguration().orientation == 2;
             if (this.topAppBar != null) {

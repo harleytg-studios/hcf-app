@@ -246,6 +246,10 @@ public final class HcfUITheme {
             setStartupSquare(findViewById(R.id.reloadButton), R.dimen.compact_url_reload_button);
             setStartupSquare(findViewById(R.id.copyUrlButton), R.dimen.compact_url_copy_button);
             setStartupSquare(findViewById(R.id.urlHomeButton), R.dimen.compact_url_reload_button);
+            styleStartupUrlNav(R.id.urlBackButton, R.drawable.fa_arrow_left);
+            styleStartupUrlNav(R.id.reloadButton, R.drawable.fa_rotate_right);
+            styleStartupUrlNav(R.id.copyUrlButton, R.drawable.fa_copy);
+            styleStartupUrlNav(R.id.urlHomeButton, R.drawable.fa_house);
 
             if (topAppBar != null) {
                 int side = dp(6);
@@ -259,6 +263,20 @@ public final class HcfUITheme {
 
             View secureLabel = findViewById(R.id.secureForumLabel);
             if (secureLabel != null) secureLabel.setVisibility(View.GONE);
+        }
+
+        private void styleStartupUrlNav(int viewId, int iconRes) {
+            View view = findViewById(viewId);
+            if (!(view instanceof ImageButton)) return;
+            ImageButton button = (ImageButton) view;
+            button.setImageResource(iconRes);
+            button.setBackgroundResource(R.drawable.nav_button_background);
+            button.setScaleType(ImageView.ScaleType.CENTER);
+            button.setPadding(0, 0, 0, 0);
+            button.setMinimumWidth(0);
+            button.setMinimumHeight(0);
+            button.setStateListAnimator(null);
+            button.setImageTintList(ColorStateList.valueOf(getColor(R.color.hcf_cyan_bright)));
         }
 
         private void setStartupHeight(View view, int dimenRes) {
