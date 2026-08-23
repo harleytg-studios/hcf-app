@@ -33,17 +33,21 @@ abstract class ThemedActivity extends Activity implements SharedPreferences.OnSh
         }
         super.onCreate(bundle);
         try {
-            ThemeManager.applySystemBars(this);
+            AppDomainRouter.installAddressBarInflater(this);
         } catch (Throwable unused2) {
         }
         try {
-            this.appliedThemeSignature = ThemeManager.signature(this);
+            ThemeManager.applySystemBars(this);
         } catch (Throwable unused3) {
+        }
+        try {
+            this.appliedThemeSignature = ThemeManager.signature(this);
+        } catch (Throwable unused4) {
             this.appliedThemeSignature = "auto_forum";
         }
         try {
             this.themePrefs = getSharedPreferences("hcf_app", 0);
-        } catch (Throwable unused4) {
+        } catch (Throwable unused5) {
             this.themePrefs = null;
         }
     }
