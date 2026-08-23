@@ -332,6 +332,7 @@ public final class SettingsActivity extends ThemedActivity {
             new SettingTarget("notification_test_console", "Notification Test Console", "notification test developer alerts", "advanced", "developer_tools"),
             new SettingTarget("test_notification_service", "Test Notification Service", "notification test service developer", "advanced", "developer_tools"),
             new SettingTarget("force_notification_sync", "Force Notification Sync", "notification force sync test developer", "advanced", "developer_tools"),
+            new SettingTarget("ui_playground", "UI Playground", "ui user interface screen preview testing components cards buttons dialogs toast developer playground", "advanced", "developer_tools"),
             new SettingTarget("app_identity", "App identity", "version versioncode build about app name", "advanced", "about"),
             new SettingTarget("build_channel", "Build & channel", "version versioncode build channel package update feed about", "advanced", "about"),
             new SettingTarget("device_runtime", "Device & runtime", "device runtime android webview build about", "advanced", "about"),
@@ -1571,11 +1572,71 @@ public final class SettingsActivity extends ThemedActivity {
             InstantNotificationService.requestImmediateSync(this);
             Toast.makeText(this, "Immediate notification sync requested.", Toast.LENGTH_SHORT).show();
         }), "force_notification_sync"));
+
+        card.addView(settingsSubsectionHeader(
+                "UI Playground",
+                "Preview and test HCF screens, components, dialogs and visual states",
+                R.drawable.fa_gear
+        ));
+        card.addView(target(actionButton("Open UI Playground", v -> showUiPlayground()), "ui_playground"));
         return card;
     }
 
     private String developerToolsSubtitle() {
         return "stable".equals(effectiveUpdateChannel()) ? "Stable test tools" : "Dev/Beta test controls";
+    }
+
+    private void showUiPlayground() {
+        AppLogger.info(this, "ui_playground_open", BuildInfo.VERSION);
+
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(14), dp(8), dp(14), dp(12));
+        scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
+
+        content.addView(settingsInfoCard(
+                "Developer visual test area",
+                "Use UI Playground to preview HCF screens and reusable UI components without changing normal app settings.",
+                R.drawable.fa_bug
+        ));
+
+        content.addView(settingsSubsectionHeader(
+                "Screen previews",
+                "Open real app screens to check theme, spacing and responsive layout",
+                R.drawable.fa_circle_info
+        ));
+        content.addView(actionButton("Preview App Setup Center", v ->
+                startActivity(new Intent(this, SetupActivity.class))));
+
+        content.addView(settingsSubsectionHeader(
+                "Component tests",
+                "Preview common HCF feedback and component states",
+                R.drawable.fa_gear
+        ));
+        content.addView(settingsInfoCard(
+                "Sample information card",
+                "This card uses the same HCF surface, border, typography and spacing system as App Settings.",
+                R.drawable.fa_circle_info
+        ));
+        content.addView(actionButton("Test HCF Dialog", v -> showUiPlaygroundDialogPreview()));
+        content.addView(actionButton("Test Toast", v ->
+                Toast.makeText(this, "UI Playground test toast", Toast.LENGTH_SHORT).show()));
+
+        new AlertDialog.Builder(this)
+                .setTitle("UI Playground")
+                .setView(scroll)
+                .setNegativeButton("Close", null)
+                .show();
+    }
+
+    private void showUiPlaygroundDialogPreview() {
+        new AlertDialog.Builder(this)
+                .setTitle("HCF Dialog Preview")
+                .setMessage("Sample developer-only dialog for checking text, spacing, theme and button rendering.")
+                .setPositiveButton("Primary", null)
+                .setNegativeButton("Secondary", null)
+                .show();
     }
 
     private void showNotificationTestConsole() {
