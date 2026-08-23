@@ -51,7 +51,6 @@ jobs:
           replace(verifier, 'EXPECTED_VERSION_CODE = 10000092', 'EXPECTED_VERSION_CODE = 10000093')
           replace(verifier, 'EXPECTED_INTERNAL_BUILD = 112', 'EXPECTED_INTERNAL_BUILD = 113')
           replace(verifier, 'v10000092', 'v10000093')
-          replace(verifier, 'build-dev-v10000092.yml', 'build-dev-v10000093.yml')
           replace(build, 'src/com/harleytg/forum/BuildInfo.java', 'src/com/harleytg/forum/HcfApplication.java')
           replace(build, 'Missing BuildInfo.java', 'Missing HcfApplication.java')
 
@@ -61,13 +60,11 @@ jobs:
           new_wf.write_text(wf, encoding='utf-8')
           old_wf.unlink()
 
-          # This workflow is intentionally one-time. Remove it before release verification
-          # so the normal policy continues to reject write-enabled release workflows.
+          # One-time migration workflow removes itself in the release commit.
           temp = root / '.github/workflows/bump-dev-v10000093-once.yml'
           if temp.exists():
               temp.unlink()
 
-          # Prevent stale active-build references from surviving the bump.
           stale = []
           for path in [manifest, app, readme, verifier, build, new_wf]:
               if '10000092' in path.read_text(encoding='utf-8'):
@@ -84,6 +81,16 @@ jobs:
 
           python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
           python3 .github/scripts/verify-release-readiness.py .
+
+      - name: Commit verified v10000093 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Bump Dev APK to v10000093'
+          git push origin dev
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -125,16 +132,6 @@ jobs:
           grep -q "versionCode='10000093'" "$OUT/APK-BADGING.txt"
           grep -q "versionName='1.0 (10000093)'" "$OUT/APK-BADGING.txt"
           sha256sum "$APK" | tee "$OUT/SHA256SUMS.txt"
-
-      - name: Commit v10000093 source
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'Bump Dev APK to v10000093'
-          git push origin dev
 
       - name: Upload unsigned v10000093 artifact
         uses: actions/upload-artifact@v4
