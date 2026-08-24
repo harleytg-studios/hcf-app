@@ -24,10 +24,10 @@ import org.json.JSONObject;
 /**
  * Sends a minimal HCF security observation to a private Discord moderation webhook.
  *
- * The webhook URL is never committed in source. Release builds may inject an AES-GCM
- * encrypted generated class named HcfDiscordSecret. This reduces accidental plaintext
- * exposure, but because the app must decrypt the credential at runtime it is obfuscation,
- * not a substitute for a trusted server. Rotate the webhook if an APK or credential leaks.
+ * The webhook is supplied only at build time through a generated HcfDiscordSecret class.
+ * The generated class stores an AES-encrypted value rather than plaintext, but because a
+ * distributed APK must be able to decrypt its own credential this is obfuscation, not a
+ * trusted secret store. Rotate the webhook if an APK or credential is exposed.
  */
 public final class HcfDiscordObservation {
     private static final String PREFS = "hcf_discord_observation";
@@ -86,21 +86,22 @@ public final class HcfDiscordObservation {
             return;
         }
 
+        String ipHash = HcfBanSystem.sha256Hex(publicIp.address);
         String touchKey = loggedIn
-                ? "user:" + username.toLowerCase(Locale.US) + ":" + publicIp.address
-                : "guest:" + publicIp.address;
+                ? "user:" + normalizedUsername(username) + ":" + ipHash
+                : "guest:" + ipHash;
         SharedPreferences prefs = context.getSharedPreferences(PREFS, 0);
         long now = System.currentTimeMillis();
         long last = prefs.getLong("touch:" + touchKey, 0L);
         if (last > 0L && now - last < TOUCH_INTERVAL_MS) return;
 
         String observedAt = isoUtc(now);
-        JSONObject record = loggedIn
-                ? buildUserRecord(username, publicIp, observedAt, context)
-                : buildGuestRecord(publicIp, observedAt, context);
-        String suggestedPath = loggedIn
+        String privatePath = loggedIn
                 ? "users/" + normalizedUsername(username) + ".json"
-                : "guests/" + publicIp.address + ".json";
+                : "guests/ip-" + safeFilename(publicIp.address.replace(':', '-').replace('.', '-')) + ".json";
+        JSONObject record = loggedIn
+                ? buildUserRecord(username, publicIp, ipHash, observedAt, context, privatePath)
+                : buildGuestRecord(publicIp, ipHash, observedAt, context, privatePath);
         String filename = attachmentName(loggedIn, username, publicIp.address, now);
 
         JSONObject message = new JSONObject();
@@ -109,8 +110,10 @@ public final class HcfDiscordObservation {
                 + "Type: `" + (loggedIn ? "user" : "guest") + "`\n"
                 + (loggedIn ? "Account: `@" + discordSafe(username) + "`\n" : "Account: `guest`\n")
                 + "IP: `" + discordSafe(publicIp.address) + "`\n"
+                + "IP SHA-256: `" + ipHash + "`\n"
                 + "IP source: `" + discordSafe(publicIp.source) + "`\n"
-                + "Suggested GitHub record: `" + discordSafe(suggestedPath) + "`\n"
+                + "Private record: `" + discordSafe(privatePath) + "`\n"
+                + "Public ban list: `configs/ban-list.json`\n"
                 + "JSON record attached for manual uplink.");
 
         postMultipart(webhook, message, filename, record.toString(2));
@@ -118,7 +121,9 @@ public final class HcfDiscordObservation {
         AppLogger.info(context, "discord_observation", (loggedIn ? "user" : "guest") + " observation delivered");
     }
 
-    private static JSONObject buildUserRecord(String username, PublicIp ip, String observedAt, Context context) throws Exception {
+    private static JSONObject buildUserRecord(String username, PublicIp ip, String ipHash,
+                                               String observedAt, Context context,
+                                               String privatePath) throws Exception {
         JSONObject entry = new JSONObject();
         entry.put("address", ip.address);
         entry.put("first_seen", observedAt);
@@ -128,23 +133,29 @@ public final class HcfDiscordObservation {
         JSONArray ips = new JSONArray();
         ips.put(entry);
 
-        JSONObject record = baseRecord("user", username, observedAt, ip, context);
+        JSONObject record = baseRecord("user", username, observedAt, ip, ipHash, context, privatePath);
         record.put("ips", ips);
         return record;
     }
 
-    private static JSONObject buildGuestRecord(PublicIp ip, String observedAt, Context context) throws Exception {
-        JSONObject record = baseRecord("guest", null, observedAt, ip, context);
+    private static JSONObject buildGuestRecord(PublicIp ip, String ipHash,
+                                                String observedAt, Context context,
+                                                String privatePath) throws Exception {
+        JSONObject record = baseRecord("guest", null, observedAt, ip, ipHash, context, privatePath);
         record.put("ip", ip.address);
+        record.put("ip_sha256", ipHash);
         return record;
     }
 
-    private static JSONObject baseRecord(String type, String username, String observedAt, PublicIp ip, Context context) throws Exception {
+    private static JSONObject baseRecord(String type, String username, String observedAt,
+                                         PublicIp ip, String ipHash, Context context,
+                                         String privatePath) throws Exception {
         JSONObject metadata = new JSONObject();
         metadata.put("last_app_version", BuildInfo.installedVersionName());
         metadata.put("last_package_name", context.getPackageName());
         metadata.put("last_reported_ip", ip.address);
         metadata.put("last_reported_ip_source", ip.source);
+        metadata.put("last_reported_ip_sha256", ipHash);
 
         JSONObject ban = new JSONObject();
         ban.put("active", false);
@@ -155,19 +166,26 @@ public final class HcfDiscordObservation {
         ban.put("appeal_allowed", true);
         ban.put("notes", JSONObject.NULL);
 
+        JSONObject uplink = new JSONObject();
+        uplink.put("private_record", privatePath);
+        uplink.put("public_ban_list", "configs/ban-list.json");
+        uplink.put("username_key", username == null ? JSONObject.NULL : normalizedUsername(username));
+        uplink.put("ip_sha256", ipHash);
+
         JSONObject record = new JSONObject();
         record.put("schema_version", 1);
         record.put("type", type);
-        if (username == null) record.put("username", JSONObject.NULL);
-        else record.put("username", username);
+        record.put("username", username == null ? JSONObject.NULL : username);
         record.put("first_seen", observedAt);
         record.put("last_seen", observedAt);
         record.put("metadata", metadata);
+        record.put("manual_uplink", uplink);
         record.put("ban", ban);
         return record;
     }
 
-    private static void postMultipart(String webhook, JSONObject payload, String filename, String jsonAttachment) throws Exception {
+    private static void postMultipart(String webhook, JSONObject payload,
+                                      String filename, String jsonAttachment) throws Exception {
         String boundary = "----HCFDiscord" + Long.toHexString(System.nanoTime());
         HttpsURLConnection connection = null;
         try {
@@ -179,7 +197,7 @@ public final class HcfDiscordObservation {
             connection.setDoOutput(true);
             connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
             connection.setRequestProperty("Accept", "application/json");
-            connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " DiscordObservation/1");
+            connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " DiscordObservation/2");
 
             try (DataOutputStream out = new DataOutputStream(connection.getOutputStream())) {
                 writeAscii(out, "--" + boundary + "\r\n");
@@ -189,7 +207,8 @@ public final class HcfDiscordObservation {
                 writeAscii(out, "\r\n");
 
                 writeAscii(out, "--" + boundary + "\r\n");
-                writeAscii(out, "Content-Disposition: form-data; name=\"files[0]\"; filename=\"" + safeFilename(filename) + "\"\r\n");
+                writeAscii(out, "Content-Disposition: form-data; name=\"files[0]\"; filename=\""
+                        + safeFilename(filename) + "\"\r\n");
                 writeAscii(out, "Content-Type: application/json; charset=utf-8\r\n\r\n");
                 out.write(jsonAttachment.getBytes(StandardCharsets.UTF_8));
                 writeAscii(out, "\r\n--" + boundary + "--\r\n");
@@ -221,7 +240,7 @@ public final class HcfDiscordObservation {
             connection.setReadTimeout(3000);
             connection.setInstanceFollowRedirects(true);
             connection.setRequestProperty("Accept", "application/json,text/plain;q=0.9");
-            connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " DiscordIpLookup/1");
+            connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " DiscordIpLookup/2");
             int code = connection.getResponseCode();
             if (code < 200 || code >= 300) return new PublicIp("", source);
             String body = readAll(connection.getInputStream(), 8192);
@@ -266,7 +285,8 @@ public final class HcfDiscordObservation {
     }
 
     private static String attachmentName(boolean loggedIn, String username, String ip, long now) {
-        String who = loggedIn ? normalizedUsername(username) : safeFilename(ip.replace(':', '-').replace('.', '-'));
+        String who = loggedIn ? normalizedUsername(username)
+                : safeFilename(ip.replace(':', '-').replace('.', '-'));
         SimpleDateFormat format = new SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'", Locale.US);
         format.setTimeZone(TimeZone.getTimeZone("UTC"));
         return (loggedIn ? "user-" : "guest-") + who + "-" + format.format(new Date(now)) + ".json";
@@ -308,6 +328,7 @@ public final class HcfDiscordObservation {
     private static String normalizeIp(String value) {
         String raw = safe(value);
         if (raw.isEmpty() || raw.length() > 64) return "";
+        if (raw.startsWith("::ffff:")) raw = raw.substring(7);
         if (raw.matches("^(?:\\d{1,3}\\.){3}\\d{1,3}$")) {
             String[] parts = raw.split("\\.");
             for (String part : parts) {
