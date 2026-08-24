@@ -13,15 +13,21 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout with authenticated origin
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+
       - name: Delete obsolete branches
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
 
           echo "Keeping only: main, dev, stable"
-          gh api --paginate "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --jq '.[].name' > "$RUNNER_TEMP/branches.txt"
+          git ls-remote --heads origin \
+            | sed -E 's#^[0-9a-f]+[[:space:]]+refs/heads/##' \
+            | sort > "$RUNNER_TEMP/branches.txt"
 
           while IFS= read -r branch; do
             case "$branch" in
@@ -30,17 +36,32 @@ jobs:
                 ;;
               *)
                 echo "DELETE $branch"
-                gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}"
+                deleted=false
+                for attempt in 1 2 3; do
+                  if git push origin --delete "$branch"; then
+                    deleted=true
+                    break
+                  fi
+                  echo "Retry $attempt for $branch" >&2
+                  sleep 2
+                done
+                if [ "$deleted" != true ]; then
+                  echo "Could not delete $branch" >&2
+                  exit 1
+                fi
                 ;;
             esac
           done < "$RUNNER_TEMP/branches.txt"
 
-          mapfile -t remaining < <(gh api --paginate "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --jq '.[].name' | sort)
-          printf 'Remaining branches:\n'
-          printf ' - %s\n' "${remaining[@]}"
+          git ls-remote --heads origin \
+            | sed -E 's#^[0-9a-f]+[[:space:]]+refs/heads/##' \
+            | sort > "$RUNNER_TEMP/remaining.txt"
+
+          echo "Remaining branches:"
+          sed 's/^/ - /' "$RUNNER_TEMP/remaining.txt"
 
           expected=$'dev\nmain\nstable'
-          actual="$(printf '%s\n' "${remaining[@]}")"
+          actual="$(cat "$RUNNER_TEMP/remaining.txt")"
           if [ "$actual" != "$expected" ]; then
             echo "Unexpected branches remain after cleanup." >&2
             exit 1
