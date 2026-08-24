@@ -112,7 +112,7 @@ require("legacy permission onboarding guard missing", "PERMISSION_ONBOARDING_DON
 
 require("native ban gate missing from manifest", f'{EXPECTED_PACKAGE}.HcfBanSystem$GateActivity' in manifest)
 require("Discord observation provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfDiscordObservation$BootstrapProvider' in manifest)
-require("public ban-list path missing", "configs/ban-list.json" in ban_system)
+require("ban runtime config source missing", "configs/ban-system.config" in ban_system and '"ban_list"' in ban_system)
 require("network ban SHA-256 logic missing", "sha256Hex" in ban_system and '"ip_sha256"' in ban_system)
 require("user/guest observation split missing", "buildUserRecord" in discord_observation and "buildGuestRecord" in discord_observation)
 require("build-time Discord binding missing", "HcfDiscordSecret" in discord_observation)
