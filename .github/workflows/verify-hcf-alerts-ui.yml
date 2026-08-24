@@ -8,6 +8,8 @@ on:
       - 'source code/stable-build-overlay.py'
       - '.github/scripts/verify-hcf-alerts-ui.py'
       - '.github/workflows/verify-hcf-alerts-ui.yml'
+  pull_request:
+    branches: [stable]
   workflow_dispatch:
 
 permissions:
