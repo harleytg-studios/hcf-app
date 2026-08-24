@@ -1,0 +1,26 @@
+name: Dispatch Single Loader Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build-output/trigger-single-loader-fix.txt'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch fix workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'fix-single-loader-v10000098.yml',
+              ref: 'main'
+            });
