@@ -1,0 +1,139 @@
+name: Patch Ban Webhook Visitor Status
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-discord-visitor-status.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Patch new and returning visitor detection
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('source code/src/com/harleytg/forum/HcfDiscordObservation.java')
+          s = path.read_text(encoding='utf-8')
+
+          def replace_once(old, new, label):
+              global s
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
+              s = s.replace(old, new, 1)
+
+          replace_once(
+              '    private static final String IPINFO = "https://ipinfo.io/json";\n',
+              '    private static final String IPINFO = "https://ipinfo.io/json";\n'
+              '    private static final String VISITOR_FIRST_PREFIX = "visitor:first:";\n'
+              '    private static final String VISITOR_LAST_PREFIX = "visitor:last:";\n'
+              '    private static final String VISITOR_COUNT_PREFIX = "visitor:count:";\n',
+              'visitor preference constants'
+          )
+
+          replace_once(
+              '''        SharedPreferences prefs = context.getSharedPreferences(PREFS, 0);\n        long now = System.currentTimeMillis();\n        long last = prefs.getLong("touch:" + touchKey, 0L);\n        if (last > 0L && now - last < TOUCH_INTERVAL_MS) return;\n\n        String observedAt = isoUtc(now);\n''',
+              '''        SharedPreferences prefs = context.getSharedPreferences(PREFS, 0);\n        long now = System.currentTimeMillis();\n        long last = prefs.getLong("touch:" + touchKey, 0L);\n        if (last > 0L && now - last < TOUCH_INTERVAL_MS) return;\n\n        // New/returning is tracked by subject, not by the current user+IP touch key.\n        // Signed-in users remain returning even when their public IP changes. Guests are\n        // tracked by hashed public IP. This history is local to this app installation.\n        String visitorKey = loggedIn\n                ? "user:" + normalizedUsername(username)\n                : "guest:" + ipHash;\n        long storedFirst = prefs.getLong(VISITOR_FIRST_PREFIX + visitorKey, 0L);\n        long storedLast = prefs.getLong(VISITOR_LAST_PREFIX + visitorKey, 0L);\n        int previousCount = Math.max(0, prefs.getInt(VISITOR_COUNT_PREFIX + visitorKey, 0));\n        boolean returning = storedFirst > 0L || previousCount > 0;\n        long firstObservedMillis = storedFirst > 0L ? storedFirst : now;\n        VisitorState visitorState = new VisitorState(\n                returning ? "returning" : "new",\n                returning,\n                previousCount + 1,\n                isoUtc(firstObservedMillis),\n                storedLast > 0L ? isoUtc(storedLast) : ""\n        );\n\n        String observedAt = isoUtc(now);\n''',
+              'visitor state calculation'
+          )
+
+          replace_once(
+              '''        JSONObject record = loggedIn\n                ? buildUserRecord(username, publicIp, ipHash, observedAt, context, privatePath)\n                : buildGuestRecord(publicIp, ipHash, observedAt, context, privatePath);\n''',
+              '''        JSONObject record = loggedIn\n                ? buildUserRecord(username, publicIp, ipHash, observedAt, context, privatePath, visitorState)\n                : buildGuestRecord(publicIp, ipHash, observedAt, context, privatePath, visitorState);\n''',
+              'record builder calls'
+          )
+
+          replace_once(
+              '''        message.put("content", "**HCF security observation**\\n"\n                + "Type: `" + (loggedIn ? "user" : "guest") + "`\\n"\n                + (loggedIn ? "Account: `@" + discordSafe(username) + "`\\n" : "Account: `guest`\\n")\n''',
+              '''        message.put("content", "**HCF security observation**\\n"\n                + "Type: `" + (loggedIn ? "user" : "guest") + "`\\n"\n                + "Visitor: `" + (visitorState.returning ? "RETURNING" : "NEW") + "`\\n"\n                + "Observation #: `" + visitorState.observationCount + "`\\n"\n                + "First observed: `" + visitorState.firstObservedAt + "`\\n"\n                + (visitorState.previousObservedAt.isEmpty()\n                    ? ""\n                    : "Previous observed: `" + visitorState.previousObservedAt + "`\\n")\n                + (loggedIn ? "Account: `@" + discordSafe(username) + "`\\n" : "Account: `guest`\\n")\n''',
+              'Discord visitor status lines'
+          )
+
+          replace_once(
+              '''        postMultipart(webhook, message, filename, record.toString(2));\n        prefs.edit().putLong("touch:" + touchKey, now).apply();\n        AppLogger.info(context, "discord_observation", (loggedIn ? "user" : "guest") + " observation delivered");\n''',
+              '''        postMultipart(webhook, message, filename, record.toString(2));\n        SharedPreferences.Editor editor = prefs.edit()\n                .putLong("touch:" + touchKey, now)\n                .putLong(VISITOR_LAST_PREFIX + visitorKey, now)\n                .putInt(VISITOR_COUNT_PREFIX + visitorKey, visitorState.observationCount);\n        if (storedFirst <= 0L) {\n            editor.putLong(VISITOR_FIRST_PREFIX + visitorKey, now);\n        }\n        editor.apply();\n        AppLogger.info(context, "discord_observation",\n                (loggedIn ? "user" : "guest") + " observation delivered | " + visitorState.status);\n''',
+              'visitor history persistence'
+          )
+
+          replace_once(
+              '''    private static JSONObject buildUserRecord(String username, PublicIp ip, String ipHash,\n                                               String observedAt, Context context,\n                                               String privatePath) throws Exception {\n''',
+              '''    private static JSONObject buildUserRecord(String username, PublicIp ip, String ipHash,\n                                               String observedAt, Context context,\n                                               String privatePath, VisitorState visitorState) throws Exception {\n''',
+              'user builder signature'
+          )
+
+          replace_once(
+              '''        JSONObject record = baseRecord("user", username, observedAt, ip, ipHash, context, privatePath);\n''',
+              '''        JSONObject record = baseRecord("user", username, observedAt, ip, ipHash, context, privatePath, visitorState);\n''',
+              'user base record call'
+          )
+
+          replace_once(
+              '''    private static JSONObject buildGuestRecord(PublicIp ip, String ipHash,\n                                                String observedAt, Context context,\n                                                String privatePath) throws Exception {\n        JSONObject record = baseRecord("guest", null, observedAt, ip, ipHash, context, privatePath);\n''',
+              '''    private static JSONObject buildGuestRecord(PublicIp ip, String ipHash,\n                                                String observedAt, Context context,\n                                                String privatePath, VisitorState visitorState) throws Exception {\n        JSONObject record = baseRecord("guest", null, observedAt, ip, ipHash, context, privatePath, visitorState);\n''',
+              'guest builder signature and call'
+          )
+
+          replace_once(
+              '''    private static JSONObject baseRecord(String type, String username, String observedAt,\n                                         PublicIp ip, String ipHash, Context context,\n                                         String privatePath) throws Exception {\n''',
+              '''    private static JSONObject baseRecord(String type, String username, String observedAt,\n                                         PublicIp ip, String ipHash, Context context,\n                                         String privatePath, VisitorState visitorState) throws Exception {\n''',
+              'base record signature'
+          )
+
+          replace_once(
+              '''        record.put("first_seen", observedAt);\n        record.put("last_seen", observedAt);\n        record.put("metadata", metadata);\n''',
+              '''        record.put("first_seen", visitorState.firstObservedAt);\n        record.put("last_seen", observedAt);\n        record.put("visitor_status", visitorState.status);\n        record.put("is_returning", visitorState.returning);\n        record.put("observation_count", visitorState.observationCount);\n        record.put("first_observed_at", visitorState.firstObservedAt);\n        record.put("previous_observed_at", visitorState.previousObservedAt.isEmpty()\n                ? JSONObject.NULL : visitorState.previousObservedAt);\n        record.put("visitor_detection_scope", "app_install_observation_history");\n        record.put("metadata", metadata);\n''',
+              'record visitor fields'
+          )
+
+          replace_once(
+              '''    private static final class PublicIp {\n''',
+              '''    private static final class VisitorState {\n        final String status;\n        final boolean returning;\n        final int observationCount;\n        final String firstObservedAt;\n        final String previousObservedAt;\n\n        VisitorState(String status, boolean returning, int observationCount,\n                     String firstObservedAt, String previousObservedAt) {\n            this.status = safe(status);\n            this.returning = returning;\n            this.observationCount = Math.max(1, observationCount);\n            this.firstObservedAt = safe(firstObservedAt);\n            this.previousObservedAt = safe(previousObservedAt);\n        }\n    }\n\n    private static final class PublicIp {\n''',
+              'VisitorState class'
+          )
+
+          path.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Verify patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE='source code/src/com/harleytg/forum/HcfDiscordObservation.java'
+          grep -q 'Visitor: `' "$FILE"
+          grep -q 'visitor_status' "$FILE"
+          grep -q 'is_returning' "$FILE"
+          grep -q 'observation_count' "$FILE"
+          grep -q 'visitor_detection_scope' "$FILE"
+          grep -q 'app_install_observation_history' "$FILE"
+          grep -q 'VISITOR_FIRST_PREFIX' "$FILE"
+          grep -q 'VISITOR_LAST_PREFIX' "$FILE"
+          grep -q 'VISITOR_COUNT_PREFIX' "$FILE"
+
+      - name: Commit Dev patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'source code/src/com/harleytg/forum/HcfDiscordObservation.java'
+          if git diff --cached --quiet; then
+            echo 'No changes needed.'
+            exit 0
+          fi
+          git commit -m 'Detect new and returning users in ban webhook'
+          git push origin HEAD:dev
