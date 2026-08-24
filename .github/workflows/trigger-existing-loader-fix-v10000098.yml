@@ -1,0 +1,29 @@
+name: Trigger v10000098 Existing Loader Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/trigger-existing-loader-fix-v10000098.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch original-loader fix
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS \
+            -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/fix-existing-loader-v10000098.yml/dispatches" \
+            -d '{"ref":"main"}'
