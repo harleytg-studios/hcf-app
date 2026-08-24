@@ -1,0 +1,3 @@
+run_id=32721211628
+versionCode=10000098
+artifact=HCF-Beta-v10000098-Release-Candidate
