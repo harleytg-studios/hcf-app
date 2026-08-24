@@ -1,3 +1,4 @@
 run_id=32761592675
 run_attempt=1
-status=started
+status=success
+artifact=Android-ApkSigner-35.0.0
