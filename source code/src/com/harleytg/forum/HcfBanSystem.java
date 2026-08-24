@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -13,7 +14,6 @@ import android.os.Looper;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -30,7 +30,7 @@ import java.util.Locale;
 import javax.net.ssl.HttpsURLConnection;
 import org.json.JSONObject;
 
-/** Native HCF access-observation and manual-ban startup gate. */
+/** Native HCF IP/username observation gate plus the dedicated Access Restricted screen. */
 public final class HcfBanSystem {
     private static final String CONFIG_URL =
             "https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/ban-system.config";
@@ -40,18 +40,37 @@ public final class HcfBanSystem {
 
     private HcfBanSystem() {}
 
+    private static class BaseActivity extends Activity {
+        int dp(int value) {
+            return Math.round(value * getResources().getDisplayMetrics().density);
+        }
+
+        TextView text(String value, int sp, int color) {
+            TextView view = new TextView(this);
+            view.setText(value);
+            view.setTextSize(sp);
+            view.setTextColor(color);
+            return view;
+        }
+
+        GradientDrawable panelDrawable(int fill, int stroke, int radiusDp) {
+            GradientDrawable drawable = new GradientDrawable();
+            drawable.setColor(fill);
+            drawable.setCornerRadius(dp(radiusDp));
+            drawable.setStroke(dp(1), stroke);
+            return drawable;
+        }
+    }
+
     static final class RuntimeConfig {
         final boolean enabled;
         final String observeUrl;
-        final String failMode;
         final String ipPrimary;
         final String ipFallback;
 
-        RuntimeConfig(boolean enabled, String observeUrl, String failMode,
-                      String ipPrimary, String ipFallback) {
+        RuntimeConfig(boolean enabled, String observeUrl, String ipPrimary, String ipFallback) {
             this.enabled = enabled;
             this.observeUrl = safe(observeUrl);
-            this.failMode = safe(failMode);
             this.ipPrimary = safe(ipPrimary);
             this.ipFallback = safe(ipFallback);
         }
@@ -77,7 +96,6 @@ public final class HcfBanSystem {
 
     static final class CheckResult {
         final boolean banned;
-        final boolean checked;
         final String banId;
         final String reason;
         final String expiresAt;
@@ -85,13 +103,10 @@ public final class HcfBanSystem {
         final String username;
         final String maskedIp;
         final boolean appealAllowed;
-        final String detail;
 
-        CheckResult(boolean banned, boolean checked, String banId, String reason,
-                    String expiresAt, String scope, String username, String maskedIp,
-                    boolean appealAllowed, String detail) {
+        CheckResult(boolean banned, String banId, String reason, String expiresAt,
+                    String scope, String username, String maskedIp, boolean appealAllowed) {
             this.banned = banned;
-            this.checked = checked;
             this.banId = safe(banId);
             this.reason = safe(reason);
             this.expiresAt = safe(expiresAt);
@@ -99,46 +114,28 @@ public final class HcfBanSystem {
             this.username = safe(username);
             this.maskedIp = safe(maskedIp);
             this.appealAllowed = appealAllowed;
-            this.detail = safe(detail);
-        }
-
-        static CheckResult skipped(String detail) {
-            return new CheckResult(false, false, "", "", "", "", "", "", true, detail);
-        }
-
-        static CheckResult allowed(String username, String maskedIp) {
-            return new CheckResult(false, true, "", "", "", "", username, maskedIp, true,
-                    "Access record checked.");
         }
     }
 
-    /**
-     * Launcher activity. It performs the access check before the existing HCF startup loader.
-     * The gate fails open when the optional ban service cannot be reached.
-     */
-    public static final class GateActivity extends Activity {
+    /** Launcher gate. All normal launches and HCF App Links should enter here first. */
+    public static final class GateActivity extends BaseActivity {
         private final Handler main = new Handler(Looper.getMainLooper());
         private TextView status;
         private TextView detail;
         private ProgressBar progress;
-        private volatile boolean finished;
+        private volatile boolean destroyed;
 
         @Override
         protected void onCreate(Bundle state) {
             super.onCreate(state);
-            try {
-                ThemeManager.apply(this);
-            } catch (Throwable ignored) {
-            }
+            try { ThemeManager.apply(this); } catch (Throwable ignored) {}
             int bg = ThemeManager.isAmoled(this) ? Color.BLACK : getColor(R.color.hcf_bg);
             getWindow().setStatusBarColor(bg);
             getWindow().setNavigationBarColor(bg);
-            setContentView(buildGateUi(bg));
+            setContentView(buildUi(bg));
 
             Thread worker = new Thread(new Runnable() {
-                @Override public void run() {
-                    runGate();
-                }
+                @Override public void run() { runGate(); }
             }, "hcf-ban-gate");
             worker.setPriority(Thread.NORM_PRIORITY);
             worker.start();
@@ -146,12 +143,12 @@ public final class HcfBanSystem {
 
         @Override
         protected void onDestroy() {
-            finished = true;
+            destroyed = true;
             main.removeCallbacksAndMessages(null);
             super.onDestroy();
         }
 
-        private View buildGateUi(int bg) {
+        private View buildUi(int bg) {
             LinearLayout root = new LinearLayout(this);
             root.setOrientation(LinearLayout.VERTICAL);
             root.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -188,7 +185,6 @@ public final class HcfBanSystem {
             detail = text("Preparing the HCF security check before the forum opens.", 11,
                     getColor(R.color.hcf_muted));
             detail.setGravity(Gravity.CENTER);
-            detail.setLineSpacing(0.0f, 1.12f);
             LinearLayout.LayoutParams detailLp = new LinearLayout.LayoutParams(-1, -2);
             detailLp.topMargin = dp(6);
             root.addView(detail, detailLp);
@@ -197,24 +193,23 @@ public final class HcfBanSystem {
             progress.setIndeterminate(false);
             progress.setMax(100);
             progress.setProgress(4);
-            progress.setProgressTintList(android.content.res.ColorStateList.valueOf(getColor(R.color.hcf_cyan)));
+            progress.setProgressTintList(ColorStateList.valueOf(getColor(R.color.hcf_cyan)));
             LinearLayout.LayoutParams progressLp = new LinearLayout.LayoutParams(-1, dp(6));
             progressLp.topMargin = dp(24);
             root.addView(progress, progressLp);
 
-            TextView privacy = text("Public IP is used only for HCF security and abuse-prevention checks.",
+            TextView privacy = text("Public IP is used for HCF security and abuse-prevention checks.",
                     9, getColor(R.color.hcf_hint));
             privacy.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams privacyLp = new LinearLayout.LayoutParams(-1, -2);
             privacyLp.topMargin = dp(16);
             root.addView(privacy, privacyLp);
-
             return root;
         }
 
         private void runGate() {
             ForumIdentity.Snapshot identity = ForumIdentity.load(this);
-            final String username = identity != null && identity.loggedIn ? safe(identity.username) : "";
+            String username = identity != null && identity.loggedIn ? safe(identity.username) : "";
             stage(18, "Checking forum identity",
                     username.isEmpty() ? "Guest session detected." : "Signed-in user: @" + username);
 
@@ -229,32 +224,29 @@ public final class HcfBanSystem {
             }
 
             if (!config.ready()) {
-                stage(100, "Access system not enabled", "No active ban-service endpoint is configured; startup will continue.");
+                stage(100, "Access system not enabled", "The ban-service endpoint is not active yet; startup will continue.");
                 continueStartupSoon();
                 return;
             }
 
             stage(36, "Checking public network address", "Using ipify with IPinfo as the fallback lookup.");
             PublicIp publicIp = resolvePublicIp(config);
-            String ipDetail = publicIp.available()
+            stage(55, "Network identity ready", publicIp.available()
                     ? "Public IP resolved through " + publicIp.source + "."
-                    : "Public IP lookup unavailable; the ban service can still use the connection address.";
-            stage(55, "Network identity ready", ipDetail);
+                    : "IP lookup unavailable; the access service will use the connection address.");
 
             try {
-                stage(70, "Checking HCF access record", "Looking for an active username or IP ban.");
+                stage(72, "Checking HCF access record", "Looking for an active username or IP ban.");
                 CheckResult result = observeAndCheck(this, config, identity, publicIp);
                 if (result.banned) {
                     AppLogger.warn(this, "ban_gate", "blocked | scope=" + result.scope + " | id=" + result.banId);
                     openBanScreen(result);
                     return;
                 }
-                stage(100, "Access allowed", result.checked
-                        ? "No active HCF ban was found."
-                        : "The access service did not block startup.");
+                stage(100, "Access allowed", "No active HCF ban was found.");
                 continueStartupSoon();
             } catch (Throwable error) {
-                // Deliberate fail-open behavior: an outage must not accidentally lock out every user.
+                // Fail open: a Worker/GitHub/IP-provider outage must not lock out every HCF user.
                 AppLogger.warn(this, "ban_gate", "fail-open | " + error.getClass().getSimpleName());
                 stage(100, "Access check unavailable", "Security service could not be reached; startup will continue.");
                 continueStartupSoon();
@@ -264,7 +256,7 @@ public final class HcfBanSystem {
         private void stage(final int value, final String statusText, final String detailText) {
             main.post(new Runnable() {
                 @Override public void run() {
-                    if (finished || isFinishing() || isDestroyed()) return;
+                    if (destroyed || isFinishing() || isDestroyed()) return;
                     if (status != null) status.setText(statusText);
                     if (detail != null) detail.setText(detailText);
                     if (progress != null) progress.setProgress(Math.max(0, Math.min(100, value)), true);
@@ -274,14 +266,12 @@ public final class HcfBanSystem {
 
         private void continueStartupSoon() {
             main.postDelayed(new Runnable() {
-                @Override public void run() {
-                    continueStartup();
-                }
+                @Override public void run() { continueStartup(); }
             }, 220L);
         }
 
         private void continueStartup() {
-            if (finished || isFinishing() || isDestroyed()) return;
+            if (destroyed || isFinishing() || isDestroyed()) return;
             Intent target = new Intent(this, HcfUITheme.StartupActivity.class);
             Intent source = getIntent();
             if (source != null) {
@@ -298,7 +288,7 @@ public final class HcfBanSystem {
         private void openBanScreen(final CheckResult result) {
             main.post(new Runnable() {
                 @Override public void run() {
-                    if (finished || isFinishing() || isDestroyed()) return;
+                    if (destroyed || isFinishing() || isDestroyed()) return;
                     Intent intent = new Intent(GateActivity.this, BanActivity.class);
                     intent.putExtra("ban_id", result.banId);
                     intent.putExtra("reason", result.reason);
@@ -315,19 +305,16 @@ public final class HcfBanSystem {
         }
     }
 
-    /** Dedicated native block screen shown when the private ban record is active. */
-    public static final class BanActivity extends Activity {
+    /** Dedicated native ban screen. */
+    public static final class BanActivity extends BaseActivity {
         @Override
         protected void onCreate(Bundle state) {
             super.onCreate(state);
-            try {
-                ThemeManager.apply(this);
-            } catch (Throwable ignored) {
-            }
+            try { ThemeManager.apply(this); } catch (Throwable ignored) {}
             int bg = ThemeManager.isAmoled(this) ? Color.BLACK : getColor(R.color.hcf_bg);
             getWindow().setStatusBarColor(bg);
             getWindow().setNavigationBarColor(bg);
-            setContentView(buildBanUi(bg));
+            setContentView(buildUi(bg));
         }
 
         @Override
@@ -335,7 +322,7 @@ public final class HcfBanSystem {
             finishAffinity();
         }
 
-        private View buildBanUi(int bg) {
+        private View buildUi(int bg) {
             Intent data = getIntent();
             final String banId = safe(data == null ? "" : data.getStringExtra("ban_id"));
             String reason = safe(data == null ? "" : data.getStringExtra("reason"));
@@ -348,7 +335,6 @@ public final class HcfBanSystem {
             ScrollView scroll = new ScrollView(this);
             scroll.setFillViewport(true);
             scroll.setBackgroundColor(bg);
-
             LinearLayout root = new LinearLayout(this);
             root.setOrientation(LinearLayout.VERTICAL);
             root.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -385,63 +371,48 @@ public final class HcfBanSystem {
             LinearLayout card = new LinearLayout(this);
             card.setOrientation(LinearLayout.VERTICAL);
             card.setPadding(dp(16), dp(16), dp(16), dp(16));
-            card.setBackground(cardDrawable(getColor(R.color.hcf_surface), getColor(R.color.hcf_cyan)));
+            card.setBackground(panelDrawable(getColor(R.color.hcf_surface), getColor(R.color.hcf_cyan), 12));
             LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(-1, -2);
             cardLp.topMargin = dp(22);
             root.addView(card, cardLp);
 
-            card.addView(infoLine("Ban ID", banId.isEmpty() ? "HCF-BAN" : banId));
-            card.addView(infoLine("Scope", "user".equalsIgnoreCase(scope) ? "Forum account" : "Network / IP"));
-            if (!username.isEmpty()) card.addView(infoLine("Username", "@" + username));
-            if (!maskedIp.isEmpty()) card.addView(infoLine("Network", maskedIp));
-            card.addView(infoLine("Expires", expiresAt.isEmpty() ? "Permanent / until removed" : expiresAt));
+            card.addView(info("Ban ID", banId.isEmpty() ? "HCF-BAN" : banId));
+            card.addView(info("Scope", "user".equalsIgnoreCase(scope) ? "Forum account" : "Network / IP"));
+            if (!username.isEmpty()) card.addView(info("Username", "@" + username));
+            if (!maskedIp.isEmpty()) card.addView(info("Network", maskedIp));
+            card.addView(info("Expires", expiresAt.isEmpty() ? "Permanent / until removed" : expiresAt));
 
             TextView reasonTitle = text("Reason", 11, getColor(R.color.hcf_meta));
             reasonTitle.setTypeface(null, 1);
             LinearLayout.LayoutParams reasonTitleLp = new LinearLayout.LayoutParams(-1, -2);
             reasonTitleLp.topMargin = dp(14);
             card.addView(reasonTitle, reasonTitleLp);
-
             TextView reasonText = text(reason.isEmpty() ? "Access restricted by an administrator." : reason,
                     14, getColor(R.color.hcf_text));
-            LinearLayout.LayoutParams reasonLp = new LinearLayout.LayoutParams(-1, -2);
-            reasonLp.topMargin = dp(4);
-            card.addView(reasonText, reasonLp);
+            card.addView(reasonText, new LinearLayout.LayoutParams(-1, -2));
 
-            Button retry = actionButton("Check Again", true);
+            Button retry = button("Check Again", true);
             retry.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View view) {
-                    Intent gate = new Intent(BanActivity.this, GateActivity.class);
-                    gate.setAction(Intent.ACTION_MAIN);
-                    startActivity(gate);
+                    startActivity(new Intent(BanActivity.this, GateActivity.class));
                     finish();
                 }
             });
-            LinearLayout.LayoutParams retryLp = new LinearLayout.LayoutParams(-1, dp(50));
-            retryLp.topMargin = dp(20);
-            root.addView(retry, retryLp);
+            addButton(root, retry, 20);
 
             if (appealAllowed) {
-                Button appeal = actionButton("Appeal Ban", false);
+                Button appeal = button("Appeal Ban", false);
                 appeal.setOnClickListener(new View.OnClickListener() {
-                    @Override public void onClick(View view) {
-                        openAppealEmail(banId);
-                    }
+                    @Override public void onClick(View view) { openAppeal(banId); }
                 });
-                LinearLayout.LayoutParams appealLp = new LinearLayout.LayoutParams(-1, dp(50));
-                appealLp.topMargin = dp(10);
-                root.addView(appeal, appealLp);
+                addButton(root, appeal, 10);
             }
 
-            Button close = actionButton("Close App", false);
+            Button close = button("Close App", false);
             close.setOnClickListener(new View.OnClickListener() {
-                @Override public void onClick(View view) {
-                    finishAffinity();
-                }
+                @Override public void onClick(View view) { finishAffinity(); }
             });
-            LinearLayout.LayoutParams closeLp = new LinearLayout.LayoutParams(-1, dp(50));
-            closeLp.topMargin = dp(10);
-            root.addView(close, closeLp);
+            addButton(root, close, 10);
 
             TextView privacy = text("IP information is processed for forum security and abuse prevention.",
                     9, getColor(R.color.hcf_hint));
@@ -449,46 +420,36 @@ public final class HcfBanSystem {
             LinearLayout.LayoutParams privacyLp = new LinearLayout.LayoutParams(-1, -2);
             privacyLp.topMargin = dp(18);
             root.addView(privacy, privacyLp);
-
             return scroll;
         }
 
-        private TextView infoLine(String label, String value) {
+        private TextView info(String label, String value) {
             TextView line = text(label + ": " + value, 12, getColor(R.color.hcf_text));
             line.setTextIsSelectable(true);
             line.setPadding(0, dp(3), 0, dp(3));
             return line;
         }
 
-        private Button actionButton(String label, boolean primary) {
+        private Button button(String label, boolean primary) {
             Button button = new Button(this);
             UiButtons.normalizeText(button);
             button.setText(label);
             button.setTextColor(primary ? getColor(R.color.hcf_on_accent) : getColor(R.color.hcf_text));
-            button.setBackground(buttonDrawable(primary));
+            button.setBackground(panelDrawable(
+                    primary ? getColor(R.color.hcf_cyan) : getColor(R.color.hcf_surface),
+                    getColor(R.color.hcf_cyan), 10));
             button.setGravity(Gravity.CENTER);
-            button.setMinHeight(0);
             button.setMinimumHeight(0);
             return button;
         }
 
-        private GradientDrawable buttonDrawable(boolean primary) {
-            GradientDrawable drawable = new GradientDrawable();
-            drawable.setCornerRadius(dp(10));
-            drawable.setColor(primary ? getColor(R.color.hcf_cyan) : getColor(R.color.hcf_surface));
-            drawable.setStroke(dp(1), getColor(R.color.hcf_cyan));
-            return drawable;
+        private void addButton(LinearLayout root, Button button, int topMargin) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(50));
+            lp.topMargin = dp(topMargin);
+            root.addView(button, lp);
         }
 
-        private GradientDrawable cardDrawable(int fill, int stroke) {
-            GradientDrawable drawable = new GradientDrawable();
-            drawable.setCornerRadius(dp(12));
-            drawable.setColor(fill);
-            drawable.setStroke(dp(1), stroke);
-            return drawable;
-        }
-
-        private void openAppealEmail(String banId) {
+        private void openAppeal(String banId) {
             try {
                 String subject = "HCF Ban Appeal" + (banId.isEmpty() ? "" : " - " + banId);
                 Uri uri = Uri.parse("mailto:harleytg.hq@gmail.com?subject=" + Uri.encode(subject));
@@ -504,19 +465,16 @@ public final class HcfBanSystem {
         long now = System.currentTimeMillis();
         long fetchedAt = prefs.getLong(PREF_CONFIG_FETCHED_AT, 0L);
         String cached = safe(prefs.getString(PREF_CONFIG_CACHE, ""));
-
         if (!cached.isEmpty() && fetchedAt > 0L && now - fetchedAt < CONFIG_CACHE_MS) {
             return parseConfig(cached);
         }
 
         try {
             String remote = getText(CONFIG_URL, 4000, 4000);
-            RuntimeConfig config = parseConfig(remote);
-            prefs.edit()
-                    .putString(PREF_CONFIG_CACHE, remote)
-                    .putLong(PREF_CONFIG_FETCHED_AT, now)
-                    .apply();
-            return config;
+            RuntimeConfig parsed = parseConfig(remote);
+            prefs.edit().putString(PREF_CONFIG_CACHE, remote)
+                    .putLong(PREF_CONFIG_FETCHED_AT, now).apply();
+            return parsed;
         } catch (Throwable error) {
             if (!cached.isEmpty()) return parseConfig(cached);
             throw error;
@@ -526,14 +484,12 @@ public final class HcfBanSystem {
     private static RuntimeConfig parseConfig(String raw) {
         boolean enabled = false;
         String observe = "";
-        String failMode = "open";
         String primary = "https://api.ipify.org?format=json";
         String fallback = "https://ipinfo.io/json";
         String section = "";
 
-        String[] lines = (raw == null ? "" : raw).split("\\r?\\n");
-        for (String sourceLine : lines) {
-            String line = sourceLine == null ? "" : sourceLine.trim();
+        for (String source : (raw == null ? "" : raw).split("\\r?\\n")) {
+            String line = source == null ? "" : source.trim();
             if (line.isEmpty() || line.startsWith("#") || line.startsWith(";")) continue;
             if (line.startsWith("[") && line.endsWith("]")) {
                 section = line.substring(1, line.length() - 1).trim().toLowerCase(Locale.US);
@@ -543,11 +499,8 @@ public final class HcfBanSystem {
             if (split <= 0) continue;
             String key = line.substring(0, split).trim().toLowerCase(Locale.US);
             String value = line.substring(split + 1).trim();
-
             if ("config".equals(section) && "enabled".equals(key)) {
                 enabled = "true".equalsIgnoreCase(value) || "1".equals(value) || "yes".equalsIgnoreCase(value);
-            } else if ("config".equals(section) && "fail_mode".equals(key)) {
-                failMode = value;
             } else if ("endpoint".equals(section) && "observe_url".equals(key)) {
                 observe = value;
             } else if ("ip_lookup".equals(section) && "primary".equals(key)) {
@@ -556,21 +509,18 @@ public final class HcfBanSystem {
                 fallback = value;
             }
         }
-        return new RuntimeConfig(enabled, observe, failMode, primary, fallback);
+        return new RuntimeConfig(enabled, observe, primary, fallback);
     }
 
     private static PublicIp resolvePublicIp(RuntimeConfig config) {
         PublicIp primary = lookupIp(config.ipPrimary, "ipify");
         if (primary.available()) return primary;
         PublicIp fallback = lookupIp(config.ipFallback, "IPinfo");
-        if (fallback.available()) return fallback;
-        return new PublicIp("", "unavailable");
+        return fallback.available() ? fallback : new PublicIp("", "unavailable");
     }
 
     private static PublicIp lookupIp(String urlText, String source) {
-        if (TextUtils.isEmpty(urlText) || !urlText.startsWith("https://")) {
-            return new PublicIp("", source);
-        }
+        if (TextUtils.isEmpty(urlText) || !urlText.startsWith("https://")) return new PublicIp("", source);
         HttpsURLConnection connection = null;
         try {
             connection = (HttpsURLConnection) new URL(urlText).openConnection();
@@ -582,15 +532,12 @@ public final class HcfBanSystem {
             int code = connection.getResponseCode();
             if (code < 200 || code >= 300) return new PublicIp("", source);
             String body = readAll(connection.getInputStream());
-            String ip = "";
             try {
-                JSONObject json = new JSONObject(body);
-                ip = json.optString("ip", "");
+                return new PublicIp(new JSONObject(body).optString("ip", ""), source);
             } catch (Throwable ignored) {
-                ip = body.trim();
+                return new PublicIp(body.trim(), source);
             }
-            return new PublicIp(ip, source);
-        } catch (Throwable error) {
+        } catch (Throwable ignored) {
             return new PublicIp("", source);
         } finally {
             if (connection != null) connection.disconnect();
@@ -599,8 +546,6 @@ public final class HcfBanSystem {
 
     private static CheckResult observeAndCheck(Context context, RuntimeConfig config,
                                                ForumIdentity.Snapshot identity, PublicIp publicIp) throws Exception {
-        if (!config.ready()) return CheckResult.skipped("Ban service is disabled.");
-
         boolean loggedIn = identity != null && identity.loggedIn && !safe(identity.username).isEmpty();
         String username = loggedIn ? safe(identity.username) : "";
 
@@ -626,46 +571,36 @@ public final class HcfBanSystem {
             connection.setRequestProperty("X-HCF-Client", "android");
             connection.setRequestProperty("X-HCF-App-Package", context.getPackageName());
             connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " BanSystem/1");
-
-            try (OutputStreamWriter writer = new OutputStreamWriter(
-                    connection.getOutputStream(), StandardCharsets.UTF_8)) {
+            try (OutputStreamWriter writer = new OutputStreamWriter(connection.getOutputStream(), StandardCharsets.UTF_8)) {
                 writer.write(payload.toString());
-                writer.flush();
             }
 
             int code = connection.getResponseCode();
-            InputStream stream = code >= 200 && code < 300
-                    ? connection.getInputStream() : connection.getErrorStream();
+            InputStream stream = code >= 200 && code < 300 ? connection.getInputStream() : connection.getErrorStream();
             String body = stream == null ? "" : readAll(stream);
-            if (code < 200 || code >= 300) {
-                throw new IllegalStateException("Ban service HTTP " + code);
-            }
+            if (code < 200 || code >= 300) throw new IllegalStateException("Ban service HTTP " + code);
 
             JSONObject response = new JSONObject(body);
             boolean banned = response.optBoolean("banned", false)
                     || "banned".equalsIgnoreCase(response.optString("status", ""));
-            String maskedIp = safe(response.optString("masked_ip", ""));
-            String scope = safe(response.optString("scope", ""));
-            String responseUsername = safe(response.optString("username", username));
-
-            if (!banned) return CheckResult.allowed(responseUsername, maskedIp);
+            String maskedIp = response.optString("masked_ip", "");
+            String scope = response.optString("scope", "");
+            String responseUsername = response.optString("username", username);
+            if (!banned) return new CheckResult(false, "", "", "", scope, responseUsername, maskedIp, true);
 
             JSONObject ban = response.optJSONObject("ban");
-            String banId = ban == null ? "" : ban.optString("ban_id", "");
-            String reason = ban == null ? "" : ban.optString("reason", "");
-            String expiresAt = ban == null ? "" : ban.optString("expires_at", "");
-            boolean appealAllowed = ban == null || ban.optBoolean("appeal_allowed", true);
-            return new CheckResult(true, true, banId, reason, expiresAt, scope,
-                    responseUsername, maskedIp, appealAllowed, "Active ban found.");
+            return new CheckResult(true,
+                    ban == null ? "" : ban.optString("ban_id", ""),
+                    ban == null ? "" : ban.optString("reason", ""),
+                    ban == null ? "" : ban.optString("expires_at", ""),
+                    scope, responseUsername, maskedIp,
+                    ban == null || ban.optBoolean("appeal_allowed", true));
         } finally {
             if (connection != null) connection.disconnect();
         }
     }
 
     private static String getText(String urlText, int connectTimeout, int readTimeout) throws Exception {
-        if (TextUtils.isEmpty(urlText) || !urlText.startsWith("https://")) {
-            throw new IllegalArgumentException("HTTPS URL required");
-        }
         HttpsURLConnection connection = null;
         try {
             connection = (HttpsURLConnection) new URL(urlText).openConnection();
@@ -704,40 +639,15 @@ public final class HcfBanSystem {
                 try {
                     int number = Integer.parseInt(part);
                     if (number < 0 || number > 255) return "";
-                } catch (Throwable ignored) {
-                    return "";
-                }
+                } catch (Throwable ignored) { return ""; }
             }
             return raw;
         }
-        if (raw.indexOf(':') >= 0 && raw.matches("^[0-9a-fA-F:]+$")) {
-            return raw.toLowerCase(Locale.US);
-        }
+        if (raw.indexOf(':') >= 0 && raw.matches("^[0-9a-fA-F:]+$")) return raw.toLowerCase(Locale.US);
         return "";
     }
 
     private static String safe(String value) {
         return value == null ? "" : value.replace((char) 0, ' ').trim();
-    }
-
-    private static TextView text(Context context, String value, int sp, int color) {
-        TextView view = new TextView(context);
-        view.setText(value);
-        view.setTextSize(sp);
-        view.setTextColor(color);
-        return view;
-    }
-
-    private static int dp(Context context, int value) {
-        return Math.round(value * context.getResources().getDisplayMetrics().density);
-    }
-
-    // Activity-local convenience overloads keep the programmatic UI readable.
-    private static TextView text(Activity activity, String value, int sp, int color) {
-        return text((Context) activity, value, sp, color);
-    }
-
-    private static int dp(Activity activity, int value) {
-        return dp((Context) activity, value);
     }
 }
