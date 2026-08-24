@@ -6,8 +6,8 @@ import re
 import sys
 
 
-EXPECTED_VERSION_CODE = 10000097
-EXPECTED_INTERNAL_BUILD = 117
+EXPECTED_VERSION_CODE = 10000098
+EXPECTED_INTERNAL_BUILD = 118
 EXPECTED_PACKAGE = "com.harleytg.forum.dev"
 EXPECTED_SIGNER = "93:D4:9B:F9:A8:77:C7:CF:B1:B3:7F:90:64:BD:95:5C:D6:7B:D7:DD:8D:B7:3A:9E:3F:76:6B:59:C4:BC:CE:63"
 
@@ -44,6 +44,8 @@ notification_helper = text(source / "src/com/harleytg/forum/HcfNotificationEngin
 main_activity = text(source / "src/com/harleytg/forum/HcfMainActivities.java")
 hcf_application = text(source / "src/com/harleytg/forum/HcfApplication.java")
 setup_center = text(source / "src/com/harleytg/forum/HcfMainActivities.java")
+ban_system = text(source / "src/com/harleytg/forum/HcfBanSystem.java")
+discord_observation = text(source / "src/com/harleytg/forum/HcfDiscordObservation.java")
 assetlinks = text(root / "configs/app-links/assetlinks.json")
 app_links_readme = text(root / "configs/app-links/README.md")
 workflows = list((root / ".github/workflows").glob("*.yml"))
@@ -73,9 +75,21 @@ require("README internal build mismatch", f"Internal build: `{EXPECTED_INTERNAL_
 require("brand spelling regression", "Harley's Studios" in build_info and "Harley&apos;s Studios" in manifest)
 require("obsolete brand spelling remains", "Harley's Studio's" not in build_info and "Studio&apos;s" not in manifest)
 
-expected_java_files = {"HcfApplication.java","HcfSecurityAndPrefs.java","HcfUpdateEngine.java","HcfNotificationEngine.java","HcfForumEngine.java","HcfMainActivities.java","HcfSubActivities.java","HcfUITheme.java"}
+expected_java_files = {
+    "HcfAppLinksConfig.java",
+    "HcfApplication.java",
+    "HcfBanSystem.java",
+    "HcfDiscordObservation.java",
+    "HcfSecurityAndPrefs.java",
+    "HcfUpdateEngine.java",
+    "HcfNotificationEngine.java",
+    "HcfForumEngine.java",
+    "HcfMainActivities.java",
+    "HcfSubActivities.java",
+    "HcfUITheme.java",
+}
 actual_java_files = {p.name for p in (source / "src/com/harleytg/forum").glob("*.java")}
-require("Java runtime must contain exactly 8 consolidated source files", actual_java_files == expected_java_files)
+require("Java runtime source set mismatch", actual_java_files == expected_java_files)
 require("URL-bar back button missing", 'android:id="@+id/urlBackButton"' in text(source / "res/layout/activity_main.xml"))
 
 production_files = list((source / "src").rglob("*.java"))
@@ -95,6 +109,13 @@ require("SetupActivity missing from manifest", f'{EXPECTED_PACKAGE}.HcfMainActiv
 require("Setup Center lifecycle launch missing", "SetupCenter.maybeLaunchForMainActivity" in hcf_application)
 require("Setup Center drawer entry missing", 'setup.setText("App Setup")' in setup_center)
 require("legacy permission onboarding guard missing", "PERMISSION_ONBOARDING_DONE" in hcf_application)
+
+require("native ban gate missing from manifest", f'{EXPECTED_PACKAGE}.HcfBanSystem$GateActivity' in manifest)
+require("Discord observation provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfDiscordObservation$BootstrapProvider' in manifest)
+require("public ban-list path missing", "configs/ban-list.json" in ban_system)
+require("network ban SHA-256 logic missing", "sha256Hex" in ban_system and '"ip_sha256"' in ban_system)
+require("user/guest observation split missing", "buildUserRecord" in discord_observation and "buildGuestRecord" in discord_observation)
+require("build-time Discord binding missing", "HcfDiscordSecret" in discord_observation)
 
 require("Beta asset-links package missing", EXPECTED_PACKAGE in assetlinks)
 require("Beta signer missing from asset-links", EXPECTED_SIGNER in assetlinks)
@@ -123,11 +144,11 @@ require("What's New is not rescheduled after Setup", "scheduleWhatsNew(true);" i
 require("v1 signing compatibility floor missing", "--min-sdk-version 23" in build_script)
 require("v4 signature sidecar check missing", "Missing APK Signature Scheme v4 sidecar" in build_script)
 require("release gate is not called by build", "verify-release-readiness.py" in build_script)
-require("canonical v10000097 workflow missing", any(path.name == "build-dev-v10000097.yml" for path in workflows))
+require("canonical v10000098 workflow missing", any(path.name == "build-dev-v10000098.yml" for path in workflows))
 for path in workflows:
     require(f"release workflow must not write repository contents: {path.name}", "contents: write" not in text(path))
 
 print(
     "Release readiness verification: PASS "
-    f"({EXPECTED_PACKAGE} v{version_code}, internal {EXPECTED_INTERNAL_BUILD}, SHA-256 updater enabled)"
+    f"({EXPECTED_PACKAGE} v{version_code}, internal {EXPECTED_INTERNAL_BUILD}, SHA-256 updater + ban gate enabled)"
 )
