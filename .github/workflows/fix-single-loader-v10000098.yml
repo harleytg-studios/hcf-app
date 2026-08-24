@@ -1,5 +1,6 @@
 name: Fix HCF Beta v10000098 Single Loader
 # registered workflow rerun
+# patch-apk trigger 2026-08-24
 
 on:
   push:
