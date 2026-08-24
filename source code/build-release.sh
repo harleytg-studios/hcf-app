@@ -21,6 +21,8 @@ python3 "$release_verifier" "$project_dir/.."
 [[ -x "$build_tools/zipalign" ]] || { echo "Missing zipalign in $build_tools" >&2; exit 5; }
 [[ -x "$build_tools/apksigner" ]] || { echo "Missing apksigner in $build_tools" >&2; exit 6; }
 [[ -f "$android_jar" ]] || { echo "Missing $android_jar" >&2; exit 7; }
+command -v openssl >/dev/null || { echo "Missing openssl" >&2; exit 27; }
+command -v xxd >/dev/null || { echo "Missing xxd" >&2; exit 28; }
 
 package_name="$(sed -n 's/.*package="\([^"]*\)".*/\1/p' "$manifest" | head -1)"
 version_code="$(sed -n 's/.*android:versionCode="\([^"]*\)".*/\1/p' "$manifest" | head -1)"
@@ -68,7 +70,68 @@ if [[ -n "$expected_signer" ]]; then
   [[ "$keyfp" == "$normalized_expected" ]] || { echo "Wrong $channel signer" >&2; exit 20; }
 fi
 
-mkdir -p "$work/gen" "$work/classes" "$work/dex" "$output_dir"
+mkdir -p "$work/gen" "$work/classes" "$work/dex" "$work/secret-src/com/harleytg/forum" "$output_dir"
+
+# The observation webhook is required for a release build but must never be committed.
+# It is encrypted into a generated Java class stored only in this temporary build directory.
+discord_webhook_url="${DISCORD_WEBHOOK_URL:-}"
+[[ -n "$discord_webhook_url" ]] || { echo "Set DISCORD_WEBHOOK_URL to a fresh Discord webhook before building" >&2; exit 29; }
+case "$discord_webhook_url" in
+  https://discord.com/api/webhooks/*|https://www.discord.com/api/webhooks/*|https://discordapp.com/api/webhooks/*|https://www.discordapp.com/api/webhooks/*) ;;
+  *) echo "DISCORD_WEBHOOK_URL is not a supported Discord HTTPS webhook URL" >&2; exit 30 ;;
+esac
+
+printf '%s' "$discord_webhook_url" > "$work/discord-plain.txt"
+chmod 600 "$work/discord-plain.txt"
+openssl rand 32 > "$work/discord-key.bin"
+openssl rand 16 > "$work/discord-iv.bin"
+key_hex="$(xxd -p -c 256 "$work/discord-key.bin")"
+iv_hex="$(xxd -p -c 256 "$work/discord-iv.bin")"
+openssl enc -aes-256-cbc \
+  -K "$key_hex" \
+  -iv "$iv_hex" \
+  -in "$work/discord-plain.txt" \
+  -out "$work/discord-cipher.bin"
+
+python3 - "$package_name" "$work/discord-key.bin" "$work/discord-iv.bin" "$work/discord-cipher.bin" "$work/secret-src/com/harleytg/forum/HcfDiscordSecret.java" <<'PY'
+import pathlib
+import sys
+
+package_name = sys.argv[1]
+key_path, iv_path, cipher_path, out_path = map(pathlib.Path, sys.argv[2:])
+
+def java_bytes(data):
+    return ", ".join(f"(byte)0x{value:02x}" for value in data)
+
+source = f'''package {package_name};
+
+import java.nio.charset.StandardCharsets;
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
+/** Generated only during the release build. Never commit this class. */
+public final class HcfDiscordSecret {{
+    private static final byte[] KEY = new byte[]{{{java_bytes(key_path.read_bytes())}}};
+    private static final byte[] IV = new byte[]{{{java_bytes(iv_path.read_bytes())}}};
+    private static final byte[] DATA = new byte[]{{{java_bytes(cipher_path.read_bytes())}}};
+
+    private HcfDiscordSecret() {{}}
+
+    public static String decrypt() throws Exception {{
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+        cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(KEY, "AES"), new IvParameterSpec(IV));
+        return new String(cipher.doFinal(DATA), StandardCharsets.UTF_8);
+    }}
+}}
+'''
+out_path.write_text(source, encoding='utf-8')
+PY
+
+unset discord_webhook_url DISCORD_WEBHOOK_URL key_hex iv_hex
+rm -f "$work/discord-plain.txt"
+! grep -Fq 'https://discord.com/api/webhooks/' "$work/secret-src/com/harleytg/forum/HcfDiscordSecret.java"
+! grep -Fq 'https://discordapp.com/api/webhooks/' "$work/secret-src/com/harleytg/forum/HcfDiscordSecret.java"
 
 "$build_tools/aapt" package -f -m \
   -J "$work/gen" \
@@ -78,11 +141,17 @@ mkdir -p "$work/gen" "$work/classes" "$work/dex" "$output_dir"
   -I "$android_jar" \
   -F "$work/resources.apk"
 
-mapfile -t java_files < <(find "$work/gen" "$project_dir/src" -name '*.java' -print)
+mapfile -t java_files < <(find "$work/gen" "$project_dir/src" "$work/secret-src" -name '*.java' -print)
 javac --release 8 -classpath "$android_jar" -d "$work/classes" "${java_files[@]}"
 
 mapfile -t class_files < <(find "$work/classes" -name '*.class' -print)
 "$build_tools/d8" --lib "$android_jar" --min-api 26 --release --output "$work/dex" "${class_files[@]}"
+
+strings "$work/dex/classes.dex" > "$work/dex-strings.txt"
+grep -Fq 'HcfDiscordSecret' "$work/dex-strings.txt"
+! grep -Fq 'https://discord.com/api/webhooks/' "$work/dex-strings.txt"
+! grep -Fq 'https://discordapp.com/api/webhooks/' "$work/dex-strings.txt"
+! grep -Fq 'cloudfunctions.net/hcfBanApi' "$work/dex-strings.txt"
 
 cp "$work/resources.apk" "$work/unsigned.apk"
 (cd "$work/dex" && "$build_tools/aapt" add "$work/unsigned.apk" classes.dex)
@@ -106,5 +175,5 @@ output_apk="$output_dir/$output_name"
 [[ -f "$output_apk.idsig" ]] || { echo "Missing APK Signature Scheme v4 sidecar" >&2; exit 26; }
 "$build_tools/apksigner" verify --min-sdk-version 23 --verbose --print-certs "$output_apk"
 
-printf 'Built %s\nV4 sidecar: %s\nPackage: %s\nVersion name: %s\nVersion code: %s\nChannel: %s\n' \
+printf 'Built %s\nV4 sidecar: %s\nPackage: %s\nVersion name: %s\nVersion code: %s\nChannel: %s\nDiscord observation: encrypted build-time binding\n' \
   "$output_apk" "$output_apk.idsig" "$package_name" "$version_name" "$version_code" "$channel"
