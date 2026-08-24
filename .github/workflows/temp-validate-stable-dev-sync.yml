@@ -1,0 +1,140 @@
+name: Temporary Validate Stable Dev Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/temp-validate-stable-dev-sync.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temp-validate-stable-dev-sync
+  cancel-in-progress: false
+
+jobs:
+  validate-stable:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record validation run ID
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const path = 'build-output/STABLE-SYNC-VALIDATION-RUN.txt';
+            let sha;
+            try {
+              const current = await github.rest.repos.getContent({owner, repo, path, ref: 'main'});
+              if (!Array.isArray(current.data)) sha = current.data.sha;
+            } catch (e) {
+              if (e.status !== 404) throw e;
+            }
+            await github.rest.repos.createOrUpdateFileContents({
+              owner, repo, path, branch: 'main', sha,
+              message: '[skip ci] Record Stable sync validation run',
+              content: Buffer.from(String(context.runId) + '\n').toString('base64')
+            });
+
+      - name: Checkout current Stable
+        uses: actions/checkout@v4
+        with:
+          ref: stable
+          path: app-repo
+          fetch-depth: 0
+
+      - name: Verify checked-out Stable head
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/app-repo"
+          git rev-parse HEAD
+          git merge-base --is-ancestor 5c26f5f6d4dfc080c5e9167dada21758bf4653ea HEAD
+          test "$(git rev-list --count HEAD..5c26f5f6d4dfc080c5e9167dada21758bf4653ea)" = "0"
+
+      - name: Run Stable source and UI gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/app-repo"
+          python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
+          python3 .github/scripts/verify-release-readiness.py .
+          python3 -m json.tool configs/app-links/assetlinks.json >/dev/null
+
+      - name: Verify live sanitized ban configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import urllib.request
+          urls = {
+              'config': 'https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/ban-system.config',
+              'list': 'https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/ban-list.json',
+          }
+          for name, url in urls.items():
+              with urllib.request.urlopen(url, timeout=10) as response:
+                  data = response.read().decode('utf-8')
+              if name == 'config':
+                  assert 'enabled=true' in data
+                  assert '[ban_list]' in data
+                  assert 'cloudfunctions.net' not in data
+              else:
+                  parsed = json.loads(data)
+                  assert parsed.get('schema_version') == 1
+                  assert isinstance(parsed.get('users'), dict)
+                  assert isinstance(parsed.get('ip_sha256'), dict)
+          print('Static HCF ban configuration verified.')
+          PY
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Compile and package current Stable
+        shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          HCF_UNSIGNED_ONLY: '1'
+          HCF_OUTPUT_DIR: ${{ github.workspace }}/out-v10000092
+        run: |
+          set -euo pipefail
+          test -n "${DISCORD_WEBHOOK_URL:-}" || { echo 'DISCORD_WEBHOOK_URL is not configured'; exit 1; }
+          cd "$GITHUB_WORKSPACE/app-repo"
+          'source code/build-release.sh'
+
+      - name: Verify built Stable APK identity and functionality markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/out-v10000092/HCF-Stable-v10000092-aligned-unsigned.apk"
+          test -f "$APK"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/aapt" dump badging "$APK" | head -1 | tee "$GITHUB_WORKSPACE/out-v10000092/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum'" "$GITHUB_WORKSPACE/out-v10000092/APK-BADGING.txt"
+          grep -q "versionCode='10000092'" "$GITHUB_WORKSPACE/out-v10000092/APK-BADGING.txt"
+          grep -q "versionName='1.0 (10000092)'" "$GITHUB_WORKSPACE/out-v10000092/APK-BADGING.txt"
+          unzip -p "$APK" classes.dex | strings > "$GITHUB_WORKSPACE/out-v10000092/DEX-STRINGS.txt"
+          grep -Fq 'Stable Update Available' "$GITHUB_WORKSPACE/out-v10000092/DEX-STRINGS.txt"
+          grep -Fq 'same build code, revised APK hash' "$GITHUB_WORKSPACE/out-v10000092/DEX-STRINGS.txt"
+          grep -Fq 'HcfDiscordSecret' "$GITHUB_WORKSPACE/out-v10000092/DEX-STRINGS.txt"
+          grep -Fq 'configs/ban-list.json' "$GITHUB_WORKSPACE/out-v10000092/DEX-STRINGS.txt"
+          ! grep -Fq 'Beta Update Available' "$GITHUB_WORKSPACE/out-v10000092/DEX-STRINGS.txt"
+          ! grep -Fq 'com.harleytg.forum.dev' "$GITHUB_WORKSPACE/out-v10000092/DEX-STRINGS.txt"
+          ! grep -Fq 'cloudfunctions.net/hcfBanApi' "$GITHUB_WORKSPACE/out-v10000092/DEX-STRINGS.txt"
+          sha256sum "$APK" | tee "$GITHUB_WORKSPACE/out-v10000092/SHA256SUMS.txt"
+
+      - name: Upload validation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stable-Dev-Sync-Validation-v10000092
+          path: ${{ github.workspace }}/out-v10000092/
+          if-no-files-found: error
+          retention-days: 1
