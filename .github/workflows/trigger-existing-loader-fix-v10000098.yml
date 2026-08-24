@@ -14,42 +14,16 @@ jobs:
   apply-fix:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Main control
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          path: control
-          fetch-depth: 0
-
-      - name: Record fix run
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$GITHUB_WORKSPACE/control"
-          mkdir -p build-output
-          cat > build-output/V10000098-EXISTING-LOADER-FIX.txt <<EOF
-          run_id=${GITHUB_RUN_ID}
-          run_attempt=${GITHUB_RUN_ATTEMPT}
-          status=started
-          EOF
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add build-output/V10000098-EXISTING-LOADER-FIX.txt
-          git commit -m 'Start original-loader source fix' || true
-          git push origin HEAD:main
-
       - name: Checkout Dev source
         uses: actions/checkout@v4
         with:
           ref: dev
-          path: app-repo
           fetch-depth: 0
 
-      - name: Integrate ban check into original HCF loader
+      - name: Use original HCF loader for ban checks
         shell: bash
         run: |
           set -euo pipefail
-          cd "$GITHUB_WORKSPACE/app-repo"
           python3 - <<'PY'
           from pathlib import Path
 
@@ -58,220 +32,150 @@ jobs:
           ui = Path('source code/src/com/harleytg/forum/HcfUITheme.java')
           session = Path('source code/src/com/harleytg/forum/HcfSessionPersistence.java')
 
-          session.write_text('''package com.harleytg.forum.dev;
+          # Remove the temporary replacement loader class but keep cookie persistence.
+          s = session.read_text(encoding='utf-8')
+          marker = '    /**\n     * The only visible native startup loader.'
+          bootstrap = '    /** Installs persistence before the first Activity/WebView is created. */'
+          if 'class SingleLoaderActivity' in s:
+              begin = s.index(marker)
+              end = s.index(bootstrap, begin)
+              s = s[:begin] + s[end:]
+              session.write_text(s, encoding='utf-8')
 
-import android.app.Activity;
-import android.app.Application;
-import android.content.ContentProvider;
-import android.content.ContentValues;
-import android.content.Context;
-import android.database.Cursor;
-import android.net.Uri;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.webkit.CookieManager;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
-/** Keeps WebView first-party session state persisted across normal app lifecycle changes. */
-public final class HcfSessionPersistence {
-    private static final long FOREGROUND_FLUSH_MS = 15000L;
-    private static final AtomicBoolean INSTALLED = new AtomicBoolean(false);
-    private static final AtomicInteger RESUMED_ACTIVITIES = new AtomicInteger(0);
-    private static final Handler MAIN = new Handler(Looper.getMainLooper());
-
-    private HcfSessionPersistence() {}
-
-    private static final Runnable FOREGROUND_FLUSH = new Runnable() {
-        @Override public void run() {
-            if (RESUMED_ACTIVITIES.get() <= 0) return;
-            flushCookies();
-            MAIN.postDelayed(this, FOREGROUND_FLUSH_MS);
-        }
-    };
-
-    static void flushCookies() {
-        try {
-            CookieManager manager = CookieManager.getInstance();
-            manager.setAcceptCookie(true);
-            manager.flush();
-        } catch (Throwable ignored) {}
-    }
-
-    private static void install(Context context) {
-        if (context == null || !INSTALLED.compareAndSet(false, true)) return;
-        flushCookies();
-        Context appContext = context.getApplicationContext();
-        if (!(appContext instanceof Application)) return;
-        ((Application) appContext).registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
-            @Override public void onActivityCreated(Activity activity, Bundle state) {}
-            @Override public void onActivityStarted(Activity activity) {}
-            @Override public void onActivityResumed(Activity activity) {
-                int resumed = RESUMED_ACTIVITIES.incrementAndGet();
-                flushCookies();
-                if (resumed == 1) {
-                    MAIN.removeCallbacks(FOREGROUND_FLUSH);
-                    MAIN.postDelayed(FOREGROUND_FLUSH, FOREGROUND_FLUSH_MS);
-                }
-            }
-            @Override public void onActivityPaused(Activity activity) {
-                flushCookies();
-                int remaining = Math.max(0, RESUMED_ACTIVITIES.decrementAndGet());
-                RESUMED_ACTIVITIES.set(remaining);
-                if (remaining == 0) MAIN.removeCallbacks(FOREGROUND_FLUSH);
-            }
-            @Override public void onActivityStopped(Activity activity) { flushCookies(); }
-            @Override public void onActivitySaveInstanceState(Activity activity, Bundle outState) { flushCookies(); }
-            @Override public void onActivityDestroyed(Activity activity) { flushCookies(); }
-        });
-    }
-
-    public static final class BootstrapProvider extends ContentProvider {
-        @Override public boolean onCreate() { install(getContext()); return true; }
-        @Override public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) { return null; }
-        @Override public String getType(Uri uri) { return null; }
-        @Override public Uri insert(Uri uri, ContentValues values) { return null; }
-        @Override public int delete(Uri uri, String selection, String[] selectionArgs) { return 0; }
-        @Override public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) { return 0; }
-    }
-}
-''', encoding='utf-8')
-
-          # Restore the loader that existed before the HCF ban system as the one launcher.
+          # Original HcfUITheme.StartupActivity is the sole launcher and App Link entry.
           m = manifest.read_text(encoding='utf-8')
           start = m.index('        <activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupActivity"')
           end = m.index('        <service android:name="com.harleytg.forum.dev.HcfNotificationEngine$InstantNotificationService"', start)
-          prefix = m[:start]
-          if 'HcfUITheme$StartupMainActivity' not in prefix[-300:]:
-              raise SystemExit('StartupMainActivity declaration missing')
-          replacement = '''        <activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupActivity" android:exported="true" android:launchMode="singleTop">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="forum.harleytg.com"/>
-            </intent-filter>
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="harleysclan.freeflarum.com"/>
-            </intent-filter>
-        </activity>
-        <activity android:name="com.harleytg.forum.dev.HcfBanSystem$BanActivity" android:exported="false" android:launchMode="singleTop"/>
-        <activity android:name="com.harleytg.forum.dev.HcfBanSystem$GateActivity" android:exported="false" android:launchMode="singleTop"/>
-'''
-          manifest.write_text(prefix + replacement + m[end:], encoding='utf-8')
+          replacement = '\n'.join([
+              '        <activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupActivity" android:exported="true" android:launchMode="singleTop">',
+              '            <intent-filter>',
+              '                <action android:name="android.intent.action.MAIN"/>',
+              '                <category android:name="android.intent.category.LAUNCHER"/>',
+              '            </intent-filter>',
+              '            <intent-filter android:autoVerify="true">',
+              '                <action android:name="android.intent.action.VIEW"/>',
+              '                <category android:name="android.intent.category.DEFAULT"/>',
+              '                <category android:name="android.intent.category.BROWSABLE"/>',
+              '                <data android:scheme="https" android:host="forum.harleytg.com"/>',
+              '            </intent-filter>',
+              '            <intent-filter android:autoVerify="true">',
+              '                <action android:name="android.intent.action.VIEW"/>',
+              '                <category android:name="android.intent.category.DEFAULT"/>',
+              '                <category android:name="android.intent.category.BROWSABLE"/>',
+              '                <data android:scheme="https" android:host="harleysclan.freeflarum.com"/>',
+              '            </intent-filter>',
+              '        </activity>',
+              '        <activity android:name="com.harleytg.forum.dev.HcfBanSystem$BanActivity" android:exported="false" android:launchMode="singleTop"/>',
+              '        <activity android:name="com.harleytg.forum.dev.HcfBanSystem$GateActivity" android:exported="false" android:launchMode="singleTop"/>',
+              ''
+          ])
+          m = m[:start] + replacement + m[end:]
+          manifest.write_text(m, encoding='utf-8')
 
+          # Expose one package-local ban check for the existing loader.
           b = ban.read_text(encoding='utf-8')
-          anchor = '    private static RuntimeConfig loadRuntimeConfig(Context context) throws Exception {'
-          helper = '''    /** Runs the ban lookup as a stage of the existing HCF startup loader. */
-    static CheckResult checkCurrentAccess(Context context) throws Exception {
-        ForumIdentity.Snapshot identity = ForumIdentity.load(context);
-        String username = identity != null && identity.loggedIn ? safe(identity.username) : "";
-        RuntimeConfig config = loadRuntimeConfig(context);
-        if (!config.ready()) {
-            return new CheckResult(false, "", "", "", "", username, "", true);
-        }
-        PublicIp publicIp = resolvePublicIp(config);
-        return checkBanList(config, identity, publicIp);
-    }
-
-'''
           if 'static CheckResult checkCurrentAccess(Context context)' not in b:
+              anchor = '    private static RuntimeConfig loadRuntimeConfig(Context context) throws Exception {'
+              helper = '\n'.join([
+                  '    /** Runs the ban lookup as a stage of the existing HCF startup loader. */',
+                  '    static CheckResult checkCurrentAccess(Context context) throws Exception {',
+                  '        ForumIdentity.Snapshot identity = ForumIdentity.load(context);',
+                  '        String username = identity != null && identity.loggedIn ? safe(identity.username) : "";',
+                  '        RuntimeConfig config = loadRuntimeConfig(context);',
+                  '        if (!config.ready()) {',
+                  '            return new CheckResult(false, "", "", "", "", username, "", true);',
+                  '        }',
+                  '        PublicIp publicIp = resolvePublicIp(config);',
+                  '        return checkBanList(config, identity, publicIp);',
+                  '    }',
+                  '',
+                  ''
+              ])
               if anchor not in b:
                   raise SystemExit('Ban helper insertion point missing')
               b = b.replace(anchor, helper + anchor, 1)
+          b = b.replace(
+              'startActivity(new Intent(BanActivity.this, GateActivity.class));',
+              'startActivity(new Intent(BanActivity.this, HcfUITheme.StartupActivity.class));'
+          )
           ban.write_text(b, encoding='utf-8')
 
+          # Put the ban check inside the original pre-ban-system loading sequence.
           u = ui.read_text(encoding='utf-8')
           u = u.replace(
               '     * Welcome -> App Setup -> system checks -> header/URL handoff -> forum WebView.',
               '     * Welcome -> App Setup -> access check -> system checks -> header/URL handoff -> forum WebView.',
-              1,
+              1
           )
-          old_run = '''        private void runSystemChecks() {
-            try {
-                prefs.getAll().size();
-                publishStage(12, "Loading native configuration", "Preferences and app configuration are readable.");'''
-          new_run = '''        private void runSystemChecks() {
-            try {
-                publishStage(6, "Checking access status", "Checking account and network against the HCF ban list.");
-                try {
-                    HcfBanSystem.CheckResult access = HcfBanSystem.checkCurrentAccess(this);
-                    if (access != null && access.banned) {
-                        AppLogger.warn(this, "startup_ban_gate", "blocked | scope=" + access.scope + " | id=" + access.banId);
-                        openAccessRestricted(access);
-                        return;
-                    }
-                    publishStage(10, "Access allowed", "No active HCF ban was found.");
-                } catch (Throwable accessError) {
-                    AppLogger.warn(this, "startup_ban_gate", "fail-open | " + accessError.getClass().getSimpleName());
-                    publishStage(10, "Access check unavailable", "The HCF ban list could not be reached; startup will continue.");
-                }
-
-                HcfSessionPersistence.flushCookies();
-                prefs.getAll().size();
-                publishStage(12, "Loading native configuration", "Preferences and app configuration are readable.");'''
           if 'HcfBanSystem.checkCurrentAccess(this)' not in u:
-              if old_run not in u:
+              old = '        private void runSystemChecks() {\n            try {\n                prefs.getAll().size();\n                publishStage(12, "Loading native configuration", "Preferences and app configuration are readable.");'
+              new = '\n'.join([
+                  '        private void runSystemChecks() {',
+                  '            try {',
+                  '                publishStage(6, "Checking access status", "Checking account and network against the HCF ban list.");',
+                  '                try {',
+                  '                    HcfBanSystem.CheckResult access = HcfBanSystem.checkCurrentAccess(this);',
+                  '                    if (access != null && access.banned) {',
+                  '                        AppLogger.warn(this, "startup_ban_gate", "blocked | scope=" + access.scope + " | id=" + access.banId);',
+                  '                        openAccessRestricted(access);',
+                  '                        return;',
+                  '                    }',
+                  '                    publishStage(10, "Access allowed", "No active HCF ban was found.");',
+                  '                } catch (Throwable accessError) {',
+                  '                    AppLogger.warn(this, "startup_ban_gate", "fail-open | " + accessError.getClass().getSimpleName());',
+                  '                    publishStage(10, "Access check unavailable", "The HCF ban list could not be reached; startup will continue.");',
+                  '                }',
+                  '',
+                  '                HcfSessionPersistence.flushCookies();',
+                  '                prefs.getAll().size();',
+                  '                publishStage(12, "Loading native configuration", "Preferences and app configuration are readable.");'
+              ])
+              if old not in u:
                   raise SystemExit('Original loader system-check insertion point missing')
-              u = u.replace(old_run, new_run, 1)
+              u = u.replace(old, new, 1)
 
-          method_anchor = '        private void beginChromeHandoff() {'
-          method = '''        private void openAccessRestricted(final HcfBanSystem.CheckResult result) {
-            mainHandler.post(new Runnable() {
-                @Override public void run() {
-                    if (destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
-                    handoffStarted = true;
-                    Intent intent = new Intent(StartupActivity.this, HcfBanSystem.BanActivity.class);
-                    intent.putExtra("ban_id", result.banId);
-                    intent.putExtra("reason", result.reason);
-                    intent.putExtra("expires_at", result.expiresAt);
-                    intent.putExtra("scope", result.scope);
-                    intent.putExtra("username", result.username);
-                    intent.putExtra("masked_ip", result.maskedIp);
-                    intent.putExtra("appeal_allowed", result.appealAllowed);
-                    startActivity(intent);
-                    overridePendingTransition(0, 0);
-                    finish();
-                }
-            });
-        }
-
-'''
           if 'private void openAccessRestricted(final HcfBanSystem.CheckResult result)' not in u:
-              if method_anchor not in u:
+              anchor = '        private void beginChromeHandoff() {'
+              method = '\n'.join([
+                  '        private void openAccessRestricted(final HcfBanSystem.CheckResult result) {',
+                  '            mainHandler.post(new Runnable() {',
+                  '                @Override public void run() {',
+                  '                    if (destroyed || isFinishing() || isDestroyed() || handoffStarted) return;',
+                  '                    handoffStarted = true;',
+                  '                    Intent intent = new Intent(StartupActivity.this, HcfBanSystem.BanActivity.class);',
+                  '                    intent.putExtra("ban_id", result.banId);',
+                  '                    intent.putExtra("reason", result.reason);',
+                  '                    intent.putExtra("expires_at", result.expiresAt);',
+                  '                    intent.putExtra("scope", result.scope);',
+                  '                    intent.putExtra("username", result.username);',
+                  '                    intent.putExtra("masked_ip", result.maskedIp);',
+                  '                    intent.putExtra("appeal_allowed", result.appealAllowed);',
+                  '                    startActivity(intent);',
+                  '                    overridePendingTransition(0, 0);',
+                  '                    finish();',
+                  '                }',
+                  '            });',
+                  '        }',
+                  '',
+                  ''
+              ])
+              if anchor not in u:
                   raise SystemExit('Original loader handoff insertion point missing')
-              u = u.replace(method_anchor, method + method_anchor, 1)
+              u = u.replace(anchor, method + anchor, 1)
 
-          old_pause = '''        protected void onPause() {
-            resumed = false;
-            super.onPause();
-        }'''
-          new_pause = '''        protected void onPause() {
-            resumed = false;
-            HcfSessionPersistence.flushCookies();
-            super.onPause();
-        }'''
-          if old_pause in u:
-              u = u.replace(old_pause, new_pause, 1)
-          old_destroy = '''            mainHandler.removeCallbacksAndMessages(null);
-            destroyStartupWebView();
-            super.onDestroy();'''
-          new_destroy = '''            mainHandler.removeCallbacksAndMessages(null);
-            HcfSessionPersistence.flushCookies();
-            destroyStartupWebView();
-            super.onDestroy();'''
-          if old_destroy in u:
-              u = u.replace(old_destroy, new_destroy, 1)
+          u = u.replace(
+              '        protected void onPause() {\n            resumed = false;\n            super.onPause();\n        }',
+              '        protected void onPause() {\n            resumed = false;\n            HcfSessionPersistence.flushCookies();\n            super.onPause();\n        }',
+              1
+          )
+          u = u.replace(
+              '            mainHandler.removeCallbacksAndMessages(null);\n            destroyStartupWebView();\n            super.onDestroy();',
+              '            mainHandler.removeCallbacksAndMessages(null);\n            HcfSessionPersistence.flushCookies();\n            destroyStartupWebView();\n            super.onDestroy();',
+              1
+          )
           ui.write_text(u, encoding='utf-8')
 
+          # Assertions for the exact startup topology requested.
           m = manifest.read_text(encoding='utf-8')
           u = ui.read_text(encoding='utf-8')
           s = session.read_text(encoding='utf-8')
@@ -279,21 +183,20 @@ public final class HcfSessionPersistence {
               raise SystemExit('Expected exactly one launcher')
           startup = m.split('HcfUITheme$StartupActivity', 1)[1].split('</activity>', 1)[0]
           if 'android.intent.category.LAUNCHER' not in startup:
-              raise SystemExit('Existing HcfUITheme StartupActivity is not launcher')
+              raise SystemExit('Original HCF loader is not launcher')
           if 'HcfSessionPersistence$SingleLoaderActivity' in m or 'class SingleLoaderActivity' in s:
               raise SystemExit('Temporary replacement loader still exists')
           if 'HcfBanSystem$GateActivity" android:exported="false"' not in m:
-              raise SystemExit('Ban GateActivity must remain internal')
+              raise SystemExit('Separate ban loader must be internal')
           if 'HcfBanSystem.checkCurrentAccess(this)' not in u:
-              raise SystemExit('Ban check not integrated into existing loader')
-          print('Existing pre-ban HCF loader is now the sole visible startup loader.')
+              raise SystemExit('Ban check not integrated into original loader')
+          print('PASS: original HCF loader is the only visible normal startup loader')
           PY
 
-      - name: Verify corrected source
+      - name: Verify source
         shell: bash
         run: |
           set -euo pipefail
-          cd "$GITHUB_WORKSPACE/app-repo"
           python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
           python3 .github/scripts/verify-release-readiness.py .
           test "$(grep -c 'android.intent.category.LAUNCHER' 'source code/AndroidManifest.xml')" -eq 1
@@ -301,11 +204,10 @@ public final class HcfSessionPersistence {
           grep -Fq 'HcfBanSystem$GateActivity" android:exported="false"' 'source code/AndroidManifest.xml'
           ! grep -Fq 'HcfSessionPersistence$SingleLoaderActivity' 'source code/AndroidManifest.xml'
 
-      - name: Commit corrected source to Dev
+      - name: Commit fix to Dev
         shell: bash
         run: |
           set -euo pipefail
-          cd "$GITHUB_WORKSPACE/app-repo"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add 'source code/AndroidManifest.xml' \
@@ -313,23 +215,8 @@ public final class HcfSessionPersistence {
                   'source code/src/com/harleytg/forum/HcfUITheme.java' \
                   'source code/src/com/harleytg/forum/HcfSessionPersistence.java'
           if git diff --cached --quiet; then
-            echo 'Original-loader integration already present.'
+            echo 'Original-loader fix already present.'
           else
             git commit -m 'Use existing startup loader for ban checks'
             git push origin HEAD:dev
           fi
-
-      - name: Mark source fix successful
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$GITHUB_WORKSPACE/control"
-          git pull --rebase origin main
-          cat > build-output/V10000098-EXISTING-LOADER-FIX.txt <<EOF
-          run_id=${GITHUB_RUN_ID}
-          run_attempt=${GITHUB_RUN_ATTEMPT}
-          status=success
-          EOF
-          git add build-output/V10000098-EXISTING-LOADER-FIX.txt
-          git commit -m 'Mark original-loader source fix successful' || true
-          git push origin HEAD:main
