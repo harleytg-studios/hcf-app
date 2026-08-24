@@ -34,6 +34,9 @@ public final class HcfDiscordObservation {
     private static final long TOUCH_INTERVAL_MS = 6L * 60L * 60L * 1000L;
     private static final String IPIFY = "https://api.ipify.org?format=json";
     private static final String IPINFO = "https://ipinfo.io/json";
+    private static final String VISITOR_FIRST_PREFIX = "visitor:first:";
+    private static final String VISITOR_LAST_PREFIX = "visitor:last:";
+    private static final String VISITOR_COUNT_PREFIX = "visitor:count:";
 
     private HcfDiscordObservation() {}
 
@@ -95,19 +98,44 @@ public final class HcfDiscordObservation {
         long last = prefs.getLong("touch:" + touchKey, 0L);
         if (last > 0L && now - last < TOUCH_INTERVAL_MS) return;
 
+        // New/returning is tracked by subject, not by the current user+IP touch key.
+        // Signed-in users remain returning even when their public IP changes. Guests are
+        // tracked by hashed public IP. This history is local to this app installation.
+        String visitorKey = loggedIn
+                ? "user:" + normalizedUsername(username)
+                : "guest:" + ipHash;
+        long storedFirst = prefs.getLong(VISITOR_FIRST_PREFIX + visitorKey, 0L);
+        long storedLast = prefs.getLong(VISITOR_LAST_PREFIX + visitorKey, 0L);
+        int previousCount = Math.max(0, prefs.getInt(VISITOR_COUNT_PREFIX + visitorKey, 0));
+        boolean returning = storedFirst > 0L || previousCount > 0;
+        long firstObservedMillis = storedFirst > 0L ? storedFirst : now;
+        VisitorState visitorState = new VisitorState(
+                returning ? "returning" : "new",
+                returning,
+                previousCount + 1,
+                isoUtc(firstObservedMillis),
+                storedLast > 0L ? isoUtc(storedLast) : ""
+        );
+
         String observedAt = isoUtc(now);
         String privatePath = loggedIn
                 ? "users/" + normalizedUsername(username) + ".json"
                 : "guests/ip-" + safeFilename(publicIp.address.replace(':', '-').replace('.', '-')) + ".json";
         JSONObject record = loggedIn
-                ? buildUserRecord(username, publicIp, ipHash, observedAt, context, privatePath)
-                : buildGuestRecord(publicIp, ipHash, observedAt, context, privatePath);
+                ? buildUserRecord(username, publicIp, ipHash, observedAt, context, privatePath, visitorState)
+                : buildGuestRecord(publicIp, ipHash, observedAt, context, privatePath, visitorState);
         String filename = attachmentName(loggedIn, username, publicIp.address, now);
 
         JSONObject message = new JSONObject();
         message.put("username", "HCF Ban Uplink");
         message.put("content", "**HCF security observation**\n"
                 + "Type: `" + (loggedIn ? "user" : "guest") + "`\n"
+                + "Visitor: `" + (visitorState.returning ? "RETURNING" : "NEW") + "`\n"
+                + "Observation #: `" + visitorState.observationCount + "`\n"
+                + "First observed: `" + visitorState.firstObservedAt + "`\n"
+                + (visitorState.previousObservedAt.isEmpty()
+                    ? ""
+                    : "Previous observed: `" + visitorState.previousObservedAt + "`\n")
                 + (loggedIn ? "Account: `@" + discordSafe(username) + "`\n" : "Account: `guest`\n")
                 + "IP: `" + discordSafe(publicIp.address) + "`\n"
                 + "IP SHA-256: `" + ipHash + "`\n"
@@ -117,13 +145,21 @@ public final class HcfDiscordObservation {
                 + "JSON record attached for manual uplink.");
 
         postMultipart(webhook, message, filename, record.toString(2));
-        prefs.edit().putLong("touch:" + touchKey, now).apply();
-        AppLogger.info(context, "discord_observation", (loggedIn ? "user" : "guest") + " observation delivered");
+        SharedPreferences.Editor editor = prefs.edit()
+                .putLong("touch:" + touchKey, now)
+                .putLong(VISITOR_LAST_PREFIX + visitorKey, now)
+                .putInt(VISITOR_COUNT_PREFIX + visitorKey, visitorState.observationCount);
+        if (storedFirst <= 0L) {
+            editor.putLong(VISITOR_FIRST_PREFIX + visitorKey, now);
+        }
+        editor.apply();
+        AppLogger.info(context, "discord_observation",
+                (loggedIn ? "user" : "guest") + " observation delivered | " + visitorState.status);
     }
 
     private static JSONObject buildUserRecord(String username, PublicIp ip, String ipHash,
                                                String observedAt, Context context,
-                                               String privatePath) throws Exception {
+                                               String privatePath, VisitorState visitorState) throws Exception {
         JSONObject entry = new JSONObject();
         entry.put("address", ip.address);
         entry.put("first_seen", observedAt);
@@ -133,15 +169,15 @@ public final class HcfDiscordObservation {
         JSONArray ips = new JSONArray();
         ips.put(entry);
 
-        JSONObject record = baseRecord("user", username, observedAt, ip, ipHash, context, privatePath);
+        JSONObject record = baseRecord("user", username, observedAt, ip, ipHash, context, privatePath, visitorState);
         record.put("ips", ips);
         return record;
     }
 
     private static JSONObject buildGuestRecord(PublicIp ip, String ipHash,
                                                 String observedAt, Context context,
-                                                String privatePath) throws Exception {
-        JSONObject record = baseRecord("guest", null, observedAt, ip, ipHash, context, privatePath);
+                                                String privatePath, VisitorState visitorState) throws Exception {
+        JSONObject record = baseRecord("guest", null, observedAt, ip, ipHash, context, privatePath, visitorState);
         record.put("ip", ip.address);
         record.put("ip_sha256", ipHash);
         return record;
@@ -149,7 +185,7 @@ public final class HcfDiscordObservation {
 
     private static JSONObject baseRecord(String type, String username, String observedAt,
                                          PublicIp ip, String ipHash, Context context,
-                                         String privatePath) throws Exception {
+                                         String privatePath, VisitorState visitorState) throws Exception {
         JSONObject metadata = new JSONObject();
         metadata.put("last_app_version", BuildInfo.installedVersionName());
         metadata.put("last_package_name", context.getPackageName());
@@ -176,8 +212,15 @@ public final class HcfDiscordObservation {
         record.put("schema_version", 1);
         record.put("type", type);
         record.put("username", username == null ? JSONObject.NULL : username);
-        record.put("first_seen", observedAt);
+        record.put("first_seen", visitorState.firstObservedAt);
         record.put("last_seen", observedAt);
+        record.put("visitor_status", visitorState.status);
+        record.put("is_returning", visitorState.returning);
+        record.put("observation_count", visitorState.observationCount);
+        record.put("first_observed_at", visitorState.firstObservedAt);
+        record.put("previous_observed_at", visitorState.previousObservedAt.isEmpty()
+                ? JSONObject.NULL : visitorState.previousObservedAt);
+        record.put("visitor_detection_scope", "app_install_observation_history");
         record.put("metadata", metadata);
         record.put("manual_uplink", uplink);
         record.put("ban", ban);
@@ -345,6 +388,23 @@ public final class HcfDiscordObservation {
 
     private static String safe(String value) {
         return value == null ? "" : value.replace((char) 0, ' ').trim();
+    }
+
+    private static final class VisitorState {
+        final String status;
+        final boolean returning;
+        final int observationCount;
+        final String firstObservedAt;
+        final String previousObservedAt;
+
+        VisitorState(String status, boolean returning, int observationCount,
+                     String firstObservedAt, String previousObservedAt) {
+            this.status = safe(status);
+            this.returning = returning;
+            this.observationCount = Math.max(1, observationCount);
+            this.firstObservedAt = safe(firstObservedAt);
+            this.previousObservedAt = safe(previousObservedAt);
+        }
     }
 
     private static final class PublicIp {
