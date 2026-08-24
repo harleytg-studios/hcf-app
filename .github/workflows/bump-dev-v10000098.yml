@@ -1,5 +1,6 @@
 name: Bump Dev to v10000098
 
+# Trigger after workflow registration on main.
 on:
   push:
     branches: [main]
