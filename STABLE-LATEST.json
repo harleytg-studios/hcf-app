@@ -12,7 +12,7 @@
   "sourceReady": true,
   "signedReleasePublished": false,
   "artifactHashesPending": true,
-  "promotedFromDevCommit": "2ea85ab5a55ba65a731c26b2a80b6169f8885be9",
+  "promotedFromDevCommit": "5c26f5f6d4dfc080c5e9167dada21758bf4653ea",
   "signerSha256": "77e0e96c1177842aaa311a8fc0ebea29b92d3cd290bb815bdb86ad0e0a85844f",
   "signerLine": "Stable v2",
   "targetSdk": 34,

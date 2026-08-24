@@ -10,45 +10,74 @@ Stable Android release branch for Harley's Clan Forum.
 - Version name: `1.0 (10000092)`
 - Version code: `10000092`
 - Internal build: `112`
+- Release channel: **Stable**
 - Minimum SDK: `26`
 - Target SDK: `34`
 - Compile SDK: `35`
 - Source directory: [`source code/`](./source%20code)
 
-This source promotes the current `dev` runtime and feature set from commit
-`2ea85ab` while retaining Stable identity. It does not alter the `dev` branch or
-replace its separate Development/Beta package, badges, updater, or signer.
+This branch promotes the current `dev` application/runtime implementation through
+Dev commit `5c26f5f6d4dfc080c5e9167dada21758bf4653ea` while retaining Stable identity.
+The merge is intentionally not a byte-for-byte copy of `dev`.
+
+## Functional source of truth
+
+The current consolidated `Hcf*` source set is promoted from `dev`, including the
+latest setup/onboarding flow, native forum shell, updater hash verification,
+notification UI and delivery logic, runtime domain handling, session persistence,
+native `/app/settings` routing, link safety, performance/runtime improvements,
+ban-system integration, and Discord observation binding.
+
+Stable uses [`source code/stable-build-overlay.py`](./source%20code/stable-build-overlay.py)
+to apply only channel-specific identity to a temporary compile tree. The promoted
+functional source remains directly comparable with `dev`; the overlay changes the
+package/channel/version/updater policy and user-visible Stable labels without
+replacing the Dev implementation with the older Stable split-source runtime.
 
 ## Stable identity boundaries
 
 - Stable launcher artwork: original blue/cyan HTG puppy badge.
+- Stable package: `com.harleytg.forum`.
 - Stable build label: `Harley's Clan Forum v1.0 [Stable]`.
-- Stable update feed: GitHub's latest official, non-prerelease release only.
+- Stable version/build identity remains `1.0 (10000092)` / internal build `112`.
+- Stable update feed accepts official non-prerelease releases only.
 - Stable APK selection rejects Beta, Dev, Preview, Debug, and unsigned assets.
-- Stable package and updater are locked to `com.harleytg.forum`.
+- Stable package/update channel is locked; it does not switch to the Dev feed.
+- Stable APK output name: `HCF-Stable-v10000092.apk`.
 - Stable signer alias: `hcf-stable-v2`.
-- Expected signer SHA-256:
+- Expected Stable signer SHA-256:
   `77:E0:E9:6C:11:77:84:2A:AA:31:1A:8F:C0:EB:EA:29:B9:2D:3C:D2:90:BB:81:5B:DB:86:AD:0E:0A:85:84:4F`.
 
 `build-release.sh` rejects another package or signing certificate. Never commit
-the Stable V2 private JKS, password, or other private signing material.
+the Stable private JKS, password, Discord webhook, or other private signing/build
+credentials.
 
 ## Update verification
 
-The Stable updater compares the numeric Android `versionCode` read from the APK,
-not its filename or GitHub tag. It also checks the exact APK SHA-256. A release
-asset with the same versionCode is offered only when its SHA-256 differs from the
-installed APK. Before Android's installer opens, HCF rechecks the package,
+The Stable updater compares the numeric Android `versionCode` extracted from the
+release APK rather than relying on its filename or GitHub tag. A release asset
+with the same versionCode is offered only when its SHA-256 differs from the
+installed APK. Before opening Android's installer, HCF rechecks the package,
 versionCode, SHA-256, and signing-certificate lineage.
 
-## Source and release gates
+## Runtime configuration
 
-The branch contains the active Android source, two read-only GitHub Actions
-verification workflows, and their static release gates. The v10000092 workflow
-compiles and aligns an unsigned APK, checks Stable package/version/channel
-identity, protects the approved HCF Alerts UI, and rejects Development/Beta badge
-leakage and incomplete/decompiler-stub source.
+The primary forum host is `forum.harleytg.com` and the backup is
+`harleysclan.freeflarum.com`. Runtime domain configuration and shared Digital
+Asset Links use the canonical `main`-branch configuration. The shared Stable +
+Dev Digital Asset Links source is
+[`configs/app-links/assetlinks.json`](./configs/app-links/assetlinks.json).
 
-Production signing remains local. The shared Stable + Dev Digital Asset Links
-source is [`configs/app-links/assetlinks.json`](./configs/app-links/assetlinks.json);
-its canonical location is the `main`-branch path `configs/app-links/assetlinks.json`.
+The current Dev observation feature requires `DISCORD_WEBHOOK_URL` at build time.
+The release script encrypts that value into a generated temporary Java binding;
+the plaintext webhook is not committed. Production signing additionally requires
+the Stable keystore/password environment used by `build-release.sh`.
+
+## Validation gates
+
+`build-stable-v10000092.yml` runs the Stable release-readiness checks, validates
+the live sanitized ban configuration, applies the Stable identity overlay,
+compiles the complete promoted Java source with Android 35 tools, packages and
+aligns an unsigned Stable APK, verifies package/version/DEX feature markers, and
+uploads the verification artifact. `verify-hcf-alerts-ui.yml` protects the
+approved HCF Alerts UI independently.

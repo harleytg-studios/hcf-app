@@ -1,0 +1,1479 @@
+package com.harleytg.forum.dev;
+
+import android.app.Activity;
+import android.app.Application;
+import android.content.Context;
+import android.content.ContextWrapper;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.content.res.ColorStateList;
+import android.content.res.Configuration;
+import android.content.res.Resources;
+import android.graphics.Color;
+import android.graphics.drawable.Drawable;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.TextUtils;
+import android.util.AttributeSet;
+import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.KeyEvent;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
+import android.webkit.WebView;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import java.net.URL;
+import java.util.Locale;
+import javax.net.ssl.HttpsURLConnection;
+
+public final class HcfUITheme {
+    private HcfUITheme() {}
+
+    /**
+     * Native startup gate for Harley's Clan Forum.
+     *
+     * Startup order:
+     * Welcome -> App Setup -> access check -> system checks -> header/URL handoff -> forum WebView.
+     */
+    public static final class StartupActivity extends ThemedActivity {
+        private static final int REQUEST_WELCOME = 4101;
+        private static final int REQUEST_SETUP = 4102;
+        private static final long BACKDROP_REVEAL_MS = 120L;
+        private static final long HEADER_FADE_MS = 180L;
+        private static final long URL_FADE_MS = 180L;
+        private static final long LOADER_FADE_MS = 220L;
+        private static final long LOADER_FIRST_FRAME_HOLD_MS = 300L;
+        private static final long WEBVIEW_HANDOFF_DELAY_MS = 80L;
+
+        private final Handler mainHandler = new Handler(Looper.getMainLooper());
+        private SharedPreferences prefs;
+        private View topAppBar;
+        private View urlBar;
+        private View loaderBackdrop;
+        private View loaderOverlay;
+        private LinearLayout loaderPanel;
+        private TextView loaderTitle;
+        private TextView loaderStatus;
+        private TextView loaderDetail;
+        private ProgressBar loaderProgress;
+        private Button retryButton;
+        private WebView startupWebView;
+        private boolean gateInProgress;
+        private boolean loaderStarted;
+        private boolean handoffStarted;
+        private boolean destroyed;
+        private boolean resumed;
+
+        @Override
+        protected void onCreate(Bundle state) {
+            super.onCreate(state);
+            ThemeManager.apply(this);
+            prefs = getSharedPreferences(AppPrefs.FILE, 0);
+
+            int bg = ThemeManager.isAmoled(this) ? Color.BLACK : getColor(R.color.hcf_bg);
+            getWindow().setStatusBarColor(bg);
+            getWindow().setNavigationBarColor(bg);
+
+            try {
+                setContentView(R.layout.activity_main);
+                prepareNativeChrome();
+                installStartupOverlay();
+            } catch (Throwable error) {
+                AppLogger.crash(this, error);
+                showEmergencyStartupFailure(error);
+                return;
+            }
+
+            if (state == null && (SetupCenter.shouldShowWelcome(this) || SetupCenter.shouldAutoLaunch(this))) {
+                getWindow().getDecorView().setAlpha(0.0f);
+            }
+
+            AppLogger.info(this, "startup_gate", "created | " + BuildInfo.VERSION_BUILD_LINE);
+        }
+
+        @Override
+        protected void onResume() {
+            super.onResume();
+            resumed = true;
+            mainHandler.post(new Runnable() {
+                @Override public void run() {
+                    advanceStartupGate();
+                }
+            });
+        }
+
+        @Override
+        protected void onPause() {
+            resumed = false;
+            HcfSessionPersistence.flushCookies();
+            super.onPause();
+        }
+
+        @Override
+        protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+            super.onActivityResult(requestCode, resultCode, data);
+            if (requestCode == REQUEST_WELCOME || requestCode == REQUEST_SETUP) {
+                gateInProgress = false;
+            }
+        }
+
+        @Override
+        protected void onDestroy() {
+            destroyed = true;
+            resumed = false;
+            mainHandler.removeCallbacksAndMessages(null);
+            HcfSessionPersistence.flushCookies();
+            destroyStartupWebView();
+            super.onDestroy();
+        }
+
+        private void advanceStartupGate() {
+            if (!resumed || destroyed || isFinishing() || isDestroyed()
+                    || gateInProgress || loaderStarted || handoffStarted) {
+                return;
+            }
+
+            if (SetupCenter.shouldShowWelcome(this)) {
+                gateInProgress = true;
+                getWindow().getDecorView().setAlpha(0.0f);
+                Intent welcome = new Intent(this, HcfMainActivities.WelcomeActivity.class);
+                welcome.putExtra(SetupCenter.EXTRA_AUTO_LAUNCHED, true);
+                startActivityForResult(welcome, REQUEST_WELCOME);
+                AppLogger.info(this, "startup_gate", "welcome");
+                return;
+            }
+
+            if (SetupCenter.shouldAutoLaunch(this)) {
+                gateInProgress = true;
+                SetupCenter.markSeen(this);
+                getWindow().getDecorView().setAlpha(0.0f);
+                Intent setup = new Intent(this, HcfMainActivities.SetupActivity.class);
+                setup.putExtra(SetupCenter.EXTRA_AUTO_LAUNCHED, true);
+                startActivityForResult(setup, REQUEST_SETUP);
+                AppLogger.info(this, "startup_gate", "setup");
+                return;
+            }
+
+            getWindow().getDecorView().setAlpha(1.0f);
+            startSystemLoader();
+        }
+
+        private void prepareNativeChrome() {
+            topAppBar = findViewById(R.id.topAppBar);
+            urlBar = findViewById(R.id.urlBar);
+            startupWebView = findViewById(R.id.webView);
+
+            // MainActivity always applies the compact chrome profile. Apply the exact
+            // same dimensions before the startup chrome can ever become visible so
+            // the URL bar cannot appear at XML/default size and then snap smaller.
+            applyStartupChromeDensity();
+
+            if (topAppBar != null) {
+                topAppBar.animate().cancel();
+                topAppBar.setAlpha(0.0f);
+                topAppBar.setVisibility(View.INVISIBLE);
+            }
+            if (urlBar != null) {
+                urlBar.animate().cancel();
+                urlBar.setAlpha(0.0f);
+                urlBar.setVisibility(View.INVISIBLE);
+            }
+
+            hideView(R.id.welcomeBanner);
+            hideView(R.id.bottomNav);
+            hideView(R.id.drawerPanel);
+            hideView(R.id.drawerScrim);
+            hideView(R.id.pageProgress);
+            hideView(R.id.statusOverlay);
+
+            if (startupWebView != null) {
+                startupWebView.setVisibility(View.GONE);
+                startupWebView.setAlpha(0.0f);
+            }
+
+            View contentFrame = findViewById(R.id.contentFrame);
+            if (contentFrame != null) {
+                contentFrame.setBackgroundColor(ThemeManager.isAmoled(this) ? Color.BLACK : getColor(R.color.hcf_bg));
+            }
+
+            String host = preferredHost();
+            TextView hostBadge = findViewById(R.id.hostBadge);
+            if (hostBadge != null) {
+                hostBadge.setText(SetupCenter.BACKUP_FORUM_HOST.equalsIgnoreCase(host) ? "Backup" : "Primary");
+            }
+
+            EditText currentUrl = findViewById(R.id.currentUrlText);
+            if (currentUrl != null) {
+                currentUrl.setText("https://" + host + "/");
+                currentUrl.setFocusable(false);
+                currentUrl.setCursorVisible(false);
+            }
+
+            TextView subtitle = findViewById(R.id.appHeaderSubtitle);
+            if (subtitle != null) {
+                subtitle.setText("Native startup • System checks");
+            }
+        }
+
+        private void applyStartupChromeDensity() {
+            setStartupHeight(topAppBar, R.dimen.compact_app_header_height);
+            setStartupSquare(findViewById(R.id.drawerButton), R.dimen.compact_app_header_button);
+            setStartupSquare(findViewById(R.id.appHeaderLogo), R.dimen.compact_app_header_logo);
+            setStartupSquare(findViewById(R.id.headerNotificationsButton), R.dimen.compact_app_header_button);
+
+            TextView title = findViewById(R.id.appHeaderTitle);
+            if (title != null) {
+                title.setTextSize(TypedValue.COMPLEX_UNIT_PX,
+                        getResources().getDimension(R.dimen.compact_app_header_title_text));
+            }
+
+            setStartupHeight(urlBar, R.dimen.compact_url_bar_height);
+            setStartupHeight(findViewById(R.id.urlBarInner), R.dimen.compact_url_bar_inner_height);
+            setStartupSquare(findViewById(R.id.urlBackButton), R.dimen.compact_url_reload_button);
+            setStartupSquare(findViewById(R.id.reloadButton), R.dimen.compact_url_reload_button);
+            setStartupSquare(findViewById(R.id.copyUrlButton), R.dimen.compact_url_copy_button);
+            setStartupSquare(findViewById(R.id.urlHomeButton), R.dimen.compact_url_reload_button);
+            styleStartupUrlNav(R.id.urlBackButton, R.drawable.fa_arrow_left);
+            styleStartupUrlNav(R.id.reloadButton, R.drawable.fa_rotate_right);
+            styleStartupUrlNav(R.id.copyUrlButton, R.drawable.fa_copy);
+            styleStartupUrlNav(R.id.urlHomeButton, R.drawable.fa_house);
+
+            if (topAppBar != null) {
+                int side = dp(6);
+                topAppBar.setPadding(side, 0, side, 0);
+            }
+            if (urlBar != null) {
+                int side = dp(6);
+                int vertical = dp(2);
+                urlBar.setPadding(side, vertical, side, vertical);
+            }
+
+            View secureLabel = findViewById(R.id.secureForumLabel);
+            if (secureLabel != null) secureLabel.setVisibility(View.GONE);
+        }
+
+        private void styleStartupUrlNav(int viewId, int iconRes) {
+            View view = findViewById(viewId);
+            if (!(view instanceof ImageButton)) return;
+            ImageButton button = (ImageButton) view;
+            button.setImageResource(iconRes);
+            button.setBackgroundResource(R.drawable.nav_button_background);
+            button.setScaleType(ImageView.ScaleType.CENTER);
+            button.setPadding(0, 0, 0, 0);
+            button.setMinimumWidth(0);
+            button.setMinimumHeight(0);
+            button.setStateListAnimator(null);
+            button.setImageTintList(ColorStateList.valueOf(getColor(R.color.hcf_cyan_bright)));
+        }
+
+        private void setStartupHeight(View view, int dimenRes) {
+            if (view == null || view.getLayoutParams() == null) return;
+            ViewGroup.LayoutParams lp = view.getLayoutParams();
+            lp.height = getResources().getDimensionPixelSize(dimenRes);
+            view.setLayoutParams(lp);
+            view.requestLayout();
+        }
+
+        private void setStartupSquare(View view, int dimenRes) {
+            if (view == null || view.getLayoutParams() == null) return;
+            int size = getResources().getDimensionPixelSize(dimenRes);
+            ViewGroup.LayoutParams lp = view.getLayoutParams();
+            lp.width = size;
+            lp.height = size;
+            view.setLayoutParams(lp);
+            view.requestLayout();
+        }
+
+        private void installStartupOverlay() {
+            FrameLayout root = findViewById(R.id.rootFrame);
+            if (root == null) throw new IllegalStateException("rootFrame missing from activity_main");
+
+            loaderBackdrop = new View(this);
+            loaderBackdrop.setBackgroundColor(ThemeManager.isAmoled(this) ? Color.BLACK : getColor(R.color.hcf_bg));
+            root.addView(loaderBackdrop, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+
+            FrameLayout overlay = new FrameLayout(this);
+            loaderOverlay = overlay;
+            overlay.setClickable(true);
+            overlay.setFocusable(true);
+
+            loaderPanel = new LinearLayout(this);
+            loaderPanel.setOrientation(LinearLayout.VERTICAL);
+            loaderPanel.setGravity(Gravity.CENTER_HORIZONTAL);
+            loaderPanel.setPadding(dp(24), dp(24), dp(24), dp(24));
+
+            ImageView logo = new ImageView(this);
+            logo.setImageResource(R.drawable.htg_app_logo);
+            logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            logo.setContentDescription("Harley's Clan Forum logo");
+            loaderPanel.addView(logo, new LinearLayout.LayoutParams(dp(104), dp(104)));
+
+            TextView brand = text("HARLEY'S STUDIOS", 10, getColor(R.color.hcf_meta));
+            brand.setTypeface(null, 1);
+            brand.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams brandLp = new LinearLayout.LayoutParams(-1, -2);
+            brandLp.topMargin = dp(14);
+            loaderPanel.addView(brand, brandLp);
+
+            loaderTitle = text("Starting Harley's Clan Forum", 21, getColor(R.color.hcf_text));
+            loaderTitle.setTypeface(null, 1);
+            loaderTitle.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(-1, -2);
+            titleLp.topMargin = dp(6);
+            loaderPanel.addView(loaderTitle, titleLp);
+
+            loaderStatus = text("Waiting for startup gate…", 13, getColor(R.color.hcf_cyan_bright));
+            loaderStatus.setTypeface(null, 1);
+            loaderStatus.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(-1, -2);
+            statusLp.topMargin = dp(18);
+            loaderPanel.addView(loaderStatus, statusLp);
+
+            loaderDetail = text("Welcome and App Setup run before native system initialization.", 11,
+                    getColor(R.color.hcf_muted));
+            loaderDetail.setGravity(Gravity.CENTER);
+            loaderDetail.setLineSpacing(0.0f, 1.12f);
+            LinearLayout.LayoutParams detailLp = new LinearLayout.LayoutParams(-1, -2);
+            detailLp.topMargin = dp(6);
+            loaderPanel.addView(loaderDetail, detailLp);
+
+            loaderProgress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            loaderProgress.setIndeterminate(false);
+            loaderProgress.setMax(100);
+            loaderProgress.setProgress(0);
+            loaderProgress.setProgressTintList(ColorStateList.valueOf(getColor(R.color.hcf_cyan)));
+            LinearLayout.LayoutParams progressLp = new LinearLayout.LayoutParams(-1, dp(6));
+            progressLp.topMargin = dp(22);
+            loaderPanel.addView(loaderProgress, progressLp);
+
+            TextView build = text(BuildInfo.VERSION_BUILD_LINE, 9, getColor(R.color.hcf_hint));
+            build.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams buildLp = new LinearLayout.LayoutParams(-1, -2);
+            buildLp.topMargin = dp(14);
+            loaderPanel.addView(build, buildLp);
+
+            retryButton = new Button(this);
+            UiButtons.normalizeText(retryButton);
+            retryButton.setText("Retry Startup");
+            retryButton.setTextColor(getColor(R.color.hcf_on_accent));
+            retryButton.setBackgroundResource(R.drawable.error_primary_button_background);
+            retryButton.setGravity(Gravity.CENTER);
+            retryButton.setVisibility(View.GONE);
+            retryButton.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view) {
+                    retryButton.setVisibility(View.GONE);
+                    loaderStarted = false;
+                    startSystemLoader();
+                }
+            });
+            LinearLayout.LayoutParams retryLp = new LinearLayout.LayoutParams(-1, dp(50));
+            retryLp.topMargin = dp(18);
+            loaderPanel.addView(retryButton, retryLp);
+
+            FrameLayout.LayoutParams panelLp = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.CENTER);
+            panelLp.leftMargin = dp(18);
+            panelLp.rightMargin = dp(18);
+            overlay.addView(loaderPanel, panelLp);
+
+            root.addView(overlay, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+
+        private void startSystemLoader() {
+            if (!resumed || loaderStarted || handoffStarted || destroyed) return;
+            loaderStarted = true;
+
+            // Both first-run and returning users must see a real 0% loader frame
+            // before background checks are allowed to advance the progress bar.
+            if (loaderOverlay != null) {
+                loaderOverlay.animate().cancel();
+                loaderOverlay.setAlpha(1.0f);
+                loaderOverlay.setVisibility(View.VISIBLE);
+            }
+            if (loaderBackdrop != null) {
+                loaderBackdrop.animate().cancel();
+                loaderBackdrop.setAlpha(1.0f);
+                loaderBackdrop.setVisibility(View.VISIBLE);
+            }
+            if (loaderPanel != null) {
+                loaderPanel.animate().cancel();
+                loaderPanel.setAlpha(1.0f);
+                loaderPanel.setVisibility(View.VISIBLE);
+            }
+            if (retryButton != null) retryButton.setVisibility(View.GONE);
+            if (loaderTitle != null) loaderTitle.setText("Starting Harley's Clan Forum");
+            if (loaderStatus != null) loaderStatus.setText("Starting native systems");
+            if (loaderDetail != null) {
+                loaderDetail.setText("Preparing system checks before the forum opens.");
+            }
+            if (loaderProgress != null) loaderProgress.setProgress(0, false);
+
+            AppLogger.info(this, "startup_loader", "visible_zero");
+
+            mainHandler.postDelayed(new Runnable() {
+                @Override public void run() {
+                    if (destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
+                    if (!resumed) {
+                        loaderStarted = false;
+                        return;
+                    }
+
+                    publishStage(4, "Loading app preferences", "Applying theme, performance and saved native settings.");
+                    AppLogger.info(StartupActivity.this, "startup_loader", "begin_after_visible_frame");
+
+                    Thread worker = new Thread(new Runnable() {
+                        @Override public void run() {
+                            runSystemChecks();
+                        }
+                    }, "hcf-startup-checks");
+                    worker.setPriority(Thread.NORM_PRIORITY);
+                    worker.start();
+                }
+            }, LOADER_FIRST_FRAME_HOLD_MS);
+        }
+
+        private void runSystemChecks() {
+            try {
+                publishStage(6, "Checking access status", "Checking account and network against the HCF ban list.");
+                try {
+                    HcfBanSystem.CheckResult access = HcfBanSystem.checkCurrentAccess(this);
+                    if (access != null && access.banned) {
+                        AppLogger.warn(this, "startup_ban_gate", "blocked | scope=" + access.scope + " | id=" + access.banId);
+                        openAccessRestricted(access);
+                        return;
+                    }
+                    publishStage(10, "Access allowed", "No active HCF ban was found.");
+                } catch (Throwable accessError) {
+                    AppLogger.warn(this, "startup_ban_gate", "fail-open | " + accessError.getClass().getSimpleName());
+                    publishStage(10, "Access check unavailable", "The HCF ban list could not be reached; startup will continue.");
+                }
+
+                HcfSessionPersistence.flushCookies();
+                prefs.getAll().size();
+                publishStage(12, "Loading native configuration", "Preferences and app configuration are readable.");
+
+                PackageInfo webViewPackage = WebView.getCurrentWebViewPackage();
+                if (webViewPackage == null || TextUtils.isEmpty(webViewPackage.packageName)) {
+                    failStartup("Android System WebView is unavailable",
+                            "HCF cannot open the forum until Android has a working WebView provider.");
+                    return;
+                }
+                publishStage(24, "Checking WebView engine", "WebView provider: " + webViewPackage.packageName);
+
+                ForumIdentity.Snapshot identity = ForumIdentity.load(this);
+                String identityText = identity != null && identity.loggedIn
+                        ? "Restored signed-in forum identity."
+                        : "Guest forum session ready.";
+                publishStage(36, "Restoring forum session", identityText);
+
+                SetupCenter.ForumLinksState links = SetupCenter.forumLinksState(this);
+                boolean canInstallUpdates = AppSecurity.canInstallUpdates(this);
+                String integrationDetail = (links != null && links.ready ? "Forum links ready" : "Forum links managed by Android")
+                        + " • secure installer " + (canInstallUpdates ? "ready" : "permission not granted");
+                publishStage(49, "Checking Android integration", integrationDetail);
+
+                try {
+                    NotificationHelper.refreshChannels(this);
+                    NotificationSyncScheduler.apply(this);
+                    publishStage(61, "Starting notification systems", "Notification channels and background alert schedule checked.");
+                } catch (Throwable notificationError) {
+                    AppLogger.warn(this, "startup_notifications", notificationError.getClass().getSimpleName());
+                    publishStage(61, "Checking notification systems", "Notifications are optional; startup can continue.");
+                }
+
+                try {
+                    UpdateScheduler.apply(this);
+                    AppUpdateDownloader.cleanupIfCurrentVersionWasDownloaded(this);
+                    publishStage(72, "Starting update system", "Update scheduler and downloaded-update state checked.");
+                } catch (Throwable updateError) {
+                    AppLogger.warn(this, "startup_updates", updateError.getClass().getSimpleName());
+                    publishStage(72, "Checking update system", "Update checks can recover after the forum opens.");
+                }
+
+                try {
+                    boolean pendingCrash = TelemetryService.hasPendingCrash(this);
+                    publishStage(80, "Checking recovery state",
+                            pendingCrash ? "A saved recovery report is ready for the main app to handle."
+                                    : "No pending crash recovery report was found.");
+                } catch (Throwable recoveryError) {
+                    AppLogger.warn(this, "startup_recovery", recoveryError.getClass().getSimpleName());
+                    publishStage(80, "Checking recovery state", "No blocking recovery action is required.");
+                }
+
+                boolean network = hasInternetNetwork();
+                if (!network) {
+                    AppLogger.warn(this, "startup_network", "no active internet network");
+                    publishStage(92, "Checking forum connection", "No active internet connection; HCF recovery UI remains available.");
+                } else {
+                    String savedHost = preferredHost();
+                    boolean primaryHealthy = probeHost(SetupCenter.PRIMARY_FORUM_HOST);
+                    boolean backupHealthy = probeHost(SetupCenter.BACKUP_FORUM_HOST);
+
+                    if (!primaryHealthy && backupHealthy) {
+                        prefs.edit().putString("active_host", SetupCenter.BACKUP_FORUM_HOST).apply();
+                    } else if (primaryHealthy
+                            && !SetupCenter.PRIMARY_FORUM_HOST.equalsIgnoreCase(savedHost)
+                            && !SetupCenter.BACKUP_FORUM_HOST.equalsIgnoreCase(savedHost)) {
+                        prefs.edit().putString("active_host", SetupCenter.PRIMARY_FORUM_HOST).apply();
+                    }
+
+                    String detail;
+                    if (primaryHealthy && backupHealthy) {
+                        detail = "Primary and backup forum hosts responded.";
+                    } else if (primaryHealthy) {
+                        detail = "Primary forum host responded; backup is currently unavailable.";
+                    } else if (backupHealthy) {
+                        detail = "Primary is unavailable; backup forum host is ready.";
+                    } else {
+                        detail = "Hosts did not respond to the startup probe; the forum recovery system will retry.";
+                    }
+                    publishStage(92, "Checking forum connection", detail);
+                }
+
+                publishStage(100, "Systems ready", "Native startup complete. Preparing the forum interface.");
+                AppLogger.info(this, "startup_loader", "systems_ready");
+                mainHandler.post(new Runnable() {
+                    @Override public void run() {
+                        beginChromeHandoff();
+                    }
+                });
+            } catch (Throwable error) {
+                AppLogger.error(this, "startup_loader", error.getClass().getSimpleName() + ": " + String.valueOf(error.getMessage()));
+                failStartup("Startup check failed",
+                        error.getClass().getSimpleName() + (error.getMessage() == null ? "" : " • " + error.getMessage()));
+            }
+        }
+
+        private void openAccessRestricted(final HcfBanSystem.CheckResult result) {
+            mainHandler.post(new Runnable() {
+                @Override public void run() {
+                    if (destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
+                    handoffStarted = true;
+                    Intent intent = new Intent(StartupActivity.this, HcfBanSystem.BanActivity.class);
+                    intent.putExtra("ban_id", result.banId);
+                    intent.putExtra("reason", result.reason);
+                    intent.putExtra("expires_at", result.expiresAt);
+                    intent.putExtra("scope", result.scope);
+                    intent.putExtra("username", result.username);
+                    intent.putExtra("masked_ip", result.maskedIp);
+                    intent.putExtra("appeal_allowed", result.appealAllowed);
+                    startActivity(intent);
+                    overridePendingTransition(0, 0);
+                    finish();
+                }
+            });
+        }
+
+        private void beginChromeHandoff() {
+            if (!resumed || destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
+            handoffStarted = true;
+
+            TextView subtitle = findViewById(R.id.appHeaderSubtitle);
+            if (subtitle != null) {
+                subtitle.setText("Live forum • " + (SetupCenter.BACKUP_FORUM_HOST.equalsIgnoreCase(preferredHost()) ? "Backup" : "Primary"));
+            }
+
+            // Keep the loader visually present while exposing only the real native chrome.
+            // Moving the opaque backdrop into contentFrame avoids the old blank-shell flash.
+            dockBackdropBelowChrome();
+            animateHeaderIn();
+        }
+
+        private void dockBackdropBelowChrome() {
+            if (loaderBackdrop == null) return;
+            try {
+                View content = findViewById(R.id.contentFrame);
+                if (!(content instanceof ViewGroup)) return;
+
+                ViewGroup currentParent = loaderBackdrop.getParent() instanceof ViewGroup
+                        ? (ViewGroup) loaderBackdrop.getParent() : null;
+                if (currentParent != null) currentParent.removeView(loaderBackdrop);
+
+                loaderBackdrop.animate().cancel();
+                loaderBackdrop.setAlpha(1.0f);
+                loaderBackdrop.setVisibility(View.VISIBLE);
+
+                ((ViewGroup) content).addView(loaderBackdrop, new ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT));
+            } catch (Throwable error) {
+                AppLogger.warn(this, "startup_chrome", "dock backdrop: " + error.getClass().getSimpleName());
+            }
+        }
+
+        private void animateHeaderIn() {
+            if (topAppBar == null) {
+                animateUrlBarIn();
+                return;
+            }
+            topAppBar.animate().cancel();
+            topAppBar.setAlpha(0.0f);
+            topAppBar.setVisibility(View.VISIBLE);
+            topAppBar.animate()
+                    .alpha(1.0f)
+                    .setDuration(HEADER_FADE_MS)
+                    .withEndAction(new Runnable() {
+                        @Override public void run() {
+                            animateUrlBarIn();
+                        }
+                    })
+                    .start();
+        }
+
+        private void animateUrlBarIn() {
+            if (urlBar == null) {
+                fadeLoaderOut();
+                return;
+            }
+            urlBar.animate().cancel();
+            urlBar.setAlpha(0.0f);
+            urlBar.setVisibility(View.VISIBLE);
+            urlBar.animate()
+                    .alpha(1.0f)
+                    .setDuration(URL_FADE_MS)
+                    .withEndAction(new Runnable() {
+                        @Override public void run() {
+                            fadeLoaderOut();
+                        }
+                    })
+                    .start();
+        }
+
+        private void fadeLoaderOut() {
+            if (loaderPanel == null && loaderBackdrop == null) {
+                scheduleForumHandoff();
+                return;
+            }
+
+            if (loaderPanel != null) {
+                loaderPanel.animate().cancel();
+                loaderPanel.animate()
+                        .alpha(0.0f)
+                        .setDuration(LOADER_FADE_MS)
+                        .start();
+            }
+
+            if (loaderBackdrop != null) {
+                loaderBackdrop.animate().cancel();
+                loaderBackdrop.animate()
+                        .alpha(0.0f)
+                        .setDuration(LOADER_FADE_MS)
+                        .withEndAction(new Runnable() {
+                            @Override public void run() {
+                                if (loaderOverlay != null) loaderOverlay.setVisibility(View.GONE);
+                                scheduleForumHandoff();
+                            }
+                        })
+                        .start();
+            } else {
+                loaderPanel.animate()
+                        .withEndAction(new Runnable() {
+                            @Override public void run() {
+                                if (loaderOverlay != null) loaderOverlay.setVisibility(View.GONE);
+                                scheduleForumHandoff();
+                            }
+                        })
+                        .start();
+            }
+        }
+
+        private void scheduleForumHandoff() {
+            mainHandler.postDelayed(new Runnable() {
+                @Override public void run() {
+                    launchForumMainActivity();
+                }
+            }, WEBVIEW_HANDOFF_DELAY_MS);
+        }
+
+        private void launchForumMainActivity() {
+            if (!resumed || destroyed || isFinishing() || isDestroyed()) return;
+
+            destroyStartupWebView();
+
+            Intent target = new Intent(this, StartupMainActivity.class);
+            target.putExtra(StartupMainActivity.EXTRA_STARTUP_HANDOFF, true);
+
+            Intent source = getIntent();
+            if (source != null) {
+                Uri data = source.getData();
+                if (data != null) target.setData(data);
+                if (source.getAction() != null && !Intent.ACTION_MAIN.equals(source.getAction())) {
+                    target.setAction(source.getAction());
+                }
+            }
+
+            AppLogger.info(this, "startup_handoff", "launch_main_after_" + WEBVIEW_HANDOFF_DELAY_MS + "ms");
+            startActivity(target);
+            overridePendingTransition(0, 0);
+            finish();
+        }
+
+        private void publishStage(final int progress, final String status, final String detail) {
+            mainHandler.post(new Runnable() {
+                @Override public void run() {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
+                    if (loaderStatus != null) loaderStatus.setText(status);
+                    if (loaderDetail != null) loaderDetail.setText(detail);
+                    if (loaderProgress != null) loaderProgress.setProgress(Math.max(0, Math.min(100, progress)), true);
+                }
+            });
+        }
+
+        private void failStartup(final String title, final String detail) {
+            mainHandler.post(new Runnable() {
+                @Override public void run() {
+                    if (destroyed || isFinishing() || isDestroyed()) return;
+                    loaderStarted = false;
+                    handoffStarted = false;
+                    if (loaderTitle != null) loaderTitle.setText(title);
+                    if (loaderStatus != null) loaderStatus.setText("Startup paused");
+                    if (loaderDetail != null) loaderDetail.setText(detail);
+                    if (loaderProgress != null) loaderProgress.setProgress(0, true);
+                    if (retryButton != null) retryButton.setVisibility(View.VISIBLE);
+                    AppLogger.error(StartupActivity.this, "startup_blocked", title + " | " + detail);
+                }
+            });
+        }
+
+        private boolean hasInternetNetwork() {
+            try {
+                ConnectivityManager manager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                if (manager == null) return false;
+                Network active = manager.getActiveNetwork();
+                if (active == null) return false;
+                NetworkCapabilities caps = manager.getNetworkCapabilities(active);
+                return caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+            } catch (Throwable error) {
+                AppLogger.warn(this, "startup_network", error.getClass().getSimpleName());
+                return false;
+            }
+        }
+
+        private boolean probeHost(String host) {
+            HttpsURLConnection connection = null;
+            try {
+                URL url = new URL("https://" + host + "/");
+                connection = (HttpsURLConnection) url.openConnection();
+                connection.setConnectTimeout(2500);
+                connection.setReadTimeout(2500);
+                connection.setInstanceFollowRedirects(true);
+                connection.setRequestMethod("GET");
+                connection.setRequestProperty("User-Agent", "HarleysClanForum-Startup/" + BuildInfo.VERSION_CODE);
+                connection.setRequestProperty("Range", "bytes=0-0");
+                int code = connection.getResponseCode();
+                boolean healthy = code >= 200 && code < 400;
+                AppLogger.info(this, "startup_host_probe", host + " | HTTP " + code + " | " + (healthy ? "ready" : "not-ready"));
+                return healthy;
+            } catch (Throwable error) {
+                AppLogger.warn(this, "startup_host_probe", host + " | " + error.getClass().getSimpleName());
+                return false;
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        }
+
+        private String preferredHost() {
+            String host = prefs == null ? "" : prefs.getString("active_host", "");
+            if (SetupCenter.BACKUP_FORUM_HOST.equalsIgnoreCase(host)) return SetupCenter.BACKUP_FORUM_HOST;
+            return SetupCenter.PRIMARY_FORUM_HOST;
+        }
+
+        private void destroyStartupWebView() {
+            WebView view = startupWebView;
+            startupWebView = null;
+            if (view == null) return;
+            try {
+                ViewGroup parent = (ViewGroup) view.getParent();
+                if (parent != null) parent.removeView(view);
+            } catch (Throwable ignored) {
+            }
+            try {
+                view.stopLoading();
+                view.destroy();
+            } catch (Throwable ignored) {
+            }
+        }
+
+        private void hideView(int id) {
+            View view = findViewById(id);
+            if (view != null) view.setVisibility(View.GONE);
+        }
+
+        private TextView text(String value, int sp, int color) {
+            TextView view = new TextView(this);
+            view.setText(value);
+            view.setTextSize(sp);
+            view.setTextColor(color);
+            return view;
+        }
+
+        private int dp(int value) {
+            return Math.round(value * getResources().getDisplayMetrics().density);
+        }
+
+        private void showEmergencyStartupFailure(Throwable error) {
+            LinearLayout root = new LinearLayout(this);
+            root.setOrientation(LinearLayout.VERTICAL);
+            root.setGravity(Gravity.CENTER);
+            root.setPadding(dp(24), dp(24), dp(24), dp(24));
+            root.setBackgroundColor(ThemeManager.isAmoled(this) ? Color.BLACK : getColor(R.color.hcf_bg));
+
+            ImageView logo = new ImageView(this);
+            logo.setImageResource(R.drawable.htg_app_logo);
+            logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            root.addView(logo, new LinearLayout.LayoutParams(dp(88), dp(88)));
+
+            TextView title = text("Harley's Clan Forum • Startup Recovery", 19, getColor(R.color.hcf_cyan_bright));
+            title.setTypeface(null, 1);
+            title.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(-1, -2);
+            titleLp.topMargin = dp(16);
+            root.addView(title, titleLp);
+
+            TextView body = text("The native startup screen could not be created.\n\n" + error.getClass().getSimpleName(),
+                    12, getColor(R.color.hcf_text));
+            body.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams bodyLp = new LinearLayout.LayoutParams(-1, -2);
+            bodyLp.topMargin = dp(10);
+            root.addView(body, bodyLp);
+
+            setContentView(root);
+        }
+    }
+
+    /** MainActivity handoff host that lets the website own its own loading animation. */
+    public static final class StartupMainActivity extends HcfMainActivities.MainActivity {
+        public static final String EXTRA_STARTUP_HANDOFF = "hcf_startup_handoff";
+
+        @Override
+        protected void onCreate(Bundle state) {
+            super.onCreate(state);
+
+            if (getIntent() == null || !getIntent().getBooleanExtra(EXTRA_STARTUP_HANDOFF, false)) {
+                return;
+            }
+
+            try {
+                View statusOverlay = findViewById(R.id.statusOverlay);
+                if (statusOverlay != null) {
+                    statusOverlay.animate().cancel();
+                    statusOverlay.setAlpha(0.0f);
+                    statusOverlay.setVisibility(View.GONE);
+                }
+
+                View startupState = findViewById(R.id.startupStateContainer);
+                if (startupState != null) {
+                    startupState.setVisibility(View.GONE);
+                }
+
+                WebView webView = findViewById(R.id.webView);
+                if (webView != null) {
+                    webView.setAlpha(1.0f);
+                    webView.setVisibility(View.VISIBLE);
+                }
+
+                AppLogger.info(this, "startup_handoff", "native loader complete; forum WebView owns loading UI");
+            } catch (Throwable error) {
+                AppLogger.warn(this, "startup_handoff", error.getClass().getSimpleName());
+            }
+        }
+    }
+}
+
+// ---- ThemeManager.java ----
+/**
+ * App theme controller: light / dark / AMOLED / auto_forum / auto_phone.
+ *
+ * Cold-start: applyToApplication(Application) updates the process
+ * Configuration so the first windowBackground and night resources match the
+ * last known preference (including persisted forum_auto_theme).
+ */
+final class ThemeManager {
+    static final String AMOLED = "amoled";
+    static final String AUTO_FORUM = "auto_forum";
+    static final String AUTO_PHONE = "auto_phone";
+    static final String DARK = "dark";
+    private static final String FORUM_AUTO = "auto";
+    private static final String FORUM_DARK = "dark";
+    private static final String FORUM_LIGHT = "light";
+    private static final String LEGACY_SYSTEM = "system";
+    static final String LIGHT = "light";
+    static final String SYSTEM = "auto_forum";
+
+    /** UI_MODE_NIGHT_YES */
+    private static final int NIGHT_YES = 0x20;
+    /** UI_MODE_NIGHT_NO */
+    private static final int NIGHT_NO = 0x10;
+    private static final int UI_MODE_NIGHT_MASK = 0x30;
+
+    static void applyToApplication(Application application) {
+        if (application == null) return;
+        try {
+            Context base = application.getBaseContext() != null ? application.getBaseContext() : application;
+            String mode = mode(base);
+            Configuration current = application.getResources().getConfiguration();
+            int night = resolvedNightMode(base, current, mode);
+            if ((current.uiMode & UI_MODE_NIGHT_MASK) == night) return;
+            Configuration updated = new Configuration(current);
+            updated.uiMode = night | (updated.uiMode & ~UI_MODE_NIGHT_MASK);
+            Resources resources = application.getResources();
+            resources.updateConfiguration(updated, resources.getDisplayMetrics());
+        } catch (Throwable unused) {}
+    }
+
+    static Context wrap(Context context) {
+        if (context == null) return null;
+        try {
+            String mode = mode(context);
+            Configuration configuration = context.getResources().getConfiguration();
+            int resolvedNightMode = resolvedNightMode(context, configuration, mode);
+            if ((configuration.uiMode & UI_MODE_NIGHT_MASK) == resolvedNightMode) return context;
+            Configuration configuration2 = new Configuration(configuration);
+            configuration2.uiMode = resolvedNightMode | (configuration2.uiMode & ~UI_MODE_NIGHT_MASK);
+            return context.createConfigurationContext(configuration2);
+        } catch (Throwable unused) {
+            return context;
+        }
+    }
+
+    static void prepare(Activity activity) { activity.setTheme(R.style.Theme_HCF); }
+
+    static void apply(Activity activity) {
+        activity.setTheme(R.style.Theme_HCF);
+        applySystemBars(activity);
+    }
+
+    static int resolvedNightMode(Context context) {
+        return resolvedNightMode(context, context.getResources().getConfiguration(), mode(context));
+    }
+
+    private static int resolvedNightMode(Context context, Configuration configuration, String str) {
+        if (DARK.equals(str) || AMOLED.equals(str)) return NIGHT_YES;
+        if (LIGHT.equals(str)) return NIGHT_NO;
+        if (AUTO_PHONE.equals(str)) return phoneNightMode(configuration);
+        String forumAutoTheme = forumAutoTheme(context);
+        if (FORUM_DARK.equals(forumAutoTheme)) return NIGHT_YES;
+        if (FORUM_LIGHT.equals(forumAutoTheme)) return NIGHT_NO;
+        return phoneNightMode(configuration);
+    }
+
+    private static int phoneNightMode(Configuration configuration) {
+        return (configuration.uiMode & UI_MODE_NIGHT_MASK) == NIGHT_YES ? NIGHT_YES : NIGHT_NO;
+    }
+
+    static String signature(Context context) {
+        return mode(context) + ":" + resolvedNightMode(context) + (isAmoled(context) ? ":amoled" : "");
+    }
+
+    static boolean changedSince(Context context, String str) {
+        try { return str == null || !str.equals(signature(context)); }
+        catch (Throwable unused) { return false; }
+    }
+
+    static String webColorScheme(Context context) {
+        return resolvedNightMode(context) == NIGHT_YES ? "dark" : "light";
+    }
+
+    static void applySystemBars(Activity activity) {
+        try {
+            boolean isDark = isDark(activity);
+            int color = isAmoled(activity) ? 0xFF000000 : activity.getColor(R.color.hcf_bg);
+            activity.getWindow().setStatusBarColor(color);
+            activity.getWindow().setNavigationBarColor(color);
+            int systemUiVisibility = activity.getWindow().getDecorView().getSystemUiVisibility();
+            int i = !isDark ? systemUiVisibility | 8192 : systemUiVisibility & ~8192;
+            activity.getWindow().getDecorView().setSystemUiVisibility(!isDark ? i | 16 : i & ~16);
+        } catch (Throwable unused) {}
+    }
+
+    static boolean isDark(Context context) {
+        return (context.getResources().getConfiguration().uiMode & UI_MODE_NIGHT_MASK) == NIGHT_YES;
+    }
+
+    static boolean isAmoled(Context context) { return AMOLED.equals(mode(context)); }
+    static boolean isAutoForum(Context context) { return AUTO_FORUM.equals(mode(context)); }
+    static boolean isAutoPhone(Context context) { return AUTO_PHONE.equals(mode(context)); }
+
+    static String mode(Context context) {
+        if (context == null) return DARK;
+        SharedPreferences sharedPreferences = null;
+        try {
+            sharedPreferences = context.getSharedPreferences("hcf_app", 0);
+            String string = sharedPreferences.getString("app_theme", DARK);
+            if (!LEGACY_SYSTEM.equals(string)) {
+                return (AUTO_FORUM.equals(string) || AUTO_PHONE.equals(string) || LIGHT.equals(string)
+                        || DARK.equals(string) || AMOLED.equals(string)) ? string : DARK;
+            }
+            sharedPreferences.edit().putString("app_theme", AUTO_FORUM).apply();
+            return AUTO_FORUM;
+        } catch (Throwable unused) {
+            if (sharedPreferences != null) {
+                try { sharedPreferences.edit().remove("app_theme").apply(); }
+                catch (Throwable unused2) {}
+            }
+            return DARK;
+        }
+    }
+
+    static String label(Context context) {
+        String mode = mode(context);
+        return AUTO_PHONE.equals(mode) ? "Auto • Phone"
+                : LIGHT.equals(mode) ? "Day (Light)"
+                : DARK.equals(mode) ? "Night (Dark)"
+                : AMOLED.equals(mode) ? "AMOLED Black"
+                : "Auto • Forum";
+    }
+
+    static boolean updateForumAutoTheme(Context context, String str) {
+        if (context == null || !AUTO_FORUM.equals(mode(context))) return false;
+        String lowerCase = str == null ? "" : str.trim().toLowerCase();
+        String str2 = FORUM_DARK;
+        if (!"dark".equals(lowerCase) && !"night".equals(lowerCase) && !"2".equals(lowerCase)) {
+            str2 = FORUM_LIGHT;
+            if (!"light".equals(lowerCase) && !"day".equals(lowerCase) && !"1".equals(lowerCase)) {
+                if (!FORUM_AUTO.equals(lowerCase) && !LEGACY_SYSTEM.equals(lowerCase)
+                        && !"phone".equals(lowerCase) && !"0".equals(lowerCase)) return false;
+                str2 = FORUM_AUTO;
+            }
+        }
+        if (str2.equals(forumAutoTheme(context))) return false;
+        try {
+            context.getSharedPreferences("hcf_app", 0).edit()
+                    .putString("forum_auto_theme", str2)
+                    .putLong("forum_auto_theme_updated_at", System.currentTimeMillis())
+                    .apply();
+            return true;
+        } catch (Throwable unused) { return false; }
+    }
+
+    static String forumAutoTheme(Context context) {
+        if (context == null) return FORUM_AUTO;
+        SharedPreferences sharedPreferences = null;
+        try {
+            sharedPreferences = context.getSharedPreferences("hcf_app", 0);
+            String string = sharedPreferences.getString("forum_auto_theme", FORUM_AUTO);
+            return (FORUM_LIGHT.equals(string) || FORUM_DARK.equals(string)) ? string : FORUM_AUTO;
+        } catch (Throwable unused) {
+            if (sharedPreferences != null) {
+                try { sharedPreferences.edit().remove("forum_auto_theme").apply(); }
+                catch (Throwable unused2) {}
+            }
+            return FORUM_AUTO;
+        }
+    }
+
+    static String autoSourceLabel(Context context) {
+        String mode = mode(context);
+        if (AUTO_PHONE.equals(mode)) {
+            return resolvedNightMode(context) == NIGHT_YES ? "Auto • Phone Dark" : "Auto • Phone Light";
+        }
+        if (!AUTO_FORUM.equals(mode)) return label(context);
+        String forumAutoTheme = forumAutoTheme(context);
+        return FORUM_DARK.equals(forumAutoTheme) ? "Auto • Forum Dark"
+                : FORUM_LIGHT.equals(forumAutoTheme) ? "Auto • Forum Light"
+                : resolvedNightMode(context) == NIGHT_YES
+                ? "Auto • Forum Auto → Phone Dark"
+                : "Auto • Forum Auto → Phone Light";
+    }
+
+    static String next(String str) {
+        return (AUTO_FORUM.equals(str) || LEGACY_SYSTEM.equals(str)) ? AUTO_PHONE
+                : AUTO_PHONE.equals(str) ? LIGHT
+                : LIGHT.equals(str) ? DARK
+                : DARK.equals(str) ? AMOLED
+                : AUTO_FORUM;
+    }
+
+    private ThemeManager() {}
+}
+
+// ---- ThemedActivity.java ----
+abstract class ThemedActivity extends Activity implements SharedPreferences.OnSharedPreferenceChangeListener {
+    private String appliedThemeSignature;
+    private SharedPreferences themePrefs;
+    private boolean themeRecreatePending;
+
+    ThemedActivity() {}
+
+    @Override
+    protected void attachBaseContext(Context context) {
+        Context wrapped = context;
+        try {
+            Context candidate = ThemeManager.wrap(context);
+            if (candidate != null) wrapped = candidate;
+        } catch (Throwable unused) {}
+        super.attachBaseContext(wrapped);
+    }
+
+    @Override
+    protected void onCreate(Bundle bundle) {
+        try { ThemeManager.prepare(this); } catch (Throwable unused) {}
+        super.onCreate(bundle);
+        try { AppDomainRouter.installAddressBarInflater(this); } catch (Throwable unused2) {}
+        try { ThemeManager.applySystemBars(this); } catch (Throwable unused3) {}
+        try { this.appliedThemeSignature = ThemeManager.signature(this); }
+        catch (Throwable unused4) { this.appliedThemeSignature = "auto_forum"; }
+        try { this.themePrefs = getSharedPreferences("hcf_app", 0); }
+        catch (Throwable unused5) { this.themePrefs = null; }
+    }
+
+    @Override
+    public void setContentView(View view) {
+        super.setContentView(view);
+        try { WelcomeScreenFitter.apply(this, view); } catch (Throwable ignored) {}
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        SharedPreferences sharedPreferences = this.themePrefs;
+        if (sharedPreferences != null) {
+            try { sharedPreferences.registerOnSharedPreferenceChangeListener(this); }
+            catch (Throwable unused) {}
+        }
+        recreateForThemeIfNeeded();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        recreateForThemeIfNeeded();
+    }
+
+    @Override
+    protected void onStop() {
+        SharedPreferences sharedPreferences = this.themePrefs;
+        if (sharedPreferences != null) {
+            try { sharedPreferences.unregisterOnSharedPreferenceChangeListener(this); }
+            catch (Throwable unused) {}
+        }
+        super.onStop();
+    }
+
+    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String str) {
+        if ("app_theme".equals(str) || "forum_auto_theme".equals(str)) recreateForThemeIfNeeded();
+    }
+
+    private void recreateForThemeIfNeeded() {
+        try {
+            if (this.themeRecreatePending || isFinishing() || isDestroyed() || !ThemeManager.changedSince(this, this.appliedThemeSignature)) return;
+            this.themeRecreatePending = true;
+            getWindow().getDecorView().postDelayed(new Runnable() {
+                @Override public void run() { ThemedActivity.this.m210xc87fab7b(); }
+            }, 90L);
+        } catch (Throwable unused) {}
+    }
+
+    void m210xc87fab7b() {
+        if (isFinishing() || isDestroyed()) return;
+        try { recreate(); }
+        catch (Throwable unused) { this.themeRecreatePending = false; }
+    }
+}
+
+final class WelcomeScreenFitter {
+    private WelcomeScreenFitter() {}
+
+    static void apply(final Activity activity, final View root) {
+        if (activity == null || root == null || !(activity instanceof HcfMainActivities.WelcomeActivity)) return;
+        if (root instanceof ScrollView) {
+            ScrollView scroll = (ScrollView) root;
+            scroll.setFillViewport(true);
+            scroll.setVerticalScrollBarEnabled(false);
+            scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        }
+        root.post(new Runnable() {
+            @Override public void run() { fit(activity, root); }
+        });
+    }
+
+    private static void fit(final Activity activity, final View root) {
+        View content = root;
+        int viewportHeight = root.getHeight();
+        if (root instanceof ScrollView) {
+            ScrollView scroll = (ScrollView) root;
+            viewportHeight = scroll.getHeight();
+            if (scroll.getChildCount() > 0) content = scroll.getChildAt(0);
+        }
+        if (content == null || viewportHeight <= 0) return;
+        final View finalContent = content;
+        final int finalViewportHeight = viewportHeight;
+        int usedHeight = contentBottom(content);
+        int safeBottom = dp(activity, 10);
+        int targetHeight = Math.max(dp(activity, 520), viewportHeight - safeBottom);
+        if (usedHeight > targetHeight) {
+            float scale = ((float) targetHeight) / ((float) usedHeight);
+            scale = Math.max(0.80f, Math.min(1.0f, scale));
+            compact(content, scale, Math.max(0.88f, scale));
+            content.requestLayout();
+            content.post(new Runnable() {
+                @Override public void run() { balance(activity, finalContent, finalViewportHeight); }
+            });
+        } else {
+            balance(activity, content, viewportHeight);
+        }
+    }
+
+    private static void balance(Activity activity, View content, int viewportHeight) {
+        if (!(content instanceof LinearLayout) || viewportHeight <= 0) return;
+        LinearLayout column = (LinearLayout) content;
+        int usedHeight = contentBottom(column);
+        int extra = viewportHeight - usedHeight;
+        if (extra <= dp(activity, 6)) return;
+        int visible = 0;
+        for (int i = 0; i < column.getChildCount(); i++) if (column.getChildAt(i).getVisibility() != View.GONE) visible++;
+        if (visible <= 0) return;
+        int slots = visible + 1;
+        int add = Math.max(1, extra / slots);
+        column.setPadding(column.getPaddingLeft(), column.getPaddingTop() + add,
+                column.getPaddingRight(), column.getPaddingBottom() + add);
+        boolean first = true;
+        for (int i = 0; i < column.getChildCount(); i++) {
+            View child = column.getChildAt(i);
+            if (child.getVisibility() == View.GONE) continue;
+            if (first) { first = false; continue; }
+            ViewGroup.LayoutParams raw = child.getLayoutParams();
+            if (raw instanceof ViewGroup.MarginLayoutParams) {
+                ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) raw;
+                lp.topMargin += add;
+                child.setLayoutParams(lp);
+            }
+        }
+        column.setMinimumHeight(viewportHeight);
+        column.requestLayout();
+    }
+
+    private static int contentBottom(View view) {
+        if (!(view instanceof ViewGroup)) return Math.max(view.getMeasuredHeight(), view.getHeight());
+        ViewGroup group = (ViewGroup) view;
+        int bottom = group.getPaddingTop();
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            if (child.getVisibility() == View.GONE) continue;
+            bottom = Math.max(bottom, child.getBottom());
+        }
+        return bottom + group.getPaddingBottom();
+    }
+
+    private static void compact(View view, float layoutScale, float textScale) {
+        if (view == null) return;
+        view.setPadding(scaled(view.getPaddingLeft(), layoutScale), scaled(view.getPaddingTop(), layoutScale),
+                scaled(view.getPaddingRight(), layoutScale), scaled(view.getPaddingBottom(), layoutScale));
+        ViewGroup.LayoutParams params = view.getLayoutParams();
+        if (params != null) {
+            if (params.width > 0) params.width = scaled(params.width, layoutScale);
+            if (params.height > 0) params.height = scaled(params.height, layoutScale);
+            if (params instanceof ViewGroup.MarginLayoutParams) {
+                ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) params;
+                margins.leftMargin = scaled(margins.leftMargin, layoutScale);
+                margins.topMargin = scaled(margins.topMargin, layoutScale);
+                margins.rightMargin = scaled(margins.rightMargin, layoutScale);
+                margins.bottomMargin = scaled(margins.bottomMargin, layoutScale);
+            }
+            view.setLayoutParams(params);
+        }
+        int minWidth = view.getMinimumWidth();
+        int minHeight = view.getMinimumHeight();
+        if (minWidth > 0) view.setMinimumWidth(scaled(minWidth, layoutScale));
+        if (minHeight > 0) view.setMinimumHeight(scaled(minHeight, layoutScale));
+        if (view instanceof TextView) {
+            TextView text = (TextView) view;
+            text.setTextSize(TypedValue.COMPLEX_UNIT_PX, text.getTextSize() * textScale);
+            text.setLineSpacing(text.getLineSpacingExtra() * textScale, text.getLineSpacingMultiplier());
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) compact(group.getChildAt(i), layoutScale, textScale);
+        }
+    }
+
+    private static int scaled(int value, float scale) { return value == 0 ? 0 : Math.max(1, Math.round(value * scale)); }
+    private static int dp(Activity activity, int value) { return Math.round(value * activity.getResources().getDisplayMetrics().density); }
+}
+
+// ---- FaIcons.java ----
+final class FaIcons {
+    private FaIcons() {}
+
+    static int forLabel(String str) {
+        String lowerCase = str == null ? "" : str.toLowerCase(Locale.US);
+        if (lowerCase.contains("account security") || lowerCase.contains("security") || lowerCase.contains("safe link")) return R.drawable.fa_shield;
+        if (lowerCase.contains("home")) return R.drawable.fa_house;
+        if (lowerCase.contains("backup") || lowerCase.contains("primary") || lowerCase.contains("switch host") || lowerCase.contains("failover")) return R.drawable.fa_right_left;
+        if (lowerCase.contains("browser") || lowerCase.contains("externally") || lowerCase.contains("open link")) return R.drawable.fa_arrow_up_right_from_square;
+        if (lowerCase.contains("share")) return R.drawable.fa_share_nodes;
+        if (lowerCase.contains("notification") || lowerCase.contains("alert") || lowerCase.contains("mention") || lowerCase.contains("reply")) return R.drawable.fa_bell;
+        if (lowerCase.contains("setting") || lowerCase.contains("theme") || lowerCase.contains("appearance") || lowerCase.contains("permission")) return R.drawable.fa_gear;
+        if (lowerCase.contains("log") || lowerCase.contains("diagnostic") || lowerCase.contains("report") || lowerCase.contains("history") || lowerCase.contains("details")) return R.drawable.fa_list;
+        if (lowerCase.contains("support") || lowerCase.contains("email") || lowerCase.contains("contact")) return R.drawable.fa_envelope;
+        if (lowerCase.contains("copy")) return R.drawable.fa_copy;
+        if (lowerCase.contains("retry") || lowerCase.contains("refresh") || lowerCase.contains("sync") || lowerCase.contains("check for updates")) return R.drawable.fa_rotate_right;
+        if (lowerCase.contains("back")) return R.drawable.fa_arrow_left;
+        if (lowerCase.contains("create") || lowerCase.contains("post") || lowerCase.contains("new discussion")) return R.drawable.fa_plus;
+        if (lowerCase.contains("identity") || lowerCase.contains("profile") || lowerCase.contains("account")) return R.drawable.fa_user;
+        if (lowerCase.contains("connection") || lowerCase.contains("server") || lowerCase.contains("forum") || lowerCase.contains("cookie") || lowerCase.contains("site data") || lowerCase.contains("link")) return R.drawable.fa_globe;
+        if (lowerCase.contains("install") || lowerCase.contains("download") || lowerCase.contains("update")) return R.drawable.fa_download;
+        if (lowerCase.contains("error") || lowerCase.contains("recovery") || lowerCase.contains("crash")) return R.drawable.fa_bug;
+        return R.drawable.fa_circle_info;
+    }
+
+    static void applyStart(TextView textView, String str) { applyStart(textView, forLabel(str)); }
+
+    static void applyStart(TextView textView, int i) {
+        Drawable drawable;
+        if (textView == null || i == 0 || (drawable = textView.getContext().getDrawable(i)) == null) return;
+        drawable.setBounds(0, 0, dp(textView.getContext(), 18), dp(textView.getContext(), 18));
+        textView.setCompoundDrawablesRelative(drawable, null, null, null);
+        textView.setCompoundDrawablePadding(dp(textView.getContext(), 10));
+        tint(textView);
+    }
+
+    static void applyTop(TextView textView, int i) {
+        Drawable drawable;
+        if (textView == null || i == 0 || (drawable = textView.getContext().getDrawable(i)) == null) return;
+        drawable.setBounds(0, 0, dp(textView.getContext(), 19), dp(textView.getContext(), 19));
+        textView.setCompoundDrawables(null, drawable, null, null);
+        textView.setCompoundDrawablePadding(dp(textView.getContext(), 2));
+        tint(textView);
+        textView.setGravity(17);
+    }
+
+    static void applyOnly(TextView textView, int i) {
+        Drawable drawable;
+        if (textView == null || i == 0 || (drawable = textView.getContext().getDrawable(i)) == null) return;
+        drawable.setBounds(0, 0, dp(textView.getContext(), 20), dp(textView.getContext(), 20));
+        textView.setCompoundDrawables(null, null, null, null);
+        textView.setBackground(textView.getBackground());
+        textView.setCompoundDrawablesRelative(drawable, null, null, null);
+        textView.setCompoundDrawablePadding(0);
+        tint(textView);
+        textView.setGravity(17);
+    }
+
+    private static void tint(TextView textView) {
+        try { textView.setCompoundDrawableTintList(ColorStateList.valueOf(textView.getCurrentTextColor())); }
+        catch (Throwable unused) {}
+    }
+
+    private static int dp(Context context, int i) { return Math.round(i * context.getResources().getDisplayMetrics().density); }
+}
+
+// ---- UiButtons.java ----
+final class UiButtons {
+    static void normalizeText(Button button) {
+        if (button == null) return;
+        button.setAllCaps(false);
+        button.setGravity(17);
+        button.setMinimumWidth(0);
+        button.setMinimumHeight(0);
+        button.setIncludeFontPadding(false);
+    }
+
+    static ImageButton iconButton(Context context, int i, int i2, int i3, String str) {
+        ImageButton imageButton = new ImageButton(context);
+        imageButton.setImageResource(i);
+        imageButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        if (i2 != 0) imageButton.setBackgroundResource(i2); else imageButton.setBackgroundColor(0);
+        int dp = dp(context, i3);
+        imageButton.setPadding(dp, dp, dp, dp);
+        imageButton.setMinimumWidth(0);
+        imageButton.setMinimumHeight(0);
+        imageButton.setAdjustViewBounds(false);
+        if (str == null || str.trim().isEmpty()) str = "Button";
+        imageButton.setContentDescription(str);
+        return imageButton;
+    }
+
+    private static int dp(Context context, int i) { return Math.round(i * context.getResources().getDisplayMetrics().density); }
+    private UiButtons() {}
+}
+
+// ---- AppDomainEditText.java ----
+final class AppDomainEditText extends EditText {
+    public AppDomainEditText(Context context) { super(context); }
+    public AppDomainEditText(Context context, AttributeSet attrs) { super(context, attrs); }
+    public AppDomainEditText(Context context, AttributeSet attrs, int defStyleAttr) { super(context, attrs, defStyleAttr); }
+
+    @Override
+    public void setOnEditorActionListener(final TextView.OnEditorActionListener listener) {
+        super.setOnEditorActionListener((view, actionId, event) -> {
+            if (isSubmitAction(actionId, event)) {
+                Activity activity = findActivity(getContext());
+                String raw = getText() == null ? "" : getText().toString().trim();
+                if (activity != null && AppDomainRouter.handle(activity, raw)) {
+                    hideKeyboard(activity);
+                    clearFocus();
+                    restoreDisplayedForumUrl(activity);
+                    return true;
+                }
+            }
+            return listener != null && listener.onEditorAction(view, actionId, event);
+        });
+    }
+
+    private boolean isSubmitAction(int actionId, KeyEvent event) {
+        if (actionId == EditorInfo.IME_ACTION_GO) return true;
+        return event != null && event.getAction() == KeyEvent.ACTION_DOWN && event.getKeyCode() == KeyEvent.KEYCODE_ENTER;
+    }
+
+    private void hideKeyboard(Activity activity) {
+        try {
+            InputMethodManager input = (InputMethodManager) activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (input != null) input.hideSoftInputFromWindow(getWindowToken(), 0);
+        } catch (Throwable ignored) {}
+    }
+
+    private void restoreDisplayedForumUrl(final Activity activity) {
+        post(() -> {
+            try {
+                WebView webView = activity.findViewById(R.id.webView);
+                if (webView == null) return;
+                String url = webView.getUrl();
+                if (url != null && !url.trim().isEmpty()) {
+                    setText(url);
+                    setSelection(length());
+                }
+            } catch (Throwable ignored) {}
+        });
+    }
+
+    private Activity findActivity(Context context) {
+        Context current = context;
+        while (current instanceof ContextWrapper) {
+            if (current instanceof Activity) return (Activity) current;
+            current = ((ContextWrapper) current).getBaseContext();
+        }
+        return current instanceof Activity ? (Activity) current : null;
+    }
+}
+
+final class UrlBackButton extends ImageButton {
+    UrlBackButton(Context c){super(c);init();}
+    UrlBackButton(Context c,AttributeSet a){super(c,a);init();}
+    UrlBackButton(Context c,AttributeSet a,int d){super(c,a,d);init();}
+    private void init(){setOnClickListener(v->back());}
+    private void back(){Activity a=act(getContext());if(a==null)return;WebView w=a.findViewById(R.id.webView);if(w!=null&&w.canGoBack()){w.goBack();try{AppLogger.info(a,"url_back",AppLogger.safeUrl(w.getUrl()));}catch(Throwable ignored){}return;}android.widget.Toast.makeText(a,"No previous forum page.",android.widget.Toast.LENGTH_SHORT).show();}
+    private Activity act(Context c){Context x=c;while(x instanceof ContextWrapper){if(x instanceof Activity)return(Activity)x;x=((ContextWrapper)x).getBaseContext();}return x instanceof Activity?(Activity)x:null;}
+}

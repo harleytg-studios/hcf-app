@@ -13,10 +13,20 @@
     <style name="Theme.HCF.Dialog.Alert" parent="@android:style/Theme.Material.Dialog.Alert">
         <item name="android:textColorPrimary">@color/hcf_text</item>
         <item name="android:textColorSecondary">@color/hcf_muted</item>
+        <item name="android:colorBackground">@color/hcf_panel</item>
         <item name="android:windowBackground">@drawable/dialog_background</item>
         <item name="android:windowMinWidthMajor">88%</item>
         <item name="android:windowMinWidthMinor">88%</item>
         <item name="android:colorAccent">@color/hcf_cyan_bright</item>
+        <item name="android:buttonBarButtonStyle">@style/HcfDialogButton</item>
+    </style>
+    <style name="HcfDialogButton" parent="@android:style/Widget.Material.Button.Borderless">
+        <item name="android:textColor">@color/hcf_cyan_bright</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:minWidth">72dp</item>
+        <item name="android:fontFamily">sans</item>
     </style>
     <style name="HcfDrawerItem" parent="@android:style/Widget.Material.Button">
         <item name="android:textSize">@dimen/drawer_item_text</item>

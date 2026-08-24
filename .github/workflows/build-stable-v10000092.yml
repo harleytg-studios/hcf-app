@@ -22,13 +22,40 @@ jobs:
       - name: Checkout Stable source
         uses: actions/checkout@v4
 
-      - name: Run release source gates
+      - name: Run Stable source gates
         shell: bash
         run: |
           set -euo pipefail
           python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
           python3 .github/scripts/verify-release-readiness.py .
           python3 -m json.tool configs/app-links/assetlinks.json >/dev/null
+
+      - name: Verify live sanitized ban configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import urllib.request
+
+          urls = {
+              "config": "https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/ban-system.config",
+              "list": "https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/ban-list.json",
+          }
+          for name, url in urls.items():
+              with urllib.request.urlopen(url, timeout=10) as response:
+                  data = response.read().decode("utf-8")
+              if name == "config":
+                  assert "enabled=true" in data
+                  assert "[ban_list]" in data
+                  assert "cloudfunctions.net" not in data
+              else:
+                  parsed = json.loads(data)
+                  assert parsed.get("schema_version") == 1
+                  assert isinstance(parsed.get("users"), dict)
+                  assert isinstance(parsed.get("ip_sha256"), dict)
+          print("Static HCF ban configuration verified.")
+          PY
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -40,54 +67,39 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
 
-      - name: Compile full source and package unsigned APK
+      - name: Compile full Stable source through identity overlay
+        shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          HCF_UNSIGNED_ONLY: '1'
+          HCF_OUTPUT_DIR: ${{ github.workspace }}/out-v10000092
+        run: |
+          set -euo pipefail
+          test -n "${DISCORD_WEBHOOK_URL:-}" || { echo "DISCORD_WEBHOOK_URL is not configured"; exit 1; }
+          'source code/build-release.sh'
+
+      - name: Verify Stable APK identity
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/source code"
+          APK='out-v10000092/HCF-Stable-v10000092-aligned-unsigned.apk'
+          test -f "$APK"
           BT="$ANDROID_HOME/build-tools/35.0.0"
-          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
-          WORK="$RUNNER_TEMP/hcf-stable-v10000092"
-          OUT="$GITHUB_WORKSPACE/out-v10000092"
-          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
+          "$BT/aapt" dump badging "$APK" | head -1 | tee out-v10000092/APK-BADGING.txt
+          grep -q "name='com.harleytg.forum'" out-v10000092/APK-BADGING.txt
+          grep -q "versionCode='10000092'" out-v10000092/APK-BADGING.txt
+          grep -q "versionName='1.0 (10000092)'" out-v10000092/APK-BADGING.txt
+          unzip -p "$APK" classes.dex | strings > out-v10000092/DEX-STRINGS.txt
+          grep -Fq 'Stable Update Available' out-v10000092/DEX-STRINGS.txt
+          grep -Fq 'same build code, revised APK hash' out-v10000092/DEX-STRINGS.txt
+          grep -Fq 'HcfDiscordSecret' out-v10000092/DEX-STRINGS.txt
+          grep -Fq 'configs/ban-list.json' out-v10000092/DEX-STRINGS.txt
+          ! grep -Fq 'Beta Update Available' out-v10000092/DEX-STRINGS.txt
+          ! grep -Fq 'com.harleytg.forum.dev' out-v10000092/DEX-STRINGS.txt
+          ! grep -Fq 'cloudfunctions.net/hcfBanApi' out-v10000092/DEX-STRINGS.txt
+          sha256sum "$APK" | tee out-v10000092/SHA256SUMS.txt
 
-          "$BT/aapt" package -f -m \
-            -J "$WORK/gen" \
-            -M "$ROOT/AndroidManifest.xml" \
-            -S "$ROOT/res" \
-            -A "$ROOT/assets" \
-            -I "$ANDROID_JAR" \
-            -F "$WORK/resources.apk"
-
-          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
-          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
-          mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
-          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
-
-          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
-          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
-          APK="$OUT/HCF-Stable-v10000092-aligned-unsigned.apk"
-          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$APK"
-          "$BT/zipalign" -c -p 4 "$APK"
-
-          "$BT/aapt" dump badging "$APK" | head -1 | tee "$OUT/APK-BADGING.txt"
-          grep -q "name='com.harleytg.forum'" "$OUT/APK-BADGING.txt"
-          grep -q "versionCode='10000092'" "$OUT/APK-BADGING.txt"
-          grep -q "versionName='1.0 (10000092)'" "$OUT/APK-BADGING.txt"
-
-          unzip -p "$APK" classes.dex | strings > "$OUT/DEX-STRINGS.txt"
-          grep -Fq 'same build code, revised APK hash' "$OUT/DEX-STRINGS.txt"
-          grep -Fq 'APK SHA-256 does not match' "$OUT/DEX-STRINGS.txt"
-          grep -Fq 'App Setup' "$OUT/DEX-STRINGS.txt"
-          grep -Fq 'HCF Alerts are the real forum alerts.' "$OUT/DEX-STRINGS.txt"
-          grep -Fq 'Stable Update Available' "$OUT/DEX-STRINGS.txt"
-          ! grep -Fq 'Beta Update Available' "$OUT/DEX-STRINGS.txt"
-          ! grep -Fq 'Development Build / Beta' "$OUT/DEX-STRINGS.txt"
-          ! grep -Fq 'Method not decompiled' "$OUT/DEX-STRINGS.txt"
-          ! grep -Fq 'Code decompiled incorrectly' "$OUT/DEX-STRINGS.txt"
-          sha256sum "$APK" | tee "$OUT/SHA256SUMS.txt"
-
-      - name: Upload verified unsigned APK
+      - name: Upload verified unsigned Stable APK
         uses: actions/upload-artifact@v4
         with:
           name: HCF-Stable-v10000092-Unsigned

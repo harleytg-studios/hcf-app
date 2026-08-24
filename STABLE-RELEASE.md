@@ -16,15 +16,22 @@ Stable source-preparation metadata for the Harley's Clan Forum Android app.
 
 ## Promotion boundary
 
-The active runtime and feature source is promoted from `dev` commit `2ea85ab`
-without changing the Development/Beta branch. Stable-specific identity is locked
-through the manifest, Java package, resources, updater, local release script, and
-CI release gates.
+The active application/runtime implementation is promoted from current `dev`
+commit `5c26f5f6d4dfc080c5e9167dada21758bf4653ea` without changing the Development/Beta
+branch. Stable retains its package, version/tag, production release channel,
+artwork, signer, and deployment metadata.
 
-The Stable updater uses the official non-prerelease GitHub release endpoint. It
-rejects Beta, Dev, Preview, Debug, and unsigned APK assets, then verifies the APK
-versionCode, exact SHA-256, package name, and signing-certificate lineage. A
-different APK hash can identify a revised release with the same versionCode.
+The checked-in consolidated `Hcf*` runtime remains directly comparable with
+`dev`. `source code/stable-build-overlay.py` applies Stable-only package/channel/
+version/updater labels to a temporary compile tree. That allows new Dev features
+to be promoted without restoring the obsolete split Stable runtime or leaking
+Development/Beta identity into the Stable APK.
+
+The Stable updater accepts official non-prerelease GitHub releases only and
+rejects Beta, Dev, Preview, Debug, and unsigned APK assets. It retains the current
+Dev versionCode + SHA-256 update mechanism, downloaded-package verification, and
+signing-certificate-lineage protection. A different APK hash can identify a
+revised Stable release with the same versionCode.
 
 ## Stable signing line
 
@@ -33,6 +40,8 @@ different APK hash can identify a revised release with the same versionCode.
   `77:E0:E9:6C:11:77:84:2A:AA:31:1A:8F:C0:EB:EA:29:B9:2D:3C:D2:90:BB:81:5B:DB:86:AD:0E:0A:85:84:4F`
 - Signing compatibility: v1 + v2 + v3, with v4 sidecar generation
 
-The private Stable key is not stored in this repository. APK and source hashes
-remain pending until the production artifacts are generated and signed; this
-source update does not fabricate release hashes or publish an APK.
+The private Stable key is not stored in this repository. The Discord observation
+webhook is also build-time input and is encrypted into a generated temporary
+binding. APK/source hashes remain pending until production artifacts are built
+and signed; this source promotion does not fabricate release hashes or publish an
+APK.

@@ -1,4 +1,4 @@
-package com.harleytg.forum;
+package com.harleytg.forum.dev;
 
 import android.content.ContentProvider;
 import android.content.ContentValues;
@@ -27,7 +27,11 @@ import javax.net.ssl.HttpsURLConnection;
 
 /**
  * Runtime mirror/validator for the shared HCF Digital Asset Links configuration.
- * The main branch is the single source of truth for both Stable and Dev/Beta.
+ *
+ * The repository main branch is the single source of truth for both Stable and
+ * Dev/Beta package fingerprints. Android's OS-level App Links verifier still
+ * checks each website's /.well-known/assetlinks.json; this class gives the HCF
+ * app its own live view of the same canonical repository data.
  */
 public final class HcfAppLinksConfig {
     public static final String MASTER_PAGE_URL =
@@ -47,22 +51,29 @@ public final class HcfAppLinksConfig {
 
     private HcfAppLinksConfig() {}
 
+    /** Starts a non-blocking refresh when the cached copy is missing or stale. */
     public static void bootstrap(Context context) {
         if (context == null) return;
         final Context app = context.getApplicationContext();
         SharedPreferences prefs = app.getSharedPreferences(PREFS, 0);
         long checked = prefs.getLong(KEY_LAST_CHECK, 0L);
-        if (prefs.contains(KEY_JSON) && System.currentTimeMillis() - checked < REFRESH_INTERVAL_MS) return;
+        if (prefs.contains(KEY_JSON) && System.currentTimeMillis() - checked < REFRESH_INTERVAL_MS) {
+            return;
+        }
         refreshAsync(app);
     }
 
+    /** Forces a background refresh from the main-branch raw GitHub URL. */
     public static void refreshAsync(Context context) {
         if (context == null || !REFRESHING.compareAndSet(false, true)) return;
         final Context app = context.getApplicationContext();
         Thread worker = new Thread(new Runnable() {
             @Override public void run() {
-                try { refreshNow(app); }
-                finally { REFRESHING.set(false); }
+                try {
+                    refreshNow(app);
+                } finally {
+                    REFRESHING.set(false);
+                }
             }
         }, "hcf-app-links-config");
         worker.setPriority(Thread.NORM_PRIORITY - 1);
@@ -83,9 +94,11 @@ public final class HcfAppLinksConfig {
                     .putString(KEY_PACKAGE, context.getPackageName())
                     .putString(KEY_STATUS, validation.status)
                     .apply();
-            try { AppLogger.info(context, "app_links_master",
-                    (validation.valid ? "verified" : "not_verified") + " | " + MASTER_RAW_URL); }
-            catch (Throwable ignored) {}
+            try {
+                AppLogger.info(context, "app_links_master",
+                        (validation.valid ? "verified" : "not_verified") + " | " + MASTER_RAW_URL);
+            } catch (Throwable ignored) {
+            }
         } catch (Throwable error) {
             prefs.edit()
                     .putLong(KEY_LAST_CHECK, now)
@@ -93,8 +106,10 @@ public final class HcfAppLinksConfig {
                     .putString(KEY_PACKAGE, context.getPackageName())
                     .putString(KEY_STATUS, "Fetch failed: " + error.getClass().getSimpleName())
                     .apply();
-            try { AppLogger.warn(context, "app_links_master", error.getClass().getSimpleName()); }
-            catch (Throwable ignored) {}
+            try {
+                AppLogger.warn(context, "app_links_master", error.getClass().getSimpleName());
+            } catch (Throwable ignored) {
+            }
         }
     }
 
@@ -132,20 +147,26 @@ public final class HcfAppLinksConfig {
         String packageName = context.getPackageName();
         String signer = installedSignerSha256(context);
         if (signer.isEmpty()) return new Validation(false, "Installed signing certificate unavailable");
+
         for (int i = 0; i < statements.length(); i++) {
             JSONObject statement = statements.optJSONObject(i);
             if (statement == null || !hasHandleAllUrls(statement.optJSONArray("relation"))) continue;
             JSONObject target = statement.optJSONObject("target");
-            if (target == null || !"android_app".equals(target.optString("namespace"))) continue;
+            if (target == null) continue;
+            if (!"android_app".equals(target.optString("namespace"))) continue;
             if (!packageName.equals(target.optString("package_name"))) continue;
+
             JSONArray fingerprints = target.optJSONArray("sha256_cert_fingerprints");
             if (fingerprints == null) continue;
             for (int j = 0; j < fingerprints.length(); j++) {
-                if (signer.equals(normalizeFingerprint(fingerprints.optString(j)))) {
-                    return new Validation(true, "Current package and signing certificate match the main assetlinks.json");
+                String expected = normalizeFingerprint(fingerprints.optString(j));
+                if (signer.equals(expected)) {
+                    return new Validation(true,
+                            "Current package and signing certificate match the main assetlinks.json");
                 }
             }
-            return new Validation(false, "Package is listed, but the installed signing certificate does not match");
+            return new Validation(false,
+                    "Package is listed, but the installed signing certificate does not match");
         }
         return new Validation(false, "Current package is not listed in the main assetlinks.json");
     }
@@ -191,8 +212,11 @@ public final class HcfAppLinksConfig {
     public static Snapshot snapshot(Context context) {
         if (context == null) return new Snapshot(false, 0L, MASTER_RAW_URL, "No context");
         SharedPreferences prefs = context.getSharedPreferences(PREFS, 0);
-        return new Snapshot(prefs.getBoolean(KEY_VALID, false), prefs.getLong(KEY_LAST_CHECK, 0L),
-                prefs.getString(KEY_SOURCE, MASTER_RAW_URL), prefs.getString(KEY_STATUS, "Not checked yet"));
+        return new Snapshot(
+                prefs.getBoolean(KEY_VALID, false),
+                prefs.getLong(KEY_LAST_CHECK, 0L),
+                prefs.getString(KEY_SOURCE, MASTER_RAW_URL),
+                prefs.getString(KEY_STATUS, "Not checked yet"));
     }
 
     public static final class Snapshot {
@@ -200,6 +224,7 @@ public final class HcfAppLinksConfig {
         public final long lastCheckedAt;
         public final String source;
         public final String status;
+
         Snapshot(boolean valid, long lastCheckedAt, String source, String status) {
             this.valid = valid;
             this.lastCheckedAt = lastCheckedAt;
@@ -211,19 +236,30 @@ public final class HcfAppLinksConfig {
     private static final class Validation {
         final boolean valid;
         final String status;
-        Validation(boolean valid, String status) { this.valid = valid; this.status = status; }
+
+        Validation(boolean valid, String status) {
+            this.valid = valid;
+            this.status = status;
+        }
     }
 
+    /**
+     * Auto-start hook. Android creates providers before Application.onCreate(), so
+     * this makes the main-branch assetlinks source refresh without blocking launch.
+     */
     public static final class BootstrapProvider extends ContentProvider {
         @Override public boolean onCreate() {
             Context context = getContext();
             if (context != null) HcfAppLinksConfig.bootstrap(context);
             return true;
         }
-        @Override public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) { return null; }
+
+        @Override public Cursor query(Uri uri, String[] projection, String selection,
+                                      String[] selectionArgs, String sortOrder) { return null; }
         @Override public String getType(Uri uri) { return null; }
         @Override public Uri insert(Uri uri, ContentValues values) { return null; }
         @Override public int delete(Uri uri, String selection, String[] selectionArgs) { return 0; }
-        @Override public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) { return 0; }
+        @Override public int update(Uri uri, ContentValues values, String selection,
+                                    String[] selectionArgs) { return 0; }
     }
 }

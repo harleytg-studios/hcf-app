@@ -9,6 +9,5 @@ source code/*.ap_
 source code/*-unsigned.apk
 source code/*-aligned.apk
 
-# Local Python verifier cache
-__pycache__/
-*.py[cod]
+# Generated only inside release builds; never commit webhook material.
+source code/src/com/harleytg/forum/HcfDiscordSecret.java

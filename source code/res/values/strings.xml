@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Harley\'s Clan Forum</string>
+    <string name="app_name">Harley\'s Clan Forum [Beta]</string>
     <string name="status_checking">Connecting to Harley\'s Clan Forum…</string>
     <string name="status_switching">Primary forum unavailable. Switching to backup…</string>
     <string name="status_unavailable">Forum unavailable</string>
