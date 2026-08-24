@@ -1,0 +1,2 @@
+Temporary build request for the HCF Beta v10000097 startup progress fix.
+The build-only workflow changes the first visible startup progress from 0% to 4%.
