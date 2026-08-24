@@ -130,8 +130,10 @@ PY
 
 unset discord_webhook_url DISCORD_WEBHOOK_URL key_hex iv_hex
 rm -f "$work/discord-plain.txt"
-! grep -Fq 'https://discord.com/api/webhooks/' "$work/secret-src/com/harleytg/forum/HcfDiscordSecret.java"
-! grep -Fq 'https://discordapp.com/api/webhooks/' "$work/secret-src/com/harleytg/forum/HcfDiscordSecret.java"
+if grep -Eaq 'https://(www\.)?discord(app)?\.com/api/webhooks/[0-9]{5,}/[A-Za-z0-9._-]{20,}' "$work/secret-src/com/harleytg/forum/HcfDiscordSecret.java"; then
+  echo "Plaintext Discord webhook credential found in generated source" >&2
+  exit 31
+fi
 
 "$build_tools/aapt" package -f -m \
   -J "$work/gen" \
@@ -148,10 +150,15 @@ mapfile -t class_files < <(find "$work/classes" -name '*.class' -print)
 "$build_tools/d8" --lib "$android_jar" --min-api 26 --release --output "$work/dex" "${class_files[@]}"
 
 strings "$work/dex/classes.dex" > "$work/dex-strings.txt"
-grep -Fq 'HcfDiscordSecret' "$work/dex-strings.txt"
-! grep -Fq 'https://discord.com/api/webhooks/' "$work/dex-strings.txt"
-! grep -Fq 'https://discordapp.com/api/webhooks/' "$work/dex-strings.txt"
-! grep -Fq 'cloudfunctions.net/hcfBanApi' "$work/dex-strings.txt"
+grep -Fq 'HcfDiscordSecret' "$work/dex-strings.txt" || { echo "Generated Discord binding missing from DEX" >&2; exit 32; }
+if grep -Eaq 'https://(www\.)?discord(app)?\.com/api/webhooks/[0-9]{5,}/[A-Za-z0-9._-]{20,}' "$work/dex-strings.txt"; then
+  echo "Plaintext Discord webhook credential found in DEX" >&2
+  exit 33
+fi
+if grep -Fq 'cloudfunctions.net/hcfBanApi' "$work/dex-strings.txt"; then
+  echo "Obsolete Firebase ban endpoint found in DEX" >&2
+  exit 34
+fi
 
 cp "$work/resources.apk" "$work/unsigned.apk"
 (cd "$work/dex" && "$build_tools/aapt" add "$work/unsigned.apk" classes.dex)
