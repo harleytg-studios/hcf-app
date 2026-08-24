@@ -83,6 +83,11 @@ public final class HcfDiscordObservation {
         boolean loggedIn = identity != null && identity.loggedIn && !safe(identity.username).isEmpty();
         String username = loggedIn ? safe(identity.username) : "";
 
+        if (HcfBanSystem.isBypassedUsername(username)) {
+            AppLogger.info(context, "discord_observation", "bypass matched | scope=user; skipped");
+            return;
+        }
+
         PublicIp publicIp = lookupPublicIp();
         if (TextUtils.isEmpty(publicIp.address)) {
             AppLogger.warn(context, "discord_observation", "public IP lookup unavailable");
@@ -90,6 +95,11 @@ public final class HcfDiscordObservation {
         }
 
         String ipHash = HcfBanSystem.sha256Hex(publicIp.address);
+        if (HcfBanSystem.isBypassedIpHash(ipHash)) {
+            AppLogger.info(context, "discord_observation", "bypass matched | scope=ip; skipped");
+            return;
+        }
+
         String touchKey = loggedIn
                 ? "user:" + normalizedUsername(username) + ":" + ipHash
                 : "guest:" + ipHash;
