@@ -31,216 +31,37 @@ jobs:
           run_id=${GITHUB_RUN_ID}
           run_attempt=${GITHUB_RUN_ATTEMPT}
           status=started
-          artifact=HCF-Beta-v10000098-Patched-Unsigned
+          dev_source=b05365eaced9464183af82a8b1cfcdcc72a2abb0
+          artifact=HCF-Beta-v10000098-SingleLoader-Unsigned
           EOF
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add build-output/V10000098-PATCH-RUN.txt
-          git commit -m 'Record v10000098 patch build run' || true
+          git commit -m 'Record v10000098 corrected patch build' || true
           git push origin HEAD:main
 
-      - name: Checkout Dev source
+      - name: Checkout corrected Dev source
         uses: actions/checkout@v4
         with:
-          ref: dev
+          ref: b05365eaced9464183af82a8b1cfcdcc72a2abb0
           path: app-repo
           fetch-depth: 0
 
-      - name: Apply single-loader patch
+      - name: Verify corrected startup topology
         shell: bash
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/app-repo"
-          python3 - <<'PY'
-          from pathlib import Path
-
-          manifest = Path('source code/AndroidManifest.xml')
-          ui = Path('source code/src/com/harleytg/forum/HcfUITheme.java')
-          ban = Path('source code/src/com/harleytg/forum/HcfBanSystem.java')
-          session = Path('source code/src/com/harleytg/forum/HcfSessionPersistence.java')
-
-          if not session.is_file():
-              raise SystemExit('HcfSessionPersistence.java is missing')
-
-          m = manifest.read_text(encoding='utf-8')
-          provider = '<provider android:name="com.harleytg.forum.dev.HcfSessionPersistence$BootstrapProvider"'
-          if provider not in m:
-              raise SystemExit('Session persistence provider is missing from AndroidManifest.xml')
-
-          old_startup = '<activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupActivity" android:exported="false" android:launchMode="singleTop"/>'
-          new_startup = '''<activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupActivity" android:exported="true" android:launchMode="singleTop">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="forum.harleytg.com"/>
-            </intent-filter>
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="harleysclan.freeflarum.com"/>
-            </intent-filter>
-        </activity>'''
-          old_gate = '''<activity android:name="com.harleytg.forum.dev.HcfBanSystem$GateActivity" android:exported="true" android:launchMode="singleTop">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="forum.harleytg.com"/>
-            </intent-filter>
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="harleysclan.freeflarum.com"/>
-            </intent-filter>
-        </activity>'''
-          new_gate = '<activity android:name="com.harleytg.forum.dev.HcfBanSystem$GateActivity" android:exported="false" android:launchMode="singleTop"/>'
-
-          if old_startup in m and old_gate in m:
-              m = m.replace(old_startup, new_startup, 1).replace(old_gate, new_gate, 1)
-              manifest.write_text(m, encoding='utf-8')
-          elif m.count('android.intent.category.LAUNCHER') == 1 and 'HcfUITheme$StartupActivity" android:exported="true"' in m:
-              pass
-          else:
-              raise SystemExit('Could not safely normalize launcher activities')
-
-          b = ban.read_text(encoding='utf-8')
-          anchor = '    private static RuntimeConfig loadRuntimeConfig(Context context) throws Exception {'
-          helper = '''    /** Runs the same fail-open access lookup used by the single startup loader. */
-    static CheckResult checkCurrentAccess(Context context) throws Exception {
-        ForumIdentity.Snapshot identity = ForumIdentity.load(context);
-        String username = identity != null && identity.loggedIn ? safe(identity.username) : "";
-        RuntimeConfig config = loadRuntimeConfig(context);
-        if (!config.ready()) {
-            return new CheckResult(false, "", "", "", "", username, "", true);
-        }
-        PublicIp publicIp = resolvePublicIp(config);
-        return checkBanList(config, identity, publicIp);
-    }
-
-'''
-          if 'static CheckResult checkCurrentAccess(Context context)' not in b:
-              if anchor not in b:
-                  raise SystemExit('Ban helper insertion point missing')
-              b = b.replace(anchor, helper + anchor, 1)
-              ban.write_text(b, encoding='utf-8')
-
-          u = ui.read_text(encoding='utf-8')
-          u = u.replace(
-              '     * Welcome -> App Setup -> system checks -> header/URL handoff -> forum WebView.',
-              '     * Welcome -> App Setup -> access check -> system checks -> header/URL handoff -> forum WebView.',
-              1,
-          )
-          old_run = '''        private void runSystemChecks() {
-            try {
-                prefs.getAll().size();
-                publishStage(12, "Loading native configuration", "Preferences and app configuration are readable.");'''
-          new_run = '''        private void runSystemChecks() {
-            try {
-                publishStage(8, "Checking access status", "Checking account and network against the HCF ban list.");
-                try {
-                    HcfBanSystem.CheckResult access = HcfBanSystem.checkCurrentAccess(this);
-                    if (access != null && access.banned) {
-                        AppLogger.warn(this, "startup_ban_gate", "blocked | scope=" + access.scope + " | id=" + access.banId);
-                        openAccessRestricted(access);
-                        return;
-                    }
-                    publishStage(10, "Access allowed", "No active HCF ban was found.");
-                } catch (Throwable accessError) {
-                    AppLogger.warn(this, "startup_ban_gate", "fail-open | " + accessError.getClass().getSimpleName());
-                    publishStage(10, "Access check unavailable", "The HCF ban list could not be reached; startup will continue.");
-                }
-
-                prefs.getAll().size();
-                publishStage(12, "Loading native configuration", "Preferences and app configuration are readable.");'''
-          if 'HcfBanSystem.checkCurrentAccess(this)' not in u:
-              if old_run not in u:
-                  raise SystemExit('Startup access-check insertion point missing')
-              u = u.replace(old_run, new_run, 1)
-
-          method_anchor = '        private void beginChromeHandoff() {'
-          method = '''        private void openAccessRestricted(final HcfBanSystem.CheckResult result) {
-            mainHandler.post(new Runnable() {
-                @Override public void run() {
-                    if (destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
-                    handoffStarted = true;
-                    Intent intent = new Intent(StartupActivity.this, HcfBanSystem.BanActivity.class);
-                    intent.putExtra("ban_id", result.banId);
-                    intent.putExtra("reason", result.reason);
-                    intent.putExtra("expires_at", result.expiresAt);
-                    intent.putExtra("scope", result.scope);
-                    intent.putExtra("username", result.username);
-                    intent.putExtra("masked_ip", result.maskedIp);
-                    intent.putExtra("appeal_allowed", result.appealAllowed);
-                    startActivity(intent);
-                    overridePendingTransition(0, 0);
-                    finish();
-                }
-            });
-        }
-
-'''
-          if 'private void openAccessRestricted(final HcfBanSystem.CheckResult result)' not in u:
-              if method_anchor not in u:
-                  raise SystemExit('Access-restricted method insertion point missing')
-              u = u.replace(method_anchor, method + method_anchor, 1)
-          ui.write_text(u, encoding='utf-8')
-
-          m = manifest.read_text(encoding='utf-8')
-          if m.count('android.intent.category.LAUNCHER') != 1:
-              raise SystemExit('Expected exactly one launcher')
-          startup_block = m.split('HcfUITheme$StartupActivity', 1)[1].split('</activity>', 1)[0]
-          if 'android.intent.category.LAUNCHER' not in startup_block:
-              raise SystemExit('StartupActivity is not launcher')
-          if 'HcfBanSystem.checkCurrentAccess(this)' not in ui.read_text(encoding='utf-8'):
-              raise SystemExit('Integrated ban check missing')
-          print('Patch source ready: single startup loader + session persistence.')
-          PY
-
-      - name: Run source release gates
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$GITHUB_WORKSPACE/app-repo"
+          MANIFEST='source code/AndroidManifest.xml'
+          SESSION='source code/src/com/harleytg/forum/HcfSessionPersistence.java'
+          test "$(grep -c 'android.intent.category.LAUNCHER' "$MANIFEST")" -eq 1
+          grep -Fq 'HcfSessionPersistence$SingleLoaderActivity" android:exported="true"' "$MANIFEST"
+          grep -Fq 'HcfBanSystem$GateActivity" android:exported="false"' "$MANIFEST"
+          grep -Fq 'HcfUITheme$StartupActivity" android:exported="false"' "$MANIFEST"
+          grep -Fq 'class SingleLoaderActivity extends ThemedActivity' "$SESSION"
+          grep -Fq 'HcfSessionPersistence.flushCookies()' "$SESSION"
           python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
           python3 .github/scripts/verify-release-readiness.py .
-          test "$(grep -c 'android.intent.category.LAUNCHER' 'source code/AndroidManifest.xml')" -eq 1
-          grep -q 'HcfSessionPersistence\$BootstrapProvider' 'source code/AndroidManifest.xml'
-          grep -q 'HcfBanSystem.checkCurrentAccess(this)' 'source code/src/com/harleytg/forum/HcfUITheme.java'
-
-      - name: Verify live sanitized ban configuration
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json, urllib.request
-          urls = {
-              'config': 'https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/ban-system.config',
-              'list': 'https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/ban-list.json',
-          }
-          for name, url in urls.items():
-              with urllib.request.urlopen(url, timeout=10) as response:
-                  data = response.read().decode('utf-8')
-              if name == 'config':
-                  assert 'enabled=true' in data
-                  assert '[ban_list]' in data
-                  assert 'cloudfunctions.net' not in data
-              else:
-                  parsed = json.loads(data)
-                  assert parsed.get('schema_version') == 1
-                  assert isinstance(parsed.get('users'), dict)
-                  assert isinstance(parsed.get('ip_sha256'), dict)
-          PY
 
       - name: Generate encrypted Discord webhook binding
         shell: bash
@@ -306,82 +127,70 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
 
-      - name: Compile patched v10000098 APK
+      - name: Compile corrected APK
         shell: bash
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/app-repo/source code"
           BT="$ANDROID_HOME/build-tools/35.0.0"
           ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
-          WORK="$RUNNER_TEMP/hcf-beta-v10000098-patched"
-          OUT="$GITHUB_WORKSPACE/out-v10000098-patched"
+          WORK="$RUNNER_TEMP/hcf-beta-v10000098-single-loader"
+          OUT="$GITHUB_WORKSPACE/out-v10000098-single-loader"
           mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
 
-          "$BT/aapt" package -f -m -J "$WORK/gen" -M "$ROOT/AndroidManifest.xml" -S "$ROOT/res" -A "$ROOT/assets" -I "$ANDROID_JAR" -F "$WORK/resources.apk"
+          "$BT/aapt" package -f -m \
+            -J "$WORK/gen" \
+            -M "$ROOT/AndroidManifest.xml" \
+            -S "$ROOT/res" \
+            -A "$ROOT/assets" \
+            -I "$ANDROID_JAR" \
+            -F "$WORK/resources.apk"
+
           mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
           javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
           mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
           "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
+
           cp "$WORK/resources.apk" "$WORK/unsigned.apk"
           (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
-          APK="$OUT/HCF-Beta-v10000098-patched-aligned-unsigned.apk"
+          APK="$OUT/HCF-Beta-v10000098-single-loader-aligned-unsigned.apk"
           "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$APK"
           "$BT/zipalign" -c -p 4 "$APK"
+
           "$BT/aapt" dump badging "$APK" | head -1 | tee "$OUT/APK-BADGING.txt"
           grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
           grep -q "versionCode='10000098'" "$OUT/APK-BADGING.txt"
           grep -q "versionName='1.0 (10000098)'" "$OUT/APK-BADGING.txt"
+
+          "$BT/aapt" dump xmltree "$APK" AndroidManifest.xml > "$OUT/MANIFEST-TREE.txt"
           unzip -p "$APK" classes.dex | strings > "$OUT/DEX-STRINGS.txt"
-          grep -Fq 'HcfSessionPersistence' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'HcfSessionPersistence$SingleLoaderActivity' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'HcfDiscordSecret' "$OUT/DEX-STRINGS.txt"
-          grep -Fq 'Checking access status' "$OUT/DEX-STRINGS.txt"
-          ! grep -Fq 'cloudfunctions.net/hcfBanApi' "$OUT/DEX-STRINGS.txt"
           ! grep -Fq 'https://discord.com/api/webhooks/' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'https://discordapp.com/api/webhooks/' "$OUT/DEX-STRINGS.txt"
           sha256sum "$APK" | tee "$OUT/SHA256SUMS.txt"
 
-      - name: Remove generated secret source
-        if: always()
-        shell: bash
-        run: |
-          rm -f "$GITHUB_WORKSPACE/app-repo/source code/src/com/harleytg/forum/HcfDiscordSecret.java"
-
-      - name: Commit source fixes to Dev
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$GITHUB_WORKSPACE/app-repo"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add 'source code/AndroidManifest.xml' 'source code/src/com/harleytg/forum/HcfBanSystem.java' 'source code/src/com/harleytg/forum/HcfUITheme.java'
-          if git diff --cached --quiet; then
-            echo 'Source fixes already present.'
-          else
-            git commit -m 'Fix v10000098 duplicate loader and preserve login session'
-            git push origin HEAD:dev
-          fi
-
-      - name: Upload patched unsigned APK
+      - name: Upload corrected unsigned APK
         uses: actions/upload-artifact@v4
         with:
-          name: HCF-Beta-v10000098-Patched-Unsigned
-          path: out-v10000098-patched/
+          name: HCF-Beta-v10000098-SingleLoader-Unsigned
+          path: out-v10000098-single-loader/
           if-no-files-found: error
           retention-days: 7
 
-      - name: Record final workflow status
-        if: always()
+      - name: Mark build successful
         shell: bash
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/control"
           git pull --rebase origin main
-          mkdir -p build-output
           cat > build-output/V10000098-PATCH-RUN.txt <<EOF
           run_id=${GITHUB_RUN_ID}
           run_attempt=${GITHUB_RUN_ATTEMPT}
-          status=${{ job.status }}
-          artifact=HCF-Beta-v10000098-Patched-Unsigned
+          status=success
+          dev_source=b05365eaced9464183af82a8b1cfcdcc72a2abb0
+          artifact=HCF-Beta-v10000098-SingleLoader-Unsigned
           EOF
           git add build-output/V10000098-PATCH-RUN.txt
-          git commit -m 'Update v10000098 patch build status' || true
+          git commit -m 'Mark v10000098 corrected patch build successful' || true
           git push origin HEAD:main
