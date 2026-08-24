@@ -10,6 +10,8 @@ on:
       - '.github/scripts/verify-hcf-alerts-ui.py'
       - '.github/scripts/verify-release-readiness.py'
       - '.github/workflows/build-stable-v10000092.yml'
+  pull_request:
+    branches: [stable]
   workflow_dispatch:
 
 permissions:
