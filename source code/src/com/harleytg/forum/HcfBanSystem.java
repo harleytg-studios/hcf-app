@@ -23,14 +23,20 @@ import android.widget.TextView;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Locale;
+import java.util.TimeZone;
 import javax.net.ssl.HttpsURLConnection;
 import org.json.JSONObject;
 
-/** Native HCF IP/username observation gate plus the dedicated Access Restricted screen. */
+/**
+ * Native HCF access gate backed by a public, sanitized GitHub JSON ban list.
+ * Raw IP addresses are never published in the list; network bans use SHA-256 hashes.
+ */
 public final class HcfBanSystem {
     private static final String CONFIG_URL =
             "https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/ban-system.config";
@@ -64,19 +70,19 @@ public final class HcfBanSystem {
 
     static final class RuntimeConfig {
         final boolean enabled;
-        final String observeUrl;
+        final String banListUrl;
         final String ipPrimary;
         final String ipFallback;
 
-        RuntimeConfig(boolean enabled, String observeUrl, String ipPrimary, String ipFallback) {
+        RuntimeConfig(boolean enabled, String banListUrl, String ipPrimary, String ipFallback) {
             this.enabled = enabled;
-            this.observeUrl = safe(observeUrl);
+            this.banListUrl = safe(banListUrl);
             this.ipPrimary = safe(ipPrimary);
             this.ipFallback = safe(ipFallback);
         }
 
         boolean ready() {
-            return enabled && observeUrl.startsWith("https://");
+            return enabled && banListUrl.startsWith("https://");
         }
     }
 
@@ -117,7 +123,7 @@ public final class HcfBanSystem {
         }
     }
 
-    /** Launcher gate. All normal launches and HCF App Links should enter here first. */
+    /** Launcher gate. All normal launches and HCF App Links enter here first. */
     public static final class GateActivity extends BaseActivity {
         private final Handler main = new Handler(Looper.getMainLooper());
         private TextView status;
@@ -198,7 +204,7 @@ public final class HcfBanSystem {
             progressLp.topMargin = dp(24);
             root.addView(progress, progressLp);
 
-            TextView privacy = text("Public IP is used for HCF security and abuse-prevention checks.",
+            TextView privacy = text("Public IP is used only for HCF security and abuse-prevention checks.",
                     9, getColor(R.color.hcf_hint));
             privacy.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams privacyLp = new LinearLayout.LayoutParams(-1, -2);
@@ -218,26 +224,23 @@ public final class HcfBanSystem {
                 config = loadRuntimeConfig(this);
             } catch (Throwable error) {
                 AppLogger.warn(this, "ban_gate_config", error.getClass().getSimpleName());
-                stage(100, "Access check unavailable", "Ban service configuration could not be loaded; startup will continue.");
+                stage(100, "Access check unavailable", "Ban configuration could not be loaded; startup will continue.");
                 continueStartupSoon();
                 return;
             }
 
             if (!config.ready()) {
-                stage(100, "Access system not enabled", "The ban-service endpoint is not active yet; startup will continue.");
+                stage(100, "Access system not enabled", "The HCF ban list is not active; startup will continue.");
                 continueStartupSoon();
                 return;
             }
 
-            stage(36, "Checking public network address", "Using ipify with IPinfo as the fallback lookup.");
+            stage(38, "Checking public network address", "Using ipify with IPinfo as the fallback lookup.");
             PublicIp publicIp = resolvePublicIp(config);
-            stage(55, "Network identity ready", publicIp.available()
-                    ? "Public IP resolved through " + publicIp.source + "."
-                    : "IP lookup unavailable; the access service will use the connection address.");
+            stage(58, "Checking HCF ban list", "Matching account and hashed network records.");
 
             try {
-                stage(72, "Checking HCF access record", "Looking for an active username or IP ban.");
-                CheckResult result = observeAndCheck(this, config, identity, publicIp);
+                CheckResult result = checkBanList(config, identity, publicIp);
                 if (result.banned) {
                     AppLogger.warn(this, "ban_gate", "blocked | scope=" + result.scope + " | id=" + result.banId);
                     openBanScreen(result);
@@ -246,9 +249,9 @@ public final class HcfBanSystem {
                 stage(100, "Access allowed", "No active HCF ban was found.");
                 continueStartupSoon();
             } catch (Throwable error) {
-                // Fail open: a Worker/GitHub/IP-provider outage must not lock out every HCF user.
+                // Fail open so a GitHub or IP-provider outage cannot lock out all users.
                 AppLogger.warn(this, "ban_gate", "fail-open | " + error.getClass().getSimpleName());
-                stage(100, "Access check unavailable", "Security service could not be reached; startup will continue.");
+                stage(100, "Access check unavailable", "The ban list could not be reached; startup will continue.");
                 continueStartupSoon();
             }
         }
@@ -414,7 +417,7 @@ public final class HcfBanSystem {
             });
             addButton(root, close, 10);
 
-            TextView privacy = text("IP information is processed for forum security and abuse prevention.",
+            TextView privacy = text("Raw IP addresses are not published in the HCF ban list.",
                     9, getColor(R.color.hcf_hint));
             privacy.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams privacyLp = new LinearLayout.LayoutParams(-1, -2);
@@ -465,12 +468,15 @@ public final class HcfBanSystem {
         long now = System.currentTimeMillis();
         long fetchedAt = prefs.getLong(PREF_CONFIG_FETCHED_AT, 0L);
         String cached = safe(prefs.getString(PREF_CONFIG_CACHE, ""));
+
         if (!cached.isEmpty() && fetchedAt > 0L && now - fetchedAt < CONFIG_CACHE_MS) {
-            return parseConfig(cached);
+            RuntimeConfig parsed = parseConfig(cached);
+            // Ignore an old Firebase-era cache and refresh immediately after app update.
+            if (parsed.ready()) return parsed;
         }
 
         try {
-            String remote = getText(CONFIG_URL, 4000, 4000);
+            String remote = getText(CONFIG_URL, 4000, 4000, "text/plain");
             RuntimeConfig parsed = parseConfig(remote);
             prefs.edit().putString(PREF_CONFIG_CACHE, remote)
                     .putLong(PREF_CONFIG_FETCHED_AT, now).apply();
@@ -483,7 +489,7 @@ public final class HcfBanSystem {
 
     private static RuntimeConfig parseConfig(String raw) {
         boolean enabled = false;
-        String observe = "";
+        String banList = "";
         String primary = "https://api.ipify.org?format=json";
         String fallback = "https://ipinfo.io/json";
         String section = "";
@@ -501,15 +507,15 @@ public final class HcfBanSystem {
             String value = line.substring(split + 1).trim();
             if ("config".equals(section) && "enabled".equals(key)) {
                 enabled = "true".equalsIgnoreCase(value) || "1".equals(value) || "yes".equalsIgnoreCase(value);
-            } else if ("endpoint".equals(section) && "observe_url".equals(key)) {
-                observe = value;
+            } else if ("ban_list".equals(section) && "url".equals(key)) {
+                banList = value;
             } else if ("ip_lookup".equals(section) && "primary".equals(key)) {
                 primary = value;
             } else if ("ip_lookup".equals(section) && "fallback".equals(key)) {
                 fallback = value;
             }
         }
-        return new RuntimeConfig(enabled, observe, primary, fallback);
+        return new RuntimeConfig(enabled, banList, primary, fallback);
     }
 
     private static PublicIp resolvePublicIp(RuntimeConfig config) {
@@ -528,10 +534,10 @@ public final class HcfBanSystem {
             connection.setReadTimeout(3000);
             connection.setInstanceFollowRedirects(true);
             connection.setRequestProperty("Accept", "application/json,text/plain;q=0.9");
-            connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " BanIpLookup");
+            connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " BanIpLookup/2");
             int code = connection.getResponseCode();
             if (code < 200 || code >= 300) return new PublicIp("", source);
-            String body = readAll(connection.getInputStream());
+            String body = readAll(connection.getInputStream(), 8192);
             try {
                 return new PublicIp(new JSONObject(body).optString("ip", ""), source);
             } catch (Throwable ignored) {
@@ -544,87 +550,138 @@ public final class HcfBanSystem {
         }
     }
 
-    private static CheckResult observeAndCheck(Context context, RuntimeConfig config,
-                                               ForumIdentity.Snapshot identity, PublicIp publicIp) throws Exception {
+    private static CheckResult checkBanList(RuntimeConfig config,
+                                             ForumIdentity.Snapshot identity,
+                                             PublicIp publicIp) throws Exception {
+        String body = getText(config.banListUrl, 4500, 5000, "application/json");
+        JSONObject root = new JSONObject(body);
+        if (root.optInt("schema_version", 0) != 1) {
+            throw new IllegalStateException("Unsupported ban-list schema");
+        }
+
         boolean loggedIn = identity != null && identity.loggedIn && !safe(identity.username).isEmpty();
         String username = loggedIn ? safe(identity.username) : "";
+        String normalizedUser = normalizedUsername(username);
+        String maskedIp = publicIp == null ? "" : maskIp(publicIp.address);
 
-        JSONObject payload = new JSONObject();
-        payload.put("logged_in", loggedIn);
-        payload.put("username", username);
-        payload.put("reported_ip", publicIp == null ? "" : publicIp.address);
-        payload.put("reported_ip_source", publicIp == null ? "" : publicIp.source);
-        payload.put("app_version", BuildInfo.installedVersionName());
-        payload.put("version_code", BuildInfo.VERSION_CODE);
-        payload.put("package_name", context.getPackageName());
-
-        HttpsURLConnection connection = null;
-        try {
-            connection = (HttpsURLConnection) new URL(config.observeUrl).openConnection();
-            connection.setConnectTimeout(6000);
-            connection.setReadTimeout(7000);
-            connection.setInstanceFollowRedirects(false);
-            connection.setRequestMethod("POST");
-            connection.setDoOutput(true);
-            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-            connection.setRequestProperty("Accept", "application/json");
-            connection.setRequestProperty("X-HCF-Client", "android");
-            connection.setRequestProperty("X-HCF-App-Package", context.getPackageName());
-            connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " BanSystem/1");
-            try (OutputStreamWriter writer = new OutputStreamWriter(connection.getOutputStream(), StandardCharsets.UTF_8)) {
-                writer.write(payload.toString());
-            }
-
-            int code = connection.getResponseCode();
-            InputStream stream = code >= 200 && code < 300 ? connection.getInputStream() : connection.getErrorStream();
-            String body = stream == null ? "" : readAll(stream);
-            if (code < 200 || code >= 300) throw new IllegalStateException("Ban service HTTP " + code);
-
-            JSONObject response = new JSONObject(body);
-            boolean banned = response.optBoolean("banned", false)
-                    || "banned".equalsIgnoreCase(response.optString("status", ""));
-            String maskedIp = response.optString("masked_ip", "");
-            String scope = response.optString("scope", "");
-            String responseUsername = response.optString("username", username);
-            if (!banned) return new CheckResult(false, "", "", "", scope, responseUsername, maskedIp, true);
-
-            JSONObject ban = response.optJSONObject("ban");
-            return new CheckResult(true,
-                    ban == null ? "" : ban.optString("ban_id", ""),
-                    ban == null ? "" : ban.optString("reason", ""),
-                    ban == null ? "" : ban.optString("expires_at", ""),
-                    scope, responseUsername, maskedIp,
-                    ban == null || ban.optBoolean("appeal_allowed", true));
-        } finally {
-            if (connection != null) connection.disconnect();
+        if (!normalizedUser.isEmpty()) {
+            JSONObject users = root.optJSONObject("users");
+            JSONObject entry = users == null ? null : users.optJSONObject(normalizedUser);
+            if (isBanEntryActive(entry)) return fromEntry(entry, "user", username, maskedIp);
         }
+
+        if (publicIp != null && publicIp.available()) {
+            String hash = sha256Hex(publicIp.address);
+            JSONObject networks = root.optJSONObject("ip_sha256");
+            JSONObject entry = networks == null ? null : networks.optJSONObject(hash);
+            if (isBanEntryActive(entry)) return fromEntry(entry, "ip", username, maskedIp);
+        }
+
+        return new CheckResult(false, "", "", "", "", username, maskedIp, true);
     }
 
-    private static String getText(String urlText, int connectTimeout, int readTimeout) throws Exception {
+    private static CheckResult fromEntry(JSONObject entry, String scope, String username, String maskedIp) {
+        return new CheckResult(true,
+                entry == null ? "" : entry.optString("ban_id", ""),
+                entry == null ? "" : entry.optString("reason", ""),
+                nullableString(entry, "expires_at"),
+                scope,
+                username,
+                maskedIp,
+                entry == null || entry.optBoolean("appeal_allowed", true));
+    }
+
+    private static boolean isBanEntryActive(JSONObject entry) {
+        if (entry == null || !entry.optBoolean("active", false)) return false;
+        String expires = nullableString(entry, "expires_at");
+        if (expires.isEmpty()) return true;
+        Long parsed = parseUtc(expires);
+        return parsed == null || parsed.longValue() > System.currentTimeMillis();
+    }
+
+    private static Long parseUtc(String value) {
+        String[] patterns = new String[] {
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+                "yyyy-MM-dd'T'HH:mm:ss'Z'"
+        };
+        for (String pattern : patterns) {
+            try {
+                SimpleDateFormat format = new SimpleDateFormat(pattern, Locale.US);
+                format.setLenient(false);
+                format.setTimeZone(TimeZone.getTimeZone("UTC"));
+                Date parsed = format.parse(value);
+                if (parsed != null) return parsed.getTime();
+            } catch (Throwable ignored) {}
+        }
+        return null;
+    }
+
+    private static String nullableString(JSONObject object, String key) {
+        if (object == null || object.isNull(key)) return "";
+        return safe(object.optString(key, ""));
+    }
+
+    private static String normalizedUsername(String value) {
+        String out = safe(value).toLowerCase(Locale.US).replaceAll("[^a-z0-9._-]", "-");
+        while (out.contains("--")) out = out.replace("--", "-");
+        if (out.length() > 80) out = out.substring(0, 80);
+        return out;
+    }
+
+    static String sha256Hex(String value) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] bytes = digest.digest(safe(value).getBytes(StandardCharsets.UTF_8));
+        StringBuilder out = new StringBuilder(bytes.length * 2);
+        for (byte item : bytes) out.append(String.format(Locale.US, "%02x", item & 0xff));
+        return out.toString();
+    }
+
+    private static String maskIp(String ip) {
+        String value = normalizeIp(ip);
+        if (value.isEmpty()) return "";
+        if (value.indexOf(':') >= 0) {
+            String[] parts = value.split(":");
+            StringBuilder out = new StringBuilder();
+            int shown = 0;
+            for (String part : parts) {
+                if (part.isEmpty()) continue;
+                if (shown > 0) out.append(':');
+                out.append(part);
+                shown++;
+                if (shown == 2) break;
+            }
+            return out.append(":…").toString();
+        }
+        String[] parts = value.split("\\.");
+        return parts.length == 4 ? parts[0] + "." + parts[1] + ".*.*" : "Network";
+    }
+
+    private static String getText(String urlText, int connectTimeout, int readTimeout, String accept) throws Exception {
         HttpsURLConnection connection = null;
         try {
             connection = (HttpsURLConnection) new URL(urlText).openConnection();
             connection.setConnectTimeout(connectTimeout);
             connection.setReadTimeout(readTimeout);
             connection.setInstanceFollowRedirects(true);
-            connection.setRequestProperty("Accept", "text/plain");
-            connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " BanConfig/1");
+            connection.setRequestProperty("Accept", accept);
+            connection.setRequestProperty("Cache-Control", "no-cache");
+            connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " BanList/2");
             int code = connection.getResponseCode();
             if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);
-            return readAll(connection.getInputStream());
+            return readAll(connection.getInputStream(), 131072);
         } finally {
             if (connection != null) connection.disconnect();
         }
     }
 
-    private static String readAll(InputStream stream) throws Exception {
+    private static String readAll(InputStream stream, int max) throws Exception {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
             StringBuilder out = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {
                 if (out.length() > 0) out.append('\n');
                 out.append(line);
-                if (out.length() > 65536) throw new IllegalStateException("Response too large");
+                if (out.length() > max) throw new IllegalStateException("Response too large");
             }
             return out.toString();
         }
@@ -633,6 +690,7 @@ public final class HcfBanSystem {
     private static String normalizeIp(String value) {
         String raw = safe(value);
         if (raw.isEmpty() || raw.length() > 64) return "";
+        if (raw.startsWith("::ffff:")) raw = raw.substring(7);
         if (raw.matches("^(?:\\d{1,3}\\.){3}\\d{1,3}$")) {
             String[] parts = raw.split("\\.");
             for (String part : parts) {
