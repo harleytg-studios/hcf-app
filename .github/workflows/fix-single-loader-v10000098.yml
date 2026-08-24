@@ -1,0 +1,204 @@
+name: Fix HCF Beta v10000098 Single Loader
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-single-loader-v10000098.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-single-loader:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Dev source
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: app-repo
+          fetch-depth: 0
+
+      - name: Merge access gate into the existing startup loader
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/app-repo"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # 1) Make StartupActivity the only normal launcher/App Link entry.
+          manifest = Path('source code/AndroidManifest.xml')
+          text = manifest.read_text(encoding='utf-8')
+          old_startup = '<activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupActivity" android:exported="false" android:launchMode="singleTop"/>'
+          new_startup = '''<activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupActivity" android:exported="true" android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="forum.harleytg.com"/>
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="harleysclan.freeflarum.com"/>
+            </intent-filter>
+        </activity>'''
+          old_gate = '''<activity android:name="com.harleytg.forum.dev.HcfBanSystem$GateActivity" android:exported="true" android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="forum.harleytg.com"/>
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="harleysclan.freeflarum.com"/>
+            </intent-filter>
+        </activity>'''
+          new_gate = '<activity android:name="com.harleytg.forum.dev.HcfBanSystem$GateActivity" android:exported="false" android:launchMode="singleTop"/>'
+          if old_startup not in text:
+              raise SystemExit('StartupActivity manifest marker not found')
+          if old_gate not in text:
+              raise SystemExit('GateActivity launcher block not found')
+          text = text.replace(old_startup, new_startup, 1).replace(old_gate, new_gate, 1)
+          manifest.write_text(text, encoding='utf-8')
+
+          # 2) Expose a package-local one-shot access check so the single startup loader can run it.
+          ban = Path('source code/src/com/harleytg/forum/HcfBanSystem.java')
+          text = ban.read_text(encoding='utf-8')
+          anchor = '    private static RuntimeConfig loadRuntimeConfig(Context context) throws Exception {'
+          helper = '''    /** Runs the same fail-open access lookup used by the legacy retry gate. */
+    static CheckResult checkCurrentAccess(Context context) throws Exception {
+        ForumIdentity.Snapshot identity = ForumIdentity.load(context);
+        String username = identity != null && identity.loggedIn ? safe(identity.username) : "";
+        RuntimeConfig config = loadRuntimeConfig(context);
+        if (!config.ready()) {
+            return new CheckResult(false, "", "", "", "", username, "", true);
+        }
+        PublicIp publicIp = resolvePublicIp(config);
+        return checkBanList(config, identity, publicIp);
+    }
+
+'''
+          if 'static CheckResult checkCurrentAccess(Context context)' not in text:
+              if anchor not in text:
+                  raise SystemExit('HcfBanSystem helper anchor not found')
+              text = text.replace(anchor, helper + anchor, 1)
+          ban.write_text(text, encoding='utf-8')
+
+          # 3) Run the ban/access check as stage 1 of the existing native startup loader.
+          ui = Path('source code/src/com/harleytg/forum/HcfUITheme.java')
+          text = ui.read_text(encoding='utf-8')
+          text = text.replace(
+              '     * Welcome -> App Setup -> system checks -> header/URL handoff -> forum WebView.',
+              '     * Welcome -> App Setup -> access check -> system checks -> header/URL handoff -> forum WebView.',
+              1,
+          )
+          old_run = '''        private void runSystemChecks() {
+            try {
+                prefs.getAll().size();
+                publishStage(12, "Loading native configuration", "Preferences and app configuration are readable.");'''
+          new_run = '''        private void runSystemChecks() {
+            try {
+                publishStage(8, "Checking access status", "Checking account and network against the HCF ban list.");
+                try {
+                    HcfBanSystem.CheckResult access = HcfBanSystem.checkCurrentAccess(this);
+                    if (access != null && access.banned) {
+                        AppLogger.warn(this, "startup_ban_gate", "blocked | scope=" + access.scope + " | id=" + access.banId);
+                        openAccessRestricted(access);
+                        return;
+                    }
+                    publishStage(10, "Access allowed", "No active HCF ban was found.");
+                } catch (Throwable accessError) {
+                    // Fail open so an IP provider or GitHub outage cannot lock everyone out.
+                    AppLogger.warn(this, "startup_ban_gate", "fail-open | " + accessError.getClass().getSimpleName());
+                    publishStage(10, "Access check unavailable", "The HCF ban list could not be reached; startup will continue.");
+                }
+
+                prefs.getAll().size();
+                publishStage(12, "Loading native configuration", "Preferences and app configuration are readable.");'''
+          if 'HcfBanSystem.checkCurrentAccess(this)' not in text:
+              if old_run not in text:
+                  raise SystemExit('Startup runSystemChecks marker not found')
+              text = text.replace(old_run, new_run, 1)
+
+          method_anchor = '        private void beginChromeHandoff() {'
+          method = '''        private void openAccessRestricted(final HcfBanSystem.CheckResult result) {
+            mainHandler.post(new Runnable() {
+                @Override public void run() {
+                    if (destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
+                    handoffStarted = true;
+                    Intent intent = new Intent(StartupActivity.this, HcfBanSystem.BanActivity.class);
+                    intent.putExtra("ban_id", result.banId);
+                    intent.putExtra("reason", result.reason);
+                    intent.putExtra("expires_at", result.expiresAt);
+                    intent.putExtra("scope", result.scope);
+                    intent.putExtra("username", result.username);
+                    intent.putExtra("masked_ip", result.maskedIp);
+                    intent.putExtra("appeal_allowed", result.appealAllowed);
+                    startActivity(intent);
+                    overridePendingTransition(0, 0);
+                    finish();
+                }
+            });
+        }
+
+'''
+          if 'private void openAccessRestricted(final HcfBanSystem.CheckResult result)' not in text:
+              if method_anchor not in text:
+                  raise SystemExit('StartupActivity method anchor not found')
+              text = text.replace(method_anchor, method + method_anchor, 1)
+          ui.write_text(text, encoding='utf-8')
+
+          # Sanity assertions: one launcher and integrated access check.
+          manifest_text = manifest.read_text(encoding='utf-8')
+          if manifest_text.count('<category android:name="android.intent.category.LAUNCHER"/>') != 1:
+              raise SystemExit('Expected exactly one launcher activity')
+          startup_block = manifest_text.split('HcfUITheme$StartupActivity', 1)[1].split('</activity>', 1)[0]
+          if 'android.intent.category.LAUNCHER' not in startup_block:
+              raise SystemExit('StartupActivity is not the launcher')
+          if 'HcfBanSystem.checkCurrentAccess(this)' not in ui.read_text(encoding='utf-8'):
+              raise SystemExit('Integrated startup ban check missing')
+          print('Single-loader startup patch applied.')
+          PY
+
+      - name: Verify source after patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/app-repo"
+          python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
+          python3 .github/scripts/verify-release-readiness.py .
+          grep -q 'HcfBanSystem.checkCurrentAccess(this)' 'source code/src/com/harleytg/forum/HcfUITheme.java'
+          test "$(grep -c 'android.intent.category.LAUNCHER' 'source code/AndroidManifest.xml')" -eq 1
+
+      - name: Commit single-loader fix to Dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/app-repo"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'source code/AndroidManifest.xml' \
+                  'source code/src/com/harleytg/forum/HcfBanSystem.java' \
+                  'source code/src/com/harleytg/forum/HcfUITheme.java'
+          if git diff --cached --quiet; then
+            echo 'Single-loader fix already present.'
+          else
+            git commit -m 'Fix duplicate startup loading screen'
+            git push origin HEAD:dev
+          fi
