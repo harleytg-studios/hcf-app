@@ -1,4 +1,5 @@
 run_id=32765329348
 run_attempt=1
-status=started
+status=success
+dev_source=2abc546610dd3be77e4125b371194a9613e43b4a
 artifact=HCF-Beta-v10000098-AppSettingsRoute-Unsigned
