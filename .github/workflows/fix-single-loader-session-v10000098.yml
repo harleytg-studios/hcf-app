@@ -1,0 +1,288 @@
+name: Fix HCF Beta v10000098 Loader and Session
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-single-loader-session-v10000098.yml'
+      - 'build-output/V10000098-SINGLE-LOADER-SESSION-FIX.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hcf-v10000098-loader-session-fix
+  cancel-in-progress: true
+
+jobs:
+  patch-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Dev source
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: app-repo
+          fetch-depth: 0
+
+      - name: Apply single-loader and session-persistence fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/app-repo"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          manifest = Path('source code/AndroidManifest.xml')
+          ban = Path('source code/src/com/harleytg/forum/HcfBanSystem.java')
+          ui = Path('source code/src/com/harleytg/forum/HcfUITheme.java')
+          main = Path('source code/src/com/harleytg/forum/HcfMainActivities.java')
+
+          # ---- Single native loading screen ----
+          m = manifest.read_text(encoding='utf-8')
+          old_startup = '<activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupActivity" android:exported="false" android:launchMode="singleTop"/>'
+          new_startup = '''<activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupActivity" android:exported="true" android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="forum.harleytg.com"/>
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="harleysclan.freeflarum.com"/>
+            </intent-filter>
+        </activity>'''
+          old_gate = '''<activity android:name="com.harleytg.forum.dev.HcfBanSystem$GateActivity" android:exported="true" android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="forum.harleytg.com"/>
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="harleysclan.freeflarum.com"/>
+            </intent-filter>
+        </activity>'''
+          new_gate = '<activity android:name="com.harleytg.forum.dev.HcfBanSystem$GateActivity" android:exported="false" android:launchMode="singleTop"/>'
+          if old_startup in m and old_gate in m:
+              m = m.replace(old_startup, new_startup, 1).replace(old_gate, new_gate, 1)
+              manifest.write_text(m, encoding='utf-8')
+          else:
+              if 'HcfUITheme$StartupActivity" android:exported="true"' not in m:
+                  raise SystemExit('StartupActivity is not configured as the launcher')
+              if new_gate not in m:
+                  raise SystemExit('Legacy GateActivity launcher still has unexpected manifest state')
+
+          b = ban.read_text(encoding='utf-8')
+          helper_anchor = '    private static RuntimeConfig loadRuntimeConfig(Context context) throws Exception {'
+          helper = '''    /** Runs the same fail-open access lookup used by the legacy retry gate. */
+    static CheckResult checkCurrentAccess(Context context) throws Exception {
+        ForumIdentity.Snapshot identity = ForumIdentity.load(context);
+        String username = identity != null && identity.loggedIn ? safe(identity.username) : "";
+        RuntimeConfig config = loadRuntimeConfig(context);
+        if (!config.ready()) {
+            return new CheckResult(false, "", "", "", "", username, "", true);
+        }
+        PublicIp publicIp = resolvePublicIp(config);
+        return checkBanList(config, identity, publicIp);
+    }
+
+'''
+          if 'static CheckResult checkCurrentAccess(Context context)' not in b:
+              if helper_anchor not in b:
+                  raise SystemExit('HcfBanSystem helper anchor not found')
+              b = b.replace(helper_anchor, helper + helper_anchor, 1)
+              ban.write_text(b, encoding='utf-8')
+
+          u = ui.read_text(encoding='utf-8')
+          u = u.replace(
+              '     * Welcome -> App Setup -> system checks -> header/URL handoff -> forum WebView.',
+              '     * Welcome -> App Setup -> access check -> system checks -> header/URL handoff -> forum WebView.',
+              1,
+          )
+          old_run = '''        private void runSystemChecks() {
+            try {
+                prefs.getAll().size();
+                publishStage(12, "Loading native configuration", "Preferences and app configuration are readable.");'''
+          new_run = '''        private void runSystemChecks() {
+            try {
+                publishStage(8, "Checking access status", "Checking account and network against the HCF ban list.");
+                try {
+                    HcfBanSystem.CheckResult access = HcfBanSystem.checkCurrentAccess(this);
+                    if (access != null && access.banned) {
+                        AppLogger.warn(this, "startup_ban_gate", "blocked | scope=" + access.scope + " | id=" + access.banId);
+                        openAccessRestricted(access);
+                        return;
+                    }
+                    publishStage(10, "Access allowed", "No active HCF ban was found.");
+                } catch (Throwable accessError) {
+                    AppLogger.warn(this, "startup_ban_gate", "fail-open | " + accessError.getClass().getSimpleName());
+                    publishStage(10, "Access check unavailable", "The HCF ban list could not be reached; startup will continue.");
+                }
+
+                prefs.getAll().size();
+                publishStage(12, "Loading native configuration", "Preferences and app configuration are readable.");'''
+          if 'HcfBanSystem.checkCurrentAccess(this)' not in u:
+              if old_run not in u:
+                  raise SystemExit('Startup runSystemChecks marker not found')
+              u = u.replace(old_run, new_run, 1)
+
+          open_anchor = '        private void beginChromeHandoff() {'
+          open_method = '''        private void openAccessRestricted(final HcfBanSystem.CheckResult result) {
+            mainHandler.post(new Runnable() {
+                @Override public void run() {
+                    if (destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
+                    handoffStarted = true;
+                    Intent intent = new Intent(StartupActivity.this, HcfBanSystem.BanActivity.class);
+                    intent.putExtra("ban_id", result.banId);
+                    intent.putExtra("reason", result.reason);
+                    intent.putExtra("expires_at", result.expiresAt);
+                    intent.putExtra("scope", result.scope);
+                    intent.putExtra("username", result.username);
+                    intent.putExtra("masked_ip", result.maskedIp);
+                    intent.putExtra("appeal_allowed", result.appealAllowed);
+                    startActivity(intent);
+                    overridePendingTransition(0, 0);
+                    finish();
+                }
+            });
+        }
+
+'''
+          if 'private void openAccessRestricted(final HcfBanSystem.CheckResult result)' not in u:
+              if open_anchor not in u:
+                  raise SystemExit('StartupActivity method anchor not found')
+              u = u.replace(open_anchor, open_method + open_anchor, 1)
+          ui.write_text(u, encoding='utf-8')
+
+          # ---- Keep the signed-in WebView session persisted ----
+          a = main.read_text(encoding='utf-8')
+          helper_anchor = '        private void configureWebView() {'
+          session_helper = '''        /** Persist first-party forum cookies across Activity/process restarts. */
+        private void persistForumSession() {
+            try {
+                CookieManager cookieManager = CookieManager.getInstance();
+                cookieManager.setAcceptCookie(true);
+                cookieManager.flush();
+            } catch (Throwable error) {
+                AppLogger.warn(this, "session_cookie_flush", error.getClass().getSimpleName());
+            }
+        }
+
+'''
+          if 'private void persistForumSession()' not in a:
+              if helper_anchor not in a:
+                  raise SystemExit('configureWebView anchor not found')
+              a = a.replace(helper_anchor, session_helper + helper_anchor, 1)
+
+          cookie_marker = '''            CookieManager cookieManager = CookieManager.getInstance();
+            cookieManager.setAcceptCookie(true);
+            cookieManager.setAcceptThirdPartyCookies(this.webView, false);'''
+          cookie_replacement = cookie_marker + '''
+            try {
+                cookieManager.flush();
+            } catch (Throwable error) {
+                AppLogger.warn(this, "session_cookie_init", error.getClass().getSimpleName());
+            }'''
+          if '"session_cookie_init"' not in a:
+              if cookie_marker not in a:
+                  raise SystemExit('CookieManager configuration marker not found')
+              a = a.replace(cookie_marker, cookie_replacement, 1)
+
+          bridge_marker = '''                ForumIdentity.save(this, fromBridgeJson);
+                updateIdentityChrome(fromBridgeJson);'''
+          bridge_replacement = '''                ForumIdentity.save(this, fromBridgeJson);
+                if (fromBridgeJson.loggedIn) persistForumSession();
+                updateIdentityChrome(fromBridgeJson);'''
+          if 'if (fromBridgeJson.loggedIn) persistForumSession();' not in a:
+              if bridge_marker not in a:
+                  raise SystemExit('Forum identity bridge marker not found')
+              a = a.replace(bridge_marker, bridge_replacement, 1)
+
+          page_marker = '''                    MainActivity.this.lastRecoverableUrl = str;
+                    MainActivity.this.prefs.edit().putString("last_recoverable_url", str).apply();'''
+          page_replacement = page_marker + '''
+                    MainActivity.this.persistForumSession();'''
+          if 'MainActivity.this.persistForumSession();' not in a:
+              if page_marker not in a:
+                  raise SystemExit('onPageFinished session marker not found')
+              a = a.replace(page_marker, page_replacement, 1)
+
+          pause_marker = '            AppLogger.info(this, "main_pause", str);'
+          if 'AppLogger.info(this, "main_pause", str);\n            persistForumSession();' not in a:
+              if pause_marker not in a:
+                  raise SystemExit('onPause marker not found')
+              a = a.replace(pause_marker, pause_marker + '\n            persistForumSession();', 1)
+
+          destroy_marker = '            AppLogger.info(this, "main_destroy", str);'
+          if 'AppLogger.info(this, "main_destroy", str);\n            persistForumSession();' not in a:
+              if destroy_marker not in a:
+                  raise SystemExit('onDestroy marker not found')
+              a = a.replace(destroy_marker, destroy_marker + '\n            persistForumSession();', 1)
+
+          main.write_text(a, encoding='utf-8')
+
+          # Sanity checks.
+          m = manifest.read_text(encoding='utf-8')
+          if m.count('<category android:name="android.intent.category.LAUNCHER"/>') != 1:
+              raise SystemExit('Expected exactly one launcher activity')
+          if 'HcfUITheme$StartupActivity" android:exported="true"' not in m:
+              raise SystemExit('StartupActivity is not exported launcher')
+          if 'HcfBanSystem.checkCurrentAccess(this)' not in ui.read_text(encoding='utf-8'):
+              raise SystemExit('Integrated ban check missing from single loader')
+          final_main = main.read_text(encoding='utf-8')
+          for required in (
+              'private void persistForumSession()',
+              'cookieManager.flush();',
+              'if (fromBridgeJson.loggedIn) persistForumSession();',
+              'MainActivity.this.persistForumSession();',
+          ):
+              if required not in final_main:
+                  raise SystemExit(f'Session persistence marker missing: {required}')
+          print('Single-loader and signed-in session persistence patch applied.')
+          PY
+
+      - name: Verify patched Dev source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/app-repo"
+          python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
+          python3 .github/scripts/verify-release-readiness.py .
+          test "$(grep -c 'android.intent.category.LAUNCHER' 'source code/AndroidManifest.xml')" -eq 1
+          grep -q 'HcfBanSystem.checkCurrentAccess(this)' 'source code/src/com/harleytg/forum/HcfUITheme.java'
+          grep -q 'private void persistForumSession()' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          grep -q 'if (fromBridgeJson.loggedIn) persistForumSession();' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+
+      - name: Commit fixes to Dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/app-repo"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'source code/AndroidManifest.xml' \
+                  'source code/src/com/harleytg/forum/HcfBanSystem.java' \
+                  'source code/src/com/harleytg/forum/HcfUITheme.java' \
+                  'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          if git diff --cached --quiet; then
+            echo 'Fixes already present on Dev.'
+          else
+            git commit -m 'Fix duplicate loader and preserve forum sign-in'
+            git push origin HEAD:dev
+          fi
