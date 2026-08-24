@@ -1,4 +1,5 @@
 name: Fix Dev /app/settings Native Route
+# rerun after workflow registration
 
 on:
   push:
@@ -90,7 +91,6 @@ jobs:
 
           source.write_text(text, encoding='utf-8')
 
-          # Guard this route in release readiness so it cannot silently regress.
           gate = verify.read_text(encoding='utf-8')
           route_assert = 'require("HTTPS /app/settings native route missing", "isNativeSettingsRoute" in main_activity and \'"/app/settings"\' in main_activity and \'openAppSettings("in_app_url")\' in main_activity and \'openAppSettings("app_link_https")\' in main_activity)\n'
           anchor_gate = 'require("What\'s New is not rescheduled after Setup", "scheduleWhatsNew(true);" in main_activity)\n'
@@ -100,7 +100,6 @@ jobs:
               gate = gate.replace(anchor_gate, anchor_gate + route_assert, 1)
               verify.write_text(gate, encoding='utf-8')
 
-          # Static assertions for both in-WebView navigation and cold App Link ingress.
           final = source.read_text(encoding='utf-8')
           assert 'return "/app/settings".equals(normalized);' in final
           assert 'openAppSettings("in_app_url")' in final
