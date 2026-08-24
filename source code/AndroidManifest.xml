@@ -56,10 +56,7 @@
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$SupportContactActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$MediaViewerActivity" android:exported="false" android:screenOrientation="unspecified"/>
         <activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupMainActivity" android:exported="false" android:launchMode="singleTop"/>
-        <activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupActivity" android:exported="false" android:launchMode="singleTop"/>
-        <activity android:name="com.harleytg.forum.dev.HcfBanSystem$BanActivity" android:exported="false" android:launchMode="singleTop"/>
-        <activity android:name="com.harleytg.forum.dev.HcfBanSystem$GateActivity" android:exported="false" android:launchMode="singleTop"/>
-        <activity android:name="com.harleytg.forum.dev.HcfSessionPersistence$SingleLoaderActivity" android:exported="true" android:launchMode="singleTop">
+        <activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupActivity" android:exported="true" android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -77,6 +74,8 @@
                 <data android:scheme="https" android:host="harleysclan.freeflarum.com"/>
             </intent-filter>
         </activity>
+        <activity android:name="com.harleytg.forum.dev.HcfBanSystem$BanActivity" android:exported="false" android:launchMode="singleTop"/>
+        <activity android:name="com.harleytg.forum.dev.HcfBanSystem$GateActivity" android:exported="false" android:launchMode="singleTop"/>
         <service android:name="com.harleytg.forum.dev.HcfNotificationEngine$InstantNotificationService" android:enabled="true" android:exported="false" android:stopWithTask="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Continuously checks the authenticated Harley&apos;s Clan Forum account for time-sensitive user-visible forum notifications while the app is foregrounded or backgrounded."/>
         </service>

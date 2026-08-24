@@ -397,7 +397,7 @@ public final class HcfBanSystem {
             Button retry = button("Check Again", true);
             retry.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View view) {
-                    startActivity(new Intent(BanActivity.this, GateActivity.class));
+                    startActivity(new Intent(BanActivity.this, HcfUITheme.StartupActivity.class));
                     finish();
                 }
             });
@@ -461,6 +461,18 @@ public final class HcfBanSystem {
                 AppLogger.warn(this, "ban_appeal", error.getClass().getSimpleName());
             }
         }
+    }
+
+    /** Runs the ban lookup as a stage of the existing HCF startup loader. */
+    static CheckResult checkCurrentAccess(Context context) throws Exception {
+        ForumIdentity.Snapshot identity = ForumIdentity.load(context);
+        String username = identity != null && identity.loggedIn ? safe(identity.username) : "";
+        RuntimeConfig config = loadRuntimeConfig(context);
+        if (!config.ready()) {
+            return new CheckResult(false, "", "", "", "", username, "", true);
+        }
+        PublicIp publicIp = resolvePublicIp(config);
+        return checkBanList(config, identity, publicIp);
     }
 
     private static RuntimeConfig loadRuntimeConfig(Context context) throws Exception {

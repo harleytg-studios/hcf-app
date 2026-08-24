@@ -49,7 +49,7 @@ public final class HcfUITheme {
      * Native startup gate for Harley's Clan Forum.
      *
      * Startup order:
-     * Welcome -> App Setup -> system checks -> header/URL handoff -> forum WebView.
+     * Welcome -> App Setup -> access check -> system checks -> header/URL handoff -> forum WebView.
      */
     public static final class StartupActivity extends ThemedActivity {
         private static final int REQUEST_WELCOME = 4101;
@@ -121,6 +121,7 @@ public final class HcfUITheme {
         @Override
         protected void onPause() {
             resumed = false;
+            HcfSessionPersistence.flushCookies();
             super.onPause();
         }
 
@@ -137,6 +138,7 @@ public final class HcfUITheme {
             destroyed = true;
             resumed = false;
             mainHandler.removeCallbacksAndMessages(null);
+            HcfSessionPersistence.flushCookies();
             destroyStartupWebView();
             super.onDestroy();
         }
@@ -454,6 +456,21 @@ public final class HcfUITheme {
 
         private void runSystemChecks() {
             try {
+                publishStage(6, "Checking access status", "Checking account and network against the HCF ban list.");
+                try {
+                    HcfBanSystem.CheckResult access = HcfBanSystem.checkCurrentAccess(this);
+                    if (access != null && access.banned) {
+                        AppLogger.warn(this, "startup_ban_gate", "blocked | scope=" + access.scope + " | id=" + access.banId);
+                        openAccessRestricted(access);
+                        return;
+                    }
+                    publishStage(10, "Access allowed", "No active HCF ban was found.");
+                } catch (Throwable accessError) {
+                    AppLogger.warn(this, "startup_ban_gate", "fail-open | " + accessError.getClass().getSimpleName());
+                    publishStage(10, "Access check unavailable", "The HCF ban list could not be reached; startup will continue.");
+                }
+
+                HcfSessionPersistence.flushCookies();
                 prefs.getAll().size();
                 publishStage(12, "Loading native configuration", "Preferences and app configuration are readable.");
 
@@ -547,6 +564,26 @@ public final class HcfUITheme {
                 failStartup("Startup check failed",
                         error.getClass().getSimpleName() + (error.getMessage() == null ? "" : " • " + error.getMessage()));
             }
+        }
+
+        private void openAccessRestricted(final HcfBanSystem.CheckResult result) {
+            mainHandler.post(new Runnable() {
+                @Override public void run() {
+                    if (destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
+                    handoffStarted = true;
+                    Intent intent = new Intent(StartupActivity.this, HcfBanSystem.BanActivity.class);
+                    intent.putExtra("ban_id", result.banId);
+                    intent.putExtra("reason", result.reason);
+                    intent.putExtra("expires_at", result.expiresAt);
+                    intent.putExtra("scope", result.scope);
+                    intent.putExtra("username", result.username);
+                    intent.putExtra("masked_ip", result.maskedIp);
+                    intent.putExtra("appeal_allowed", result.appealAllowed);
+                    startActivity(intent);
+                    overridePendingTransition(0, 0);
+                    finish();
+                }
+            });
         }
 
         private void beginChromeHandoff() {
