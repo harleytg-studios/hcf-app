@@ -2,6 +2,7 @@
 <resources>
     <color name="hcf_bg">#0b0e12</color>
     <color name="hcf_panel">#12171c</color>
+    <color name="hcf_surface">#12171c</color>
     <color name="hcf_surface2">#182027</color>
     <color name="hcf_app_bar">#0d1217</color>
     <color name="hcf_url_bar">#0b1014</color>
