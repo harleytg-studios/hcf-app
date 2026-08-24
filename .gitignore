@@ -8,3 +8,6 @@ source code/*.apk
 source code/*.ap_
 source code/*-unsigned.apk
 source code/*-aligned.apk
+
+# Generated only inside release builds; never commit webhook material.
+source code/src/com/harleytg/forum/HcfDiscordSecret.java
