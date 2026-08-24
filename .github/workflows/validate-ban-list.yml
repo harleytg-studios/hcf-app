@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'configs/ban-list.json'
+      - 'configs/ban-system.config'
       - '.github/workflows/validate-ban-list.yml'
   workflow_dispatch:
 
@@ -18,7 +19,7 @@ jobs:
       - name: Checkout Main
         uses: actions/checkout@v4
 
-      - name: Validate ban list
+      - name: Validate ban configuration and list
         shell: bash
         run: |
           set -euo pipefail
@@ -27,6 +28,15 @@ jobs:
           import json
           import pathlib
           import re
+
+          config = pathlib.Path('configs/ban-system.config').read_text(encoding='utf-8')
+          assert 'version=2' in config
+          assert 'enabled=true' in config
+          assert '[ban_list]' in config
+          assert 'configs/ban-list.json' in config
+          assert 'publish_raw_ips=false' in config
+          assert 'cloudfunctions.net' not in config
+          assert 'firebase' not in config.lower()
 
           path = pathlib.Path('configs/ban-list.json')
           raw = path.read_text(encoding='utf-8')
