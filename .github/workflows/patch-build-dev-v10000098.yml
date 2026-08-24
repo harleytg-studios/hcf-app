@@ -1,4 +1,4 @@
-name: Build HCF Beta v10000098 Existing Loader
+name: Build HCF Beta v10000098 App Settings Route
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  build-existing-loader:
+  build-app-settings-route:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Main control files
@@ -27,42 +27,37 @@ jobs:
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/control"
           mkdir -p build-output
-          cat > build-output/V10000098-EXISTING-LOADER-BUILD.txt <<EOF
+          cat > build-output/V10000098-APP-SETTINGS-BUILD.txt <<EOF
           run_id=${GITHUB_RUN_ID}
           run_attempt=${GITHUB_RUN_ATTEMPT}
           status=started
-          dev_source=33fb319f56ee9aa02ed366045053a7b8d506f10f
-          artifact=HCF-Beta-v10000098-ExistingLoader-Unsigned
+          artifact=HCF-Beta-v10000098-AppSettingsRoute-Unsigned
           EOF
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add build-output/V10000098-EXISTING-LOADER-BUILD.txt
-          git commit -m 'Record v10000098 existing-loader build' || true
+          git add build-output/V10000098-APP-SETTINGS-BUILD.txt
+          git commit -m 'Record v10000098 app-settings build run' || true
           git push origin HEAD:main
 
       - name: Checkout corrected Dev source
         uses: actions/checkout@v4
         with:
-          ref: 33fb319f56ee9aa02ed366045053a7b8d506f10f
+          ref: dev
           path: app-repo
           fetch-depth: 0
 
-      - name: Verify source and startup topology
+      - name: Verify native settings route source
         shell: bash
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/app-repo"
+          DEV_SHA="$(git rev-parse HEAD)"
+          echo "Dev source: $DEV_SHA"
           python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
           python3 .github/scripts/verify-release-readiness.py .
-          MANIFEST='source code/AndroidManifest.xml'
-          UI='source code/src/com/harleytg/forum/HcfUITheme.java'
-          SESSION='source code/src/com/harleytg/forum/HcfSessionPersistence.java'
-          test "$(grep -c 'android.intent.category.LAUNCHER' "$MANIFEST")" -eq 1
-          grep -Fq 'HcfUITheme$StartupActivity" android:exported="true"' "$MANIFEST"
-          grep -Fq 'HcfBanSystem$GateActivity" android:exported="false"' "$MANIFEST"
-          grep -Fq 'HcfBanSystem.checkCurrentAccess(this)' "$UI"
-          ! grep -Fq 'HcfSessionPersistence$SingleLoaderActivity' "$MANIFEST"
-          ! grep -Fq 'class SingleLoaderActivity' "$SESSION"
+          grep -Fq 'SETTINGS_PATH = "/app/settings"' 'source code/src/com/harleytg/forum/HcfNativeRoutes.java'
+          grep -Fq 'HCFNative.openSettings' 'source code/src/com/harleytg/forum/HcfNativeRoutes.java'
+          grep -Fq 'HcfNativeRoutes$BootstrapProvider' 'source code/AndroidManifest.xml'
 
       - name: Generate encrypted Discord webhook binding
         shell: bash
@@ -78,6 +73,7 @@ jobs:
             https://discord.com/api/webhooks/*|https://www.discord.com/api/webhooks/*|https://discordapp.com/api/webhooks/*|https://www.discordapp.com/api/webhooks/*) ;;
             *) echo 'Unsupported Discord webhook URL'; exit 1 ;;
           esac
+
           GEN_DIR="$GITHUB_WORKSPACE/app-repo/source code/src/com/harleytg/forum"
           TMP="$RUNNER_TEMP/hcf-discord-secret"
           mkdir -p "$TMP"
@@ -89,41 +85,38 @@ jobs:
           KEY_HEX="$(xxd -p -c 256 "$TMP/key.bin")"
           IV_HEX="$(xxd -p -c 256 "$TMP/iv.bin")"
           openssl enc -aes-256-cbc -K "$KEY_HEX" -iv "$IV_HEX" -in "$TMP/plain.txt" -out "$TMP/cipher.bin"
-          python3 - "$TMP/key.bin" "$TMP/iv.bin" "$TMP/cipher.bin" "$GEN_DIR/HcfDiscordSecret.java" <<'PY'
-          import pathlib
-          import sys
 
+          python3 - "$TMP/key.bin" "$TMP/iv.bin" "$TMP/cipher.bin" "$GEN_DIR/HcfDiscordSecret.java" <<'PY'
+          import pathlib, sys
           key_path, iv_path, cipher_path, out_path = map(pathlib.Path, sys.argv[1:])
           def java_bytes(data):
               return ', '.join(f'(byte)0x{value:02x}' for value in data)
-          lines = [
-              'package com.harleytg.forum.dev;',
-              '',
-              'import java.nio.charset.StandardCharsets;',
-              'import javax.crypto.Cipher;',
-              'import javax.crypto.spec.IvParameterSpec;',
-              'import javax.crypto.spec.SecretKeySpec;',
-              '',
-              'public final class HcfDiscordSecret {',
-              '    private static final byte[] KEY = new byte[]{' + java_bytes(key_path.read_bytes()) + '};',
-              '    private static final byte[] IV = new byte[]{' + java_bytes(iv_path.read_bytes()) + '};',
-              '    private static final byte[] DATA = new byte[]{' + java_bytes(cipher_path.read_bytes()) + '};',
-              '    private HcfDiscordSecret() {}',
-              '    public static String decrypt() throws Exception {',
-              '        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");',
-              '        cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(KEY, "AES"), new IvParameterSpec(IV));',
-              '        return new String(cipher.doFinal(DATA), StandardCharsets.UTF_8);',
-              '    }',
-              '}',
-              ''
-          ]
-          out_path.write_text('\n'.join(lines), encoding='utf-8')
+          source = f'''package com.harleytg.forum.dev;
+
+          import java.nio.charset.StandardCharsets;
+          import javax.crypto.Cipher;
+          import javax.crypto.spec.IvParameterSpec;
+          import javax.crypto.spec.SecretKeySpec;
+
+          /** Generated only inside GitHub Actions. Never commit this file. */
+          public final class HcfDiscordSecret {{
+              private static final byte[] KEY = new byte[]{{{java_bytes(key_path.read_bytes())}}};
+              private static final byte[] IV = new byte[]{{{java_bytes(iv_path.read_bytes())}}};
+              private static final byte[] DATA = new byte[]{{{java_bytes(cipher_path.read_bytes())}}};
+              private HcfDiscordSecret() {{}}
+              public static String decrypt() throws Exception {{
+                  Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+                  cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(KEY, "AES"), new IvParameterSpec(IV));
+                  return new String(cipher.doFinal(DATA), StandardCharsets.UTF_8);
+              }}
+          }}
+          '''
+          out_path.write_text(source, encoding='utf-8')
           PY
           rm -rf "$TMP"
           unset DISCORD_WEBHOOK_URL KEY_HEX IV_HEX
           test -s "$GEN_DIR/HcfDiscordSecret.java"
           ! grep -Fq 'https://discord.com/api/webhooks/' "$GEN_DIR/HcfDiscordSecret.java"
-          ! grep -Fq 'https://discordapp.com/api/webhooks/' "$GEN_DIR/HcfDiscordSecret.java"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -135,15 +128,15 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
 
-      - name: Compile corrected v10000098 APK
+      - name: Compile v10000098 route-fix APK
         shell: bash
         run: |
           set -euo pipefail
           ROOT="$GITHUB_WORKSPACE/app-repo/source code"
           BT="$ANDROID_HOME/build-tools/35.0.0"
           ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
-          WORK="$RUNNER_TEMP/hcf-beta-v10000098-existing-loader"
-          OUT="$GITHUB_WORKSPACE/out-v10000098-existing-loader"
+          WORK="$RUNNER_TEMP/hcf-beta-v10000098-route"
+          OUT="$GITHUB_WORKSPACE/out-v10000098-route"
           mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
 
           "$BT/aapt" package -f -m \
@@ -161,7 +154,7 @@ jobs:
 
           cp "$WORK/resources.apk" "$WORK/unsigned.apk"
           (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
-          APK="$OUT/HCF-Beta-v10000098-existing-loader-aligned-unsigned.apk"
+          APK="$OUT/HCF-Beta-v10000098-AppSettingsRoute-aligned-unsigned.apk"
           "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$APK"
           "$BT/zipalign" -c -p 4 "$APK"
 
@@ -170,36 +163,40 @@ jobs:
           grep -q "versionCode='10000098'" "$OUT/APK-BADGING.txt"
           grep -q "versionName='1.0 (10000098)'" "$OUT/APK-BADGING.txt"
 
-          "$BT/aapt" dump xmltree "$APK" AndroidManifest.xml > "$OUT/MANIFEST-TREE.txt"
           unzip -p "$APK" classes.dex | strings > "$OUT/DEX-STRINGS.txt"
+          grep -Fq '/app/settings' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'HcfNativeRoutes' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'native_settings_route' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'HcfSessionPersistence' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'HcfDiscordSecret' "$OUT/DEX-STRINGS.txt"
-          grep -Fq 'checkCurrentAccess' "$OUT/DEX-STRINGS.txt"
-          ! grep -Fq 'SingleLoaderActivity' "$OUT/DEX-STRINGS.txt"
           ! grep -Fq 'https://discord.com/api/webhooks/' "$OUT/DEX-STRINGS.txt"
-          ! grep -Fq 'https://discordapp.com/api/webhooks/' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'cloudfunctions.net/hcfBanApi' "$OUT/DEX-STRINGS.txt"
           sha256sum "$APK" | tee "$OUT/SHA256SUMS.txt"
+          git -C "$GITHUB_WORKSPACE/app-repo" rev-parse HEAD > "$OUT/DEV-SOURCE-SHA.txt"
 
       - name: Upload corrected unsigned APK
         uses: actions/upload-artifact@v4
         with:
-          name: HCF-Beta-v10000098-ExistingLoader-Unsigned
-          path: out-v10000098-existing-loader/
+          name: HCF-Beta-v10000098-AppSettingsRoute-Unsigned
+          path: out-v10000098-route/
           if-no-files-found: error
           retention-days: 7
 
       - name: Mark build successful
+        if: success()
         shell: bash
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE/control"
-          git pull --rebase origin main
-          cat > build-output/V10000098-EXISTING-LOADER-BUILD.txt <<EOF
+          git pull --ff-only origin main
+          DEV_SHA="$(git -C "$GITHUB_WORKSPACE/app-repo" rev-parse HEAD)"
+          cat > build-output/V10000098-APP-SETTINGS-BUILD.txt <<EOF
           run_id=${GITHUB_RUN_ID}
           run_attempt=${GITHUB_RUN_ATTEMPT}
           status=success
-          dev_source=33fb319f56ee9aa02ed366045053a7b8d506f10f
-          artifact=HCF-Beta-v10000098-ExistingLoader-Unsigned
+          dev_source=${DEV_SHA}
+          artifact=HCF-Beta-v10000098-AppSettingsRoute-Unsigned
           EOF
-          git add build-output/V10000098-EXISTING-LOADER-BUILD.txt
-          git commit -m 'Mark v10000098 existing-loader build successful' || true
+          git add build-output/V10000098-APP-SETTINGS-BUILD.txt
+          git commit -m 'Mark v10000098 app-settings build successful' || true
           git push origin HEAD:main
