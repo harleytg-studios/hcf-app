@@ -58,7 +58,8 @@
         <activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupMainActivity" android:exported="false" android:launchMode="singleTop"/>
         <activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupActivity" android:exported="false" android:launchMode="singleTop"/>
         <activity android:name="com.harleytg.forum.dev.HcfBanSystem$BanActivity" android:exported="false" android:launchMode="singleTop"/>
-        <activity android:name="com.harleytg.forum.dev.HcfBanSystem$GateActivity" android:exported="true" android:launchMode="singleTop">
+        <activity android:name="com.harleytg.forum.dev.HcfBanSystem$GateActivity" android:exported="false" android:launchMode="singleTop"/>
+        <activity android:name="com.harleytg.forum.dev.HcfSessionPersistence$SingleLoaderActivity" android:exported="true" android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
