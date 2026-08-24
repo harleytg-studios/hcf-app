@@ -5,6 +5,8 @@ on:
     branches: [dev]
     paths:
       - '.github/workflows/build-dev-progress-start-fix.yml'
+  pull_request:
+    branches: [dev]
   workflow_dispatch:
 
 permissions:
