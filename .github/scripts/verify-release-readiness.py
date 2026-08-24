@@ -47,6 +47,7 @@ setup_center = text(source / "src/com/harleytg/forum/HcfMainActivities.java")
 ban_system = text(source / "src/com/harleytg/forum/HcfBanSystem.java")
 discord_observation = text(source / "src/com/harleytg/forum/HcfDiscordObservation.java")
 session_persistence = text(source / "src/com/harleytg/forum/HcfSessionPersistence.java")
+native_routes = text(source / "src/com/harleytg/forum/HcfNativeRoutes.java")
 assetlinks = text(root / "configs/app-links/assetlinks.json")
 app_links_readme = text(root / "configs/app-links/README.md")
 workflows = list((root / ".github/workflows").glob("*.yml"))
@@ -82,6 +83,7 @@ expected_java_files = {
     "HcfBanSystem.java",
     "HcfDiscordObservation.java",
     "HcfSessionPersistence.java",
+    "HcfNativeRoutes.java",
     "HcfSecurityAndPrefs.java",
     "HcfUpdateEngine.java",
     "HcfNotificationEngine.java",
@@ -118,6 +120,13 @@ require("session persistence provider missing from manifest", f'{EXPECTED_PACKAG
 require("session persistence must accept WebView cookies", "setAcceptCookie(true)" in session_persistence)
 require("session persistence must flush WebView cookies", "manager.flush()" in session_persistence)
 require("session persistence lifecycle hook missing", "registerActivityLifecycleCallbacks" in session_persistence)
+require("native route provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfNativeRoutes$BootstrapProvider' in manifest)
+require("HTTPS /app/settings native route missing", 'SETTINGS_PATH = "/app/settings"' in native_routes)
+require("primary /app/settings host missing", 'PRIMARY_HOST = "forum.harleytg.com"' in native_routes)
+require("backup /app/settings host missing", 'BACKUP_HOST = "harleysclan.freeflarum.com"' in native_routes)
+require("native settings URL route must open SettingsActivity", "HcfSubActivities.SettingsActivity.class" in native_routes)
+require("native settings SPA hook missing", "HCFNative.openSettings" in native_routes and "pushState" in native_routes)
+require("native settings WebView fallback missing", "webView.stopLoading()" in native_routes and "webview_url" in native_routes)
 require("ban runtime config source missing", "configs/ban-system.config" in ban_system and '"ban_list"' in ban_system)
 require("network ban SHA-256 logic missing", "sha256Hex" in ban_system and '"ip_sha256"' in ban_system)
 require("user/guest observation split missing", "buildUserRecord" in discord_observation and "buildGuestRecord" in discord_observation)
@@ -156,5 +165,5 @@ for path in workflows:
 
 print(
     "Release readiness verification: PASS "
-    f"({EXPECTED_PACKAGE} v{version_code}, internal {EXPECTED_INTERNAL_BUILD}, SHA-256 updater + ban gate + session persistence enabled)"
+    f"({EXPECTED_PACKAGE} v{version_code}, internal {EXPECTED_INTERNAL_BUILD}, SHA-256 updater + ban gate + session persistence + native settings URL enabled)"
 )
