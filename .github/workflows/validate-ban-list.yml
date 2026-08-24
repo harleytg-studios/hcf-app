@@ -1,0 +1,76 @@
+name: Validate HCF Public Ban List
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'configs/ban-list.json'
+      - '.github/workflows/validate-ban-list.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Main
+        uses: actions/checkout@v4
+
+      - name: Validate ban list
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import ipaddress
+          import json
+          import pathlib
+          import re
+
+          path = pathlib.Path('configs/ban-list.json')
+          raw = path.read_text(encoding='utf-8')
+          data = json.loads(raw)
+
+          assert data.get('schema_version') == 1
+          users = data.get('users')
+          networks = data.get('ip_sha256')
+          assert isinstance(users, dict)
+          assert isinstance(networks, dict)
+
+          def validate_entry(entry, label):
+              assert isinstance(entry, dict), f'{label} must be an object'
+              assert isinstance(entry.get('active'), bool), f'{label}.active must be boolean'
+              for key in ('ban_id', 'reason', 'created_at', 'expires_at'):
+                  value = entry.get(key)
+                  assert value is None or isinstance(value, str), f'{label}.{key} must be string/null'
+              appeal = entry.get('appeal_allowed', True)
+              assert isinstance(appeal, bool), f'{label}.appeal_allowed must be boolean'
+
+          for username, entry in users.items():
+              assert re.fullmatch(r'[a-z0-9._-]{1,80}', username), f'Invalid username key: {username}'
+              validate_entry(entry, f'users.{username}')
+
+          for digest, entry in networks.items():
+              assert re.fullmatch(r'[0-9a-f]{64}', digest), f'Invalid SHA-256 network key: {digest}'
+              validate_entry(entry, f'ip_sha256.{digest}')
+
+          def walk(value):
+              if isinstance(value, dict):
+                  for key, child in value.items():
+                      assert key.lower() not in {'ip', 'address', 'raw_ip', 'reported_ip'}, f'Raw-IP field not allowed: {key}'
+                      walk(child)
+              elif isinstance(value, list):
+                  for child in value:
+                      walk(child)
+              elif isinstance(value, str):
+                  candidate = value.strip().strip('[]')
+                  try:
+                      ipaddress.ip_address(candidate)
+                  except ValueError:
+                      return
+                  raise AssertionError('Raw IP address value is not allowed in the public ban list')
+
+          walk(data)
+          print(f'Validated {len(users)} user bans and {len(networks)} hashed network bans.')
+          PY
