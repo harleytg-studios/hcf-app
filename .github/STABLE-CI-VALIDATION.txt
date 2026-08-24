@@ -1,0 +1,1 @@
+Temporary validation trigger for the 2026-08-24 dev-to-stable synchronization. Do not merge.
