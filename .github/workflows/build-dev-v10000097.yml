@@ -30,6 +30,109 @@ jobs:
           python3 .github/scripts/verify-release-readiness.py .
           python3 -m json.tool configs/app-links/assetlinks.json >/dev/null
 
+      - name: Verify live sanitized ban configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import urllib.request
+
+          urls = {
+              "config": "https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/ban-system.config",
+              "list": "https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/ban-list.json",
+          }
+          for name, url in urls.items():
+              with urllib.request.urlopen(url, timeout=10) as response:
+                  data = response.read().decode("utf-8")
+              if name == "config":
+                  assert "enabled=true" in data
+                  assert "[ban_list]" in data
+                  assert "cloudfunctions.net" not in data
+              else:
+                  parsed = json.loads(data)
+                  assert parsed.get("schema_version") == 1
+                  assert isinstance(parsed.get("users"), dict)
+                  assert isinstance(parsed.get("ip_sha256"), dict)
+          print("Static HCF ban configuration verified.")
+          PY
+
+      - name: Generate encrypted Discord webhook binding
+        shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DISCORD_WEBHOOK_URL:-}" ]; then
+            echo "DISCORD_WEBHOOK_URL is not configured in GitHub Actions secrets."
+            exit 1
+          fi
+
+          case "$DISCORD_WEBHOOK_URL" in
+            https://discord.com/api/webhooks/*|https://www.discord.com/api/webhooks/*|https://discordapp.com/api/webhooks/*|https://www.discordapp.com/api/webhooks/*) ;;
+            *)
+              echo "DISCORD_WEBHOOK_URL is not a supported Discord HTTPS webhook URL."
+              exit 1
+              ;;
+          esac
+
+          GEN_DIR="$GITHUB_WORKSPACE/source code/src/com/harleytg/forum"
+          TMP="$RUNNER_TEMP/hcf-discord-secret"
+          mkdir -p "$TMP"
+          chmod 700 "$TMP"
+          printf '%s' "$DISCORD_WEBHOOK_URL" > "$TMP/plain.txt"
+          chmod 600 "$TMP/plain.txt"
+          openssl rand 32 > "$TMP/key.bin"
+          openssl rand 16 > "$TMP/iv.bin"
+          KEY_HEX="$(xxd -p -c 256 "$TMP/key.bin")"
+          IV_HEX="$(xxd -p -c 256 "$TMP/iv.bin")"
+          openssl enc -aes-256-cbc \
+            -K "$KEY_HEX" \
+            -iv "$IV_HEX" \
+            -in "$TMP/plain.txt" \
+            -out "$TMP/cipher.bin"
+
+          python3 - "$TMP/key.bin" "$TMP/iv.bin" "$TMP/cipher.bin" "$GEN_DIR/HcfDiscordSecret.java" <<'PY'
+          import pathlib
+          import sys
+
+          key_path, iv_path, cipher_path, out_path = map(pathlib.Path, sys.argv[1:])
+
+          def java_bytes(data):
+              return ", ".join(f"(byte)0x{value:02x}" for value in data)
+
+          source = f'''package com.harleytg.forum.dev;
+
+          import java.nio.charset.StandardCharsets;
+          import javax.crypto.Cipher;
+          import javax.crypto.spec.IvParameterSpec;
+          import javax.crypto.spec.SecretKeySpec;
+
+          /** Generated only inside GitHub Actions. Never commit this file. */
+          public final class HcfDiscordSecret {{
+              private static final byte[] KEY = new byte[]{{{java_bytes(key_path.read_bytes())}}};
+              private static final byte[] IV = new byte[]{{{java_bytes(iv_path.read_bytes())}}};
+              private static final byte[] DATA = new byte[]{{{java_bytes(cipher_path.read_bytes())}}};
+
+              private HcfDiscordSecret() {{}}
+
+              public static String decrypt() throws Exception {{
+                  Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+                  cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(KEY, "AES"), new IvParameterSpec(IV));
+                  return new String(cipher.doFinal(DATA), StandardCharsets.UTF_8);
+              }}
+          }}
+          '''
+          out_path.write_text(source, encoding="utf-8")
+          PY
+
+          rm -rf "$TMP"
+          unset DISCORD_WEBHOOK_URL KEY_HEX IV_HEX
+          test -s "$GEN_DIR/HcfDiscordSecret.java"
+          ! grep -Fq 'https://discord.com/api/webhooks/' "$GEN_DIR/HcfDiscordSecret.java"
+          ! grep -Fq 'https://discordapp.com/api/webhooks/' "$GEN_DIR/HcfDiscordSecret.java"
+          echo "Encrypted Discord webhook binding generated for this build only."
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
@@ -80,6 +183,11 @@ jobs:
           grep -Fq 'APK SHA-256 does not match' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'App Setup' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'HCF Alerts are the real forum alerts.' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'HcfDiscordSecret' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'configs/ban-list.json' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'https://discord.com/api/webhooks/' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'https://discordapp.com/api/webhooks/' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'cloudfunctions.net/hcfBanApi' "$OUT/DEX-STRINGS.txt"
           ! grep -Fq 'Method not decompiled' "$OUT/DEX-STRINGS.txt"
           ! grep -Fq 'Code decompiled incorrectly' "$OUT/DEX-STRINGS.txt"
           sha256sum "$APK" | tee "$OUT/SHA256SUMS.txt"
