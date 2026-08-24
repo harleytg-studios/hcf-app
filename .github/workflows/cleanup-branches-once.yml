@@ -1,0 +1,47 @@
+name: One-time HCF branch cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cleanup-branches-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete obsolete branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Keeping only: main, dev, stable"
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --jq '.[].name' > "$RUNNER_TEMP/branches.txt"
+
+          while IFS= read -r branch; do
+            case "$branch" in
+              main|dev|stable)
+                echo "KEEP   $branch"
+                ;;
+              *)
+                echo "DELETE $branch"
+                gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}"
+                ;;
+            esac
+          done < "$RUNNER_TEMP/branches.txt"
+
+          mapfile -t remaining < <(gh api --paginate "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --jq '.[].name' | sort)
+          printf 'Remaining branches:\n'
+          printf ' - %s\n' "${remaining[@]}"
+
+          expected=$'dev\nmain\nstable'
+          actual="$(printf '%s\n' "${remaining[@]}")"
+          if [ "$actual" != "$expected" ]; then
+            echo "Unexpected branches remain after cleanup." >&2
+            exit 1
+          fi
