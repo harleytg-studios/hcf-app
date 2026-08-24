@@ -1,0 +1,201 @@
+name: Build HCF Beta v10000097 Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-dev-v10000097-release.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hcf-beta-v10000097-release
+  cancel-in-progress: false
+
+jobs:
+  build-signed-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Dev source
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: app-repo
+          fetch-depth: 1
+
+      - name: Verify Dev release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/app-repo/source code"
+          test -f "$ROOT/AndroidManifest.xml"
+          test -f "$ROOT/build-release.sh"
+          grep -q 'package="com.harleytg.forum.dev"' "$ROOT/AndroidManifest.xml"
+          grep -q 'android:versionCode="10000097"' "$ROOT/AndroidManifest.xml"
+          grep -q 'android:versionName="1.0 (10000097)"' "$ROOT/AndroidManifest.xml"
+          python3 "$GITHUB_WORKSPACE/app-repo/.github/scripts/verify-hcf-alerts-ui.py" "$ROOT"
+          python3 "$GITHUB_WORKSPACE/app-repo/.github/scripts/verify-release-readiness.py" "$GITHUB_WORKSPACE/app-repo"
+
+      - name: Verify live HCF ban configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import urllib.request
+
+          urls = {
+              "config": "https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/ban-system.config",
+              "list": "https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/ban-list.json",
+          }
+          for kind, url in urls.items():
+              req = urllib.request.Request(url, headers={"User-Agent": "HCF-v10000097-release-gate"})
+              with urllib.request.urlopen(req, timeout=10) as response:
+                  data = response.read().decode("utf-8")
+              if kind == "config":
+                  assert "enabled=true" in data
+                  assert "[ban_list]" in data
+                  assert "cloudfunctions.net" not in data
+                  assert "publish_raw_ips=false" in data
+              else:
+                  parsed = json.loads(data)
+                  assert parsed.get("schema_version") == 1
+                  assert isinstance(parsed.get("users"), dict)
+                  assert isinstance(parsed.get("ip_sha256"), dict)
+          print("Live HCF ban configuration is valid.")
+          PY
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Validate release secrets
+        shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          HCF_BETA_KEYSTORE_B64: ${{ secrets.HCF_BETA_KEYSTORE_B64 }}
+          HCF_BETA_KEY_PASSWORD: ${{ secrets.HCF_BETA_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in DISCORD_WEBHOOK_URL HCF_BETA_KEYSTORE_B64 HCF_BETA_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required GitHub Actions secret: $name" >&2
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 40
+          case "$DISCORD_WEBHOOK_URL" in
+            https://discord.com/api/webhooks/*|https://www.discord.com/api/webhooks/*|https://discordapp.com/api/webhooks/*|https://www.discordapp.com/api/webhooks/*) ;;
+            *) echo "DISCORD_WEBHOOK_URL is not a supported Discord webhook URL." >&2; exit 41 ;;
+          esac
+          echo "Required release secrets are configured."
+
+      - name: Restore Beta v2 signing key
+        shell: bash
+        env:
+          HCF_BETA_KEYSTORE_B64: ${{ secrets.HCF_BETA_KEYSTORE_B64 }}
+          HCF_BETA_KEY_PASSWORD: ${{ secrets.HCF_BETA_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYSTORE="$RUNNER_TEMP/hcf-beta-v2.jks"
+          PASSFILE="$RUNNER_TEMP/hcf-beta-pass.txt"
+          printf '%s' "$HCF_BETA_KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
+          printf '%s\n' "$HCF_BETA_KEY_PASSWORD" > "$PASSFILE"
+          chmod 600 "$KEYSTORE" "$PASSFILE"
+          test -s "$KEYSTORE"
+          test -s "$PASSFILE"
+
+          ACTUAL_FP="$(keytool -list -v -keystore "$KEYSTORE" -storepass "$HCF_BETA_KEY_PASSWORD" -alias hcf-beta-v2 2>/dev/null \
+            | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' | head -1 | tr '[:lower:]' '[:upper:]' | tr -d ':[:space:]')"
+          EXPECTED_FP='93D49BF9A877C7CFB1B37F9064BD955CD67BD7DD8DB73A9E3F766B59C4BCCE63'
+          [ "$ACTUAL_FP" = "$EXPECTED_FP" ] || { echo "Beta signing certificate does not match the required existing Dev signer." >&2; exit 42; }
+          echo "Beta v2 signer verified."
+
+      - name: Build and sign HCF Beta v10000097
+        shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          HCF_BETA_KEY_PASSWORD: ${{ secrets.HCF_BETA_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          SRC="$GITHUB_WORKSPACE/app-repo/source code"
+          OUT="$GITHUB_WORKSPACE/release-out"
+          mkdir -p "$OUT"
+          chmod +x "$SRC/build-release.sh"
+
+          ANDROID_SDK_ROOT="$ANDROID_HOME" \
+          BUILD_TOOLS_VERSION='35.0.0' \
+          ANDROID_PLATFORM_VERSION='35' \
+          HCF_KEYSTORE="$RUNNER_TEMP/hcf-beta-v2.jks" \
+          HCF_KEY_ALIAS='hcf-beta-v2' \
+          HCF_KEY_PASSWORD_FILE="$RUNNER_TEMP/hcf-beta-pass.txt" \
+          HCF_OUTPUT_DIR="$OUT" \
+          DISCORD_WEBHOOK_URL="$DISCORD_WEBHOOK_URL" \
+          "$SRC/build-release.sh"
+
+          test -f "$OUT/HCF-Beta-v10000097.apk"
+          test -f "$OUT/HCF-Beta-v10000097.apk.idsig"
+
+      - name: Verify release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/release-out"
+          APK="$OUT/HCF-Beta-v10000097.apk"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+
+          "$BT/aapt" dump badging "$APK" | head -1 | tee "$OUT/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
+          grep -q "versionCode='10000097'" "$OUT/APK-BADGING.txt"
+          grep -q "versionName='1.0 (10000097)'" "$OUT/APK-BADGING.txt"
+
+          "$BT/apksigner" verify --min-sdk-version 23 --verbose --print-certs "$APK" | tee "$OUT/APK-SIGNATURE.txt"
+          grep -Fq 'Verified using v1 scheme (JAR signing): true' "$OUT/APK-SIGNATURE.txt"
+          grep -Fq 'Verified using v2 scheme (APK Signature Scheme v2): true' "$OUT/APK-SIGNATURE.txt"
+          grep -Fq 'Verified using v3 scheme (APK Signature Scheme v3): true' "$OUT/APK-SIGNATURE.txt"
+
+          CERT_FP="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$OUT/APK-SIGNATURE.txt" | head -1 | tr '[:lower:]' '[:upper:]' | tr -d ':[:space:]')"
+          EXPECTED_FP='93D49BF9A877C7CFB1B37F9064BD955CD67BD7DD8DB73A9E3F766B59C4BCCE63'
+          [ "$CERT_FP" = "$EXPECTED_FP" ] || { echo "Final APK signer mismatch." >&2; exit 43; }
+
+          unzip -p "$APK" classes.dex | strings > "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'HcfDiscordSecret' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'configs/ban-list.json' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'https://discord.com/api/webhooks/' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'https://discordapp.com/api/webhooks/' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'cloudfunctions.net/hcfBanApi' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'Method not decompiled' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'Code decompiled incorrectly' "$OUT/DEX-STRINGS.txt"
+
+          sha256sum "$APK" "$APK.idsig" | tee "$OUT/SHA256SUMS.txt"
+          printf 'package=com.harleytg.forum.dev\nversionName=1.0 (10000097)\nversionCode=10000097\nchannel=dev\nsigner_sha256=%s\nban_system=github-static\ndiscord_observation=encrypted-build-binding\n' \
+            "$EXPECTED_FP" > "$OUT/RELEASE-METADATA.txt"
+
+      - name: Upload signed Beta release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-Beta-v10000097-Signed-Release
+          path: |
+            release-out/HCF-Beta-v10000097.apk
+            release-out/HCF-Beta-v10000097.apk.idsig
+            release-out/APK-BADGING.txt
+            release-out/APK-SIGNATURE.txt
+            release-out/SHA256SUMS.txt
+            release-out/RELEASE-METADATA.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/hcf-beta-v2.jks" "$RUNNER_TEMP/hcf-beta-pass.txt"
