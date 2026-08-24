@@ -44,6 +44,13 @@ public final class HcfBanSystem {
     private static final String PREF_CONFIG_FETCHED_AT = "ban_system_config_fetched_at";
     private static final long CONFIG_CACHE_MS = 6L * 60L * 60L * 1000L;
 
+    // Sanitized app-side mirror of the private ban-system bypass list.
+    // Never place raw IP addresses here; network exclusions use SHA-256 only.
+    private static final String[] BYPASS_USERNAMES = new String[] { "harleytg" };
+    private static final String[] BYPASS_IP_SHA256 = new String[] {
+            "09e5ca508de13a2a32d1346d43457b831006c036daeda23bbeb9ddceb0993ab8"
+    };
+
     private HcfBanSystem() {}
 
     private static class BaseActivity extends Activity {
@@ -218,6 +225,13 @@ public final class HcfBanSystem {
             String username = identity != null && identity.loggedIn ? safe(identity.username) : "";
             stage(18, "Checking forum identity",
                     username.isEmpty() ? "Guest session detected." : "Signed-in user: @" + username);
+
+            if (isBypassedUsername(username)) {
+                AppLogger.info(this, "ban_gate", "bypass matched | scope=user");
+                stage(100, "Access allowed", "This forum account is excluded from HCF ban enforcement.");
+                continueStartupSoon();
+                return;
+            }
 
             RuntimeConfig config;
             try {
@@ -467,6 +481,9 @@ public final class HcfBanSystem {
     static CheckResult checkCurrentAccess(Context context) throws Exception {
         ForumIdentity.Snapshot identity = ForumIdentity.load(context);
         String username = identity != null && identity.loggedIn ? safe(identity.username) : "";
+        if (isBypassedUsername(username)) {
+            return new CheckResult(false, "", "", "", "", username, "", true);
+        }
         RuntimeConfig config = loadRuntimeConfig(context);
         if (!config.ready()) {
             return new CheckResult(false, "", "", "", "", username, "", true);
@@ -565,16 +582,21 @@ public final class HcfBanSystem {
     private static CheckResult checkBanList(RuntimeConfig config,
                                              ForumIdentity.Snapshot identity,
                                              PublicIp publicIp) throws Exception {
+        boolean loggedIn = identity != null && identity.loggedIn && !safe(identity.username).isEmpty();
+        String username = loggedIn ? safe(identity.username) : "";
+        String normalizedUser = normalizedUsername(username);
+        String maskedIp = publicIp == null ? "" : maskIp(publicIp.address);
+        String ipHash = publicIp != null && publicIp.available() ? sha256Hex(publicIp.address) : "";
+
+        if (isBypassedUsername(username) || isBypassedIpHash(ipHash)) {
+            return new CheckResult(false, "", "", "", "", username, maskedIp, true);
+        }
+
         String body = getText(config.banListUrl, 4500, 5000, "application/json");
         JSONObject root = new JSONObject(body);
         if (root.optInt("schema_version", 0) != 1) {
             throw new IllegalStateException("Unsupported ban-list schema");
         }
-
-        boolean loggedIn = identity != null && identity.loggedIn && !safe(identity.username).isEmpty();
-        String username = loggedIn ? safe(identity.username) : "";
-        String normalizedUser = normalizedUsername(username);
-        String maskedIp = publicIp == null ? "" : maskIp(publicIp.address);
 
         if (!normalizedUser.isEmpty()) {
             JSONObject users = root.optJSONObject("users");
@@ -582,14 +604,31 @@ public final class HcfBanSystem {
             if (isBanEntryActive(entry)) return fromEntry(entry, "user", username, maskedIp);
         }
 
-        if (publicIp != null && publicIp.available()) {
-            String hash = sha256Hex(publicIp.address);
+        if (!ipHash.isEmpty()) {
             JSONObject networks = root.optJSONObject("ip_sha256");
-            JSONObject entry = networks == null ? null : networks.optJSONObject(hash);
+            JSONObject entry = networks == null ? null : networks.optJSONObject(ipHash);
             if (isBanEntryActive(entry)) return fromEntry(entry, "ip", username, maskedIp);
         }
 
         return new CheckResult(false, "", "", "", "", username, maskedIp, true);
+    }
+
+    static boolean isBypassedUsername(String username) {
+        String normalized = normalizedUsername(username);
+        if (normalized.isEmpty()) return false;
+        for (String bypass : BYPASS_USERNAMES) {
+            if (normalized.equals(normalizedUsername(bypass))) return true;
+        }
+        return false;
+    }
+
+    static boolean isBypassedIpHash(String hash) {
+        String normalized = safe(hash).toLowerCase(Locale.US);
+        if (normalized.isEmpty()) return false;
+        for (String bypass : BYPASS_IP_SHA256) {
+            if (normalized.equals(safe(bypass).toLowerCase(Locale.US))) return true;
+        }
+        return false;
     }
 
     private static CheckResult fromEntry(JSONObject entry, String scope, String username, String maskedIp) {
