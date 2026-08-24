@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 
-EXPECTED_VERSION_CODE = 10000092
+EXPECTED_VERSION_CODE = 10000098
 EXPECTED_INTERNAL_BUILD = 112
 EXPECTED_PACKAGE = "com.harleytg.forum"
 EXPECTED_STABLE_SIGNER = "77:E0:E9:6C:11:77:84:2A:AA:31:1A:8F:C0:EB:EA:29:B9:2D:3C:D2:90:BB:81:5B:DB:86:AD:0E:0A:85:84:4F"
@@ -174,7 +174,7 @@ require("v4 signing missing", "--v4-signing-enabled true" in build_script)
 require("v4 sidecar verification missing", "Missing APK Signature Scheme v4 sidecar" in build_script)
 
 workflows = {p.name: text(p) for p in (root / ".github/workflows").glob("*.yml")}
-require("Stable v10000092 build workflow missing", "build-stable-v10000092.yml" in workflows)
+require("Stable v10000098 build workflow missing", "build-stable-v10000098.yml" in workflows)
 require("Dev release workflow leaked into Stable", "build-dev-v10000098.yml" not in workflows)
 for name, body in workflows.items():
     require(f"workflow may write repository contents: {name}", "contents: write" not in body)

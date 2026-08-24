@@ -7,8 +7,8 @@ Stable Android release branch for Harley's Clan Forum.
 - App name: **Harley's Clan Forum**
 - Branch: `stable`
 - Android package: `com.harleytg.forum`
-- Version name: `1.0 (10000092)`
-- Version code: `10000092`
+- Version name: `1.0 (10000098)`
+- Version code: `10000098`
 - Internal build: `112`
 - Release channel: **Stable**
 - Minimum SDK: `26`
@@ -39,11 +39,11 @@ replacing the Dev implementation with the older Stable split-source runtime.
 - Stable launcher artwork: original blue/cyan HTG puppy badge.
 - Stable package: `com.harleytg.forum`.
 - Stable build label: `Harley's Clan Forum v1.0 [Stable]`.
-- Stable version/build identity remains `1.0 (10000092)` / internal build `112`.
+- Stable version/build identity remains `1.0 (10000098)` / internal build `112`.
 - Stable update feed accepts official non-prerelease releases only.
 - Stable APK selection rejects Beta, Dev, Preview, Debug, and unsigned assets.
 - Stable package/update channel is locked; it does not switch to the Dev feed.
-- Stable APK output name: `HCF-Stable-v10000092.apk`.
+- Stable APK output name: `HCF-Stable-v10000098.apk`.
 - Stable signer alias: `hcf-stable-v2`.
 - Expected Stable signer SHA-256:
   `77:E0:E9:6C:11:77:84:2A:AA:31:1A:8F:C0:EB:EA:29:B9:2D:3C:D2:90:BB:81:5B:DB:86:AD:0E:0A:85:84:4F`.
@@ -75,7 +75,7 @@ the Stable keystore/password environment used by `build-release.sh`.
 
 ## Validation gates
 
-`build-stable-v10000092.yml` runs the Stable release-readiness checks, validates
+`build-stable-v10000098.yml` runs the Stable release-readiness checks, validates
 the live sanitized ban configuration, applies the Stable identity overlay,
 compiles the complete promoted Java source with Android 35 tools, packages and
 aligns an unsigned Stable APK, verifies package/version/DEX feature markers, and

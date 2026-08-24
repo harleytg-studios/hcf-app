@@ -30,8 +30,8 @@ package_name="$(sed -n 's/.*package="\([^"]*\)".*/\1/p' "$manifest" | head -1)"
 version_code="$(sed -n 's/.*android:versionCode="\([^"]*\)".*/\1/p' "$manifest" | head -1)"
 version_name="$(sed -n 's/.*android:versionName="\([^"]*\)".*/\1/p' "$manifest" | head -1)"
 [[ "$package_name" == "com.harleytg.forum" ]] || { echo "Stable build requires package com.harleytg.forum" >&2; exit 14; }
-[[ "$version_code" == "10000092" ]] || { echo "Stable versionCode must remain 10000092" >&2; exit 15; }
-[[ "$version_name" == "1.0 (10000092)" ]] || { echo "Stable versionName mismatch" >&2; exit 16; }
+[[ "$version_code" == "10000098" ]] || { echo "Stable versionCode must remain 10000098" >&2; exit 15; }
+[[ "$version_name" == "1.0 (10000098)" ]] || { echo "Stable versionName mismatch" >&2; exit 16; }
 
 channel="stable"
 output_name="HCF-Stable-v${version_code}.apk"

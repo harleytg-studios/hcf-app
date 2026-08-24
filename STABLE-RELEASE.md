@@ -1,4 +1,4 @@
-# Harley's Clan Forum 1.0 — Stable v10000092
+# Harley's Clan Forum 1.0 — Stable v10000098
 
 Stable source-preparation metadata for the Harley's Clan Forum Android app.
 
@@ -6,8 +6,8 @@ Stable source-preparation metadata for the Harley's Clan Forum Android app.
 
 - App name: **Harley's Clan Forum**
 - Package: `com.harleytg.forum`
-- Version: `1.0 (10000092)`
-- Android versionCode: `10000092`
+- Version: `1.0 (10000098)`
+- Android versionCode: `10000098`
 - Internal build: `112`
 - Channel: **Stable**
 - Target SDK: `34`

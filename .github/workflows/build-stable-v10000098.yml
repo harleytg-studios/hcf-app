@@ -1,4 +1,4 @@
-name: HCF Stable v10000092 Release Gate
+name: HCF Stable v10000098 Release Gate
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - 'README.md'
       - '.github/scripts/verify-hcf-alerts-ui.py'
       - '.github/scripts/verify-release-readiness.py'
-      - '.github/workflows/build-stable-v10000092.yml'
+      - '.github/workflows/build-stable-v10000098.yml'
   pull_request:
     branches: [stable]
   workflow_dispatch:
@@ -74,7 +74,7 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           HCF_UNSIGNED_ONLY: '1'
-          HCF_OUTPUT_DIR: ${{ github.workspace }}/out-v10000092
+          HCF_OUTPUT_DIR: ${{ github.workspace }}/out-v10000098
         run: |
           set -euo pipefail
           test -n "${DISCORD_WEBHOOK_URL:-}" || { echo "DISCORD_WEBHOOK_URL is not configured"; exit 1; }
@@ -84,27 +84,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APK='out-v10000092/HCF-Stable-v10000092-aligned-unsigned.apk'
+          APK='out-v10000098/HCF-Stable-v10000098-aligned-unsigned.apk'
           test -f "$APK"
           BT="$ANDROID_HOME/build-tools/35.0.0"
-          "$BT/aapt" dump badging "$APK" | head -1 | tee out-v10000092/APK-BADGING.txt
-          grep -q "name='com.harleytg.forum'" out-v10000092/APK-BADGING.txt
-          grep -q "versionCode='10000092'" out-v10000092/APK-BADGING.txt
-          grep -q "versionName='1.0 (10000092)'" out-v10000092/APK-BADGING.txt
-          unzip -p "$APK" classes.dex | strings > out-v10000092/DEX-STRINGS.txt
-          grep -Fq 'Stable Update Available' out-v10000092/DEX-STRINGS.txt
-          grep -Fq 'same build code, revised APK hash' out-v10000092/DEX-STRINGS.txt
-          grep -Fq 'HcfDiscordSecret' out-v10000092/DEX-STRINGS.txt
-          grep -Fq 'configs/ban-list.json' out-v10000092/DEX-STRINGS.txt
-          ! grep -Fq 'Beta Update Available' out-v10000092/DEX-STRINGS.txt
-          ! grep -Fq 'com.harleytg.forum.dev' out-v10000092/DEX-STRINGS.txt
-          ! grep -Fq 'cloudfunctions.net/hcfBanApi' out-v10000092/DEX-STRINGS.txt
-          sha256sum "$APK" | tee out-v10000092/SHA256SUMS.txt
+          "$BT/aapt" dump badging "$APK" | head -1 | tee out-v10000098/APK-BADGING.txt
+          grep -q "name='com.harleytg.forum'" out-v10000098/APK-BADGING.txt
+          grep -q "versionCode='10000098'" out-v10000098/APK-BADGING.txt
+          grep -q "versionName='1.0 (10000098)'" out-v10000098/APK-BADGING.txt
+          unzip -p "$APK" classes.dex | strings > out-v10000098/DEX-STRINGS.txt
+          grep -Fq 'Stable Update Available' out-v10000098/DEX-STRINGS.txt
+          grep -Fq 'same build code, revised APK hash' out-v10000098/DEX-STRINGS.txt
+          grep -Fq 'HcfDiscordSecret' out-v10000098/DEX-STRINGS.txt
+          grep -Fq 'configs/ban-list.json' out-v10000098/DEX-STRINGS.txt
+          ! grep -Fq 'Beta Update Available' out-v10000098/DEX-STRINGS.txt
+          ! grep -Fq 'com.harleytg.forum.dev' out-v10000098/DEX-STRINGS.txt
+          ! grep -Fq 'cloudfunctions.net/hcfBanApi' out-v10000098/DEX-STRINGS.txt
+          sha256sum "$APK" | tee out-v10000098/SHA256SUMS.txt
 
       - name: Upload verified unsigned Stable APK
         uses: actions/upload-artifact@v4
         with:
-          name: HCF-Stable-v10000092-Unsigned
-          path: out-v10000092/
+          name: HCF-Stable-v10000098-Unsigned
+          path: out-v10000098/
           if-no-files-found: error
           retention-days: 7

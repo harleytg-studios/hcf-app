@@ -10,7 +10,7 @@ import shutil
 import sys
 
 DEV_VERSION_CODE = "10000098"
-STABLE_VERSION_CODE = "10000092"
+STABLE_VERSION_CODE = "10000098"
 STABLE_INTERNAL_BUILD = "112"
 
 
@@ -51,7 +51,7 @@ application = out_src / "com/harleytg/forum/HcfApplication.java"
 if not application.is_file():
     fail("HcfApplication.java is missing")
 body = application.read_text(encoding="utf-8")
-body = replace_required(body, 'static final String APK_FILE_NAME = "HCF-Beta-v10000092.apk";', 'static final String APK_FILE_NAME = "HCF-Stable-v10000092.apk";', "Stable APK filename")
+body = replace_required(body, 'static final String APK_FILE_NAME = "HCF-Beta-v10000098.apk";', 'static final String APK_FILE_NAME = "HCF-Stable-v10000098.apk";', "Stable APK filename")
 body = replace_required(body, 'static final String CHANNEL = "Dev";', 'static final String CHANNEL = "Stable";', "Stable channel")
 body = replace_required(body, 'static final String DEFAULT_UPDATE_CHANNEL = "dev";', 'static final String DEFAULT_UPDATE_CHANNEL = "stable";', "Stable default update channel")
 body = replace_required(body, 'static final String DEVELOPMENT_BUILD_LABEL = "Harley\'s Clan Forum v1.0 [Development Build / Beta]";', 'static final String DEVELOPMENT_BUILD_LABEL = "Harley\'s Clan Forum v1.0 [Stable]";', "Stable build label")
@@ -129,7 +129,7 @@ for forbidden in (
     "package com.harleytg.forum.dev;",
     'DEFAULT_UPDATE_CHANNEL = "dev"',
     'CHANNEL = "Dev"',
-    "HCF-Beta-v10000092.apk",
+    "HCF-Beta-v10000098.apk",
     "Harley's Clan Forum [Beta]",
     "Harley\\'s Clan Forum [Beta]",
     "Harley&apos;s Clan Forum [Beta]",
@@ -143,8 +143,8 @@ for forbidden in (
 for required in (
     'DEFAULT_UPDATE_CHANNEL = "stable"',
     'CHANNEL = "Stable"',
-    'HCF-Stable-v10000092.apk',
-    'VERSION_CODE = 10000092',
+    'HCF-Stable-v10000098.apk',
+    'VERSION_CODE = 10000098',
     'INTERNAL_BUILD = 112',
 ):
     if required not in all_java:
