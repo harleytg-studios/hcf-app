@@ -1307,7 +1307,8 @@ final class HcfNotificationActions {
 
     private static Intent baseIntent(Context context, String action, ForumNotificationClient.Alert alert,
                                      String host, int localId, String kind) {
-        Intent intent = new Intent(context, ActionReceiver.class);
+        // Explicit PendingIntents must target the nested receiver registered in AndroidManifest.xml.
+        Intent intent = new Intent(context, HcfNotificationEngine.NotificationActionReceiver.class);
         intent.setAction(action);
         String notificationId = alert == null ? "" : clean(alert.id);
         String conversationId = alert == null ? "" : clean(alert.conversationId);
