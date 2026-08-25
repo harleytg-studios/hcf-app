@@ -2213,10 +2213,11 @@ public final class HcfSubActivities {
                 new SettingTarget("forum_link_settings", "Open Forum Link Settings", "android links domains primary backup", "forum_data", "connection_routing"),
                 new SettingTarget("cookie_manager", "Open Cookie Manager", "cookies site data privacy", "forum_data", "cookies_site_data"),
                 new SettingTarget("clear_site_data", "Clear Forum Site Data & Sign Out", "cookies cache data sign out privacy", "forum_data", "cookies_site_data"),
-                new SettingTarget("permission_status", "Permission status", "permission security status", "advanced", "permissions_security"),
-                new SettingTarget("notification_permission", "Allow Notification Permission", "permission security notifications android", "advanced", "permissions_security"),
-                new SettingTarget("secure_updates_permission", "Allow Secure App Updates", "permission security install unknown apps apk", "advanced", "permissions_security"),
-                new SettingTarget("android_permission_settings", "Android App Permission Settings", "permission security android settings", "advanced", "permissions_security"),
+                new SettingTarget("permission_status", "Android permission status", "permission security status foreground service boot network", "advanced", "permissions_security"),
+                new SettingTarget("notification_permission", "Notification permission", "permission security notifications android alerts", "advanced", "permissions_security"),
+                new SettingTarget("background_battery_permission", "Background battery access", "permission background battery unrestricted optimization foreground service realtime", "advanced", "permissions_security"),
+                new SettingTarget("secure_updates_permission", "Secure app update install permission", "permission security install unknown apps apk", "advanced", "permissions_security"),
+                new SettingTarget("android_permission_settings", "Android App Permission Settings", "permission security android settings app info", "advanced", "permissions_security"),
                 new SettingTarget("update_channel", "Update channel", "updates channel stable dev beta feed official releases", "advanced", "app_updates"),
                 new SettingTarget("installed_version", "Installed version", "version versioncode build installed", "advanced", "app_updates"),
                 new SettingTarget("automatic_update_checks", "Automatic update checks", "updates check automatic", "advanced", "app_updates"),
@@ -3101,14 +3102,130 @@ public final class HcfSubActivities {
 
         private View securityCard() {
             LinearLayout card = card();
-            card.addView(sectionTitle("Permissions & Security", "Android permissions and app hardening"));
-            securityStatus = target(text(AppSecurity.securitySummary(this), 11, getColor(R.color.hcf_meta)), "permission_status");
+            card.addView(sectionTitle("Permissions & Security", "Live Android access status and app hardening"));
+
+            securityStatus = target(text(permissionSecuritySummary(), 11, getColor(R.color.hcf_meta)), "permission_status");
+            securityStatus.setBackgroundResource(R.drawable.quick_action_background);
+            securityStatus.setPadding(dp(14), dp(11), dp(14), dp(11));
             card.addView(securityStatus);
-            card.addView(target(actionButton("Allow Notification Permission", v -> requestNotificationPermissionIfNeeded()), "notification_permission"));
-            card.addView(target(actionButton("Allow Secure App Updates", v -> openInstallPermission()), "secure_updates_permission"));
+
+            card.addView(settingsSubsectionHeader("Android permissions", "Permissions HCF actually uses on this device", R.drawable.fa_shield));
+
+            boolean notificationAllowed = NotificationHelper.hasRuntimePermission(this);
+            card.addView(settingsInfoCard("Notifications",
+                    notificationAllowed
+                            ? "Allowed • HCF Alerts can post when the Android HCF Alerts channel is enabled."
+                            : "Needs permission • Android is currently blocking the app-level notification permission.",
+                    R.drawable.fa_bell));
+            card.addView(target(actionButton(
+                    notificationAllowed ? "Open HCF Alert Settings" : "Allow Notification Permission",
+                    v -> {
+                        if (NotificationHelper.hasRuntimePermission(this)) {
+                            NotificationHelper.openChannelSettings(this, NotificationHelper.CHANNEL_ID);
+                        } else {
+                            requestNotificationPermissionIfNeeded();
+                        }
+                    }), "notification_permission"));
+
+            boolean backgroundExempt = isBackgroundBatteryExempt();
+            card.addView(settingsInfoCard("Background activity",
+                    backgroundDeliveryPermissionSummary(backgroundExempt),
+                    R.drawable.fa_bell));
+            card.addView(target(actionButton(
+                    backgroundExempt ? "Background Battery Access: Allowed" : "Allow Background Battery Access",
+                    v -> openBackgroundBatteryAccess()), "background_battery_permission"));
+
+            boolean installAllowed = AppSecurity.canInstallUpdates(this);
+            card.addView(settingsInfoCard("Secure app updates",
+                    installAllowed
+                            ? "Allowed • Android permits HCF Beta to hand a verified APK to the package installer."
+                            : "Approval required • downloaded updates can be verified, but Android will not install them until this app source is allowed.",
+                    R.drawable.fa_shield));
+            card.addView(target(actionButton(
+                    installAllowed ? "Secure App Updates: Allowed" : "Allow Secure App Updates",
+                    v -> openInstallPermission()), "secure_updates_permission"));
+
+            card.addView(settingsSubsectionHeader("System access", "Declared Android capabilities that do not use runtime permission dialogs", R.drawable.fa_gear));
+            card.addView(settingsInfoCard("Background service support",
+                    "Foreground service: Declared • special-use foreground service: Declared • restart after boot/update: Declared • JobScheduler fallback: Enabled.",
+                    R.drawable.fa_shield));
+            card.addView(settingsInfoCard("Network access",
+                    "Internet + network-state access are declared for the forum WebView, notification sync, domain failover, and update checks.",
+                    R.drawable.fa_lock));
+
             card.addView(target(actionButton("Android App Permission Settings", v -> openAndroidAppSettings()), "android_permission_settings"));
-            card.addView(text("No location, contacts, microphone, camera, or broad storage permission is requested. Update APKs are accepted only from HCF's trusted release source and must match the installed package and signing certificate.", 10, getColor(R.color.hcf_muted)));
+            card.addView(text("HCF does not request location, contacts, microphone, camera, or broad storage access. Background battery access is an Android power-management setting, not a normal runtime permission. Turning on Silence HCF Silent Alerts still stops the live foreground service even when background battery access is allowed.", 10, getColor(R.color.hcf_muted)));
             return card;
+        }
+
+        private String permissionSecuritySummary() {
+            boolean notifications = NotificationHelper.hasRuntimePermission(this);
+            boolean backgroundExempt = isBackgroundBatteryExempt();
+            boolean installs = AppSecurity.canInstallUpdates(this);
+            return "Notifications: " + (notifications ? "Allowed" : "Needs permission")
+                    + "\nBackground battery access: " + (backgroundExempt ? "Allowed / exempt" : "Android may restrict")
+                    + "\nSecure update installs: " + (installs ? "Allowed" : "Needs approval")
+                    + "\nForeground service: Declared • Boot restart: Declared";
+        }
+
+        private String backgroundDeliveryPermissionSummary(boolean backgroundExempt) {
+            boolean backgroundSync = prefs.getBoolean(AppPrefs.BACKGROUND_NOTIFICATION_SYNC, true);
+            boolean silentSuppressed = prefs.getBoolean(AppPrefs.SILENCE_BACKGROUND_SERVICE_NOTIFICATION, false);
+            String sessionUserId = prefs.getString(AppPrefs.SESSION_USER_ID, "");
+            boolean signedIn = sessionUserId != null && !sessionUserId.trim().isEmpty();
+
+            String mode;
+            if (!backgroundSync) {
+                mode = "Background notification sync is off.";
+            } else if (!signedIn) {
+                mode = "Background sync is enabled but waiting for a signed-in forum session.";
+            } else if (silentSuppressed) {
+                mode = "Scheduled jobs only • HCF Silent Alerts is silenced, so the live foreground service is intentionally stopped.";
+            } else {
+                mode = "Live foreground service is eligible • notification 41070 can run on HCF Silent Alerts.";
+            }
+
+            return (backgroundExempt
+                    ? "Battery optimization exemption is active. "
+                    : "Battery optimization exemption is not active; Android may delay background work. ")
+                    + mode;
+        }
+
+        private boolean isBackgroundBatteryExempt() {
+            if (Build.VERSION.SDK_INT < 23) return true;
+            try {
+                android.os.PowerManager manager = (android.os.PowerManager) getSystemService("power");
+                return manager != null && manager.isIgnoringBatteryOptimizations(getPackageName());
+            } catch (Throwable ignored) {
+                return false;
+            }
+        }
+
+        private void openBackgroundBatteryAccess() {
+            if (Build.VERSION.SDK_INT < 23) {
+                Toast.makeText(this, "Background battery restrictions do not apply on this Android version.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (isBackgroundBatteryExempt()) {
+                Toast.makeText(this, "Background battery access is already allowed.", Toast.LENGTH_SHORT).show();
+                try {
+                    startActivity(new Intent("android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS"));
+                } catch (Throwable ignored) {
+                    openAndroidAppSettings();
+                }
+                return;
+            }
+            try {
+                Intent intent = new Intent("android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS");
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+            } catch (Throwable error) {
+                try {
+                    startActivity(new Intent("android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS"));
+                } catch (Throwable ignored) {
+                    openAndroidAppSettings();
+                }
+            }
         }
 
         private void openInstallPermission() {
@@ -3671,7 +3788,7 @@ public final class HcfSubActivities {
                 notificationStatus.setTextColor(getColor(ready ? R.color.hcf_accent_text : R.color.hcf_warning));
             }
             if (cookieStatus != null) cookieStatus.setText(cookieSummary());
-            if (securityStatus != null) securityStatus.setText(AppSecurity.securitySummary(this));
+            if (securityStatus != null) securityStatus.setText(permissionSecuritySummary());
             if (telemetryStatus != null) telemetryStatus.setText(TelemetryService.status(this));
             if (updateChannelStatus != null) updateChannelStatus.setText(updateChannelLine(effectiveUpdateChannel()));
             if (updateInstallButton != null) updateInstallButton.setVisibility(AppUpdateDownloader.isDownloaded(this) ? View.VISIBLE : View.GONE);
