@@ -121,7 +121,7 @@ require("settings transfer provider missing from manifest", f'{EXPECTED_PACKAGE}
 require("settings transfer activity missing from manifest", f'{EXPECTED_PACKAGE}.HcfSettingsImportUi$TransferActivity' in manifest)
 require("settings import setup control missing", "Import Settings" in settings_transfer_ui)
 require("settings backup format missing", 'FORMAT = "hcf-settings"' in settings_transfer)
-require("settings transfer must protect update channel", "UPDATE_CHANNEL" not in settings_transfer)
+require("settings transfer must protect update channel", "AppPrefs.UPDATE_CHANNEL" not in settings_transfer)
 
 require("native ban gate missing from manifest", f'{EXPECTED_PACKAGE}.HcfBanSystem$GateActivity' in manifest)
 require("Discord observation provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfDiscordObservation$BootstrapProvider' in manifest)
