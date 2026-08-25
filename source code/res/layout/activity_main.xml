@@ -691,18 +691,21 @@
             android:minHeight="@dimen/identity_card_min_height"
             android:paddingStart="8dp"
             android:paddingEnd="8dp">
-            <ImageView
+            <FrameLayout
                 android:layout_gravity="center_vertical"
-                android:id="@+id/drawerIdentityAvatar"
                 android:background="@drawable/identity_avatar_background"
-                android:padding="6dp"
                 android:layout_width="@dimen/identity_avatar_size"
-                android:layout_height="@dimen/identity_avatar_size"
-                android:src="@drawable/htg_app_logo"
-                android:scaleType="fitCenter"
-                android:adjustViewBounds="false"
-                android:cropToPadding="false"
-                android:contentDescription="Current forum identity avatar"/>
+                android:layout_height="@dimen/identity_avatar_size">
+                <com.harleytg.forum.dev.HcfMainActivities$IdentityAvatarView
+                    android:id="@+id/drawerIdentityAvatar"
+                    android:layout_gravity="center"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_margin="2dp"
+                    android:src="@drawable/htg_app_logo"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="Current forum identity avatar"/>
+            </FrameLayout>
             <LinearLayout
                 android:orientation="vertical"
                 android:layout_width="0dp"

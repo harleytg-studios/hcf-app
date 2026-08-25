@@ -35,8 +35,24 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONException;
 import org.json.JSONObject;
+import android.app.RemoteInput;
+import android.os.Bundle;
+import android.os.Looper;
+import android.webkit.CookieManager;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.Locale;
 
 public final class HcfNotificationEngine {
+    public static final class NotificationActionReceiver extends HcfNotificationActions.ActionReceiver {
+        public NotificationActionReceiver() { super(); }
+    }
+
     private HcfNotificationEngine() {}
 
     // ---- InstantNotificationService.java ----
@@ -797,6 +813,68 @@ final class NotificationHelper {
         }
     }
 
+    private static void postForumAlert(final Context context, final ForumNotificationClient.Alert alert,
+                                       final String host, final int localId, Bitmap suppliedAvatar,
+                                       final boolean avatarRefresh) {
+        if (context == null || alert == null) return;
+        createChannel(context);
+        if (!isEnabledByUser(context)) return;
+        if (!canPostOnChannel(context, CHANNEL_ID)) {
+            AppLogger.warn(context, "notification_blocked", status(context) + " | channel=" + CHANNEL_ID);
+            return;
+        }
+        final Uri uri = validatedForumUri(alert.url);
+        if (!avatarRefresh) broadcastEvent(context, alert.title, alert.body, uri.toString(), -1);
+        PendingIntent contentIntent = HcfNotificationActions.openPendingIntent(context, alert, host, localId);
+        Bitmap avatar = suppliedAvatar != null ? suppliedAvatar : HcfNotificationActions.cachedAvatar(alert.senderAvatarUrl);
+        Notification.Builder builder = new Notification.Builder(context, CHANNEL_ID);
+        builder.setSmallIcon(R.drawable.ic_notification_paw)
+                .setLargeIcon(avatar != null ? avatar : largeIcon(context))
+                .setContentTitle(trim(alert.title, 120, "Harley's Clan Forum"))
+                .setContentText(trim(alert.body, 500, "You have a new forum notification."))
+                .setStyle(new Notification.BigTextStyle().bigText(trim(alert.body, 500, "You have a new forum notification.")))
+                .setContentIntent(contentIntent)
+                .setAutoCancel(true)
+                .setCategory("msg")
+                .setVisibility(0)
+                .setPriority(1)
+                .setOnlyAlertOnce(true)
+                .setWhen(System.currentTimeMillis())
+                .setShowWhen(true)
+                .setGroup(FORUM_GROUP_KEY);
+        HcfNotificationActions.addActions(context, builder, alert, host, localId);
+        NotificationManager manager = (NotificationManager) context.getSystemService("notification");
+        if (manager != null) manager.notify(localId, builder.build());
+        if (!avatarRefresh && avatar == null && alert.senderAvatarUrl != null && !alert.senderAvatarUrl.isEmpty()) {
+            HcfNotificationActions.requestAvatar(context, alert.senderAvatarUrl, host,
+                    new HcfNotificationActions.AvatarCallback() {
+                        @Override public void onLoaded(Bitmap bitmap) {
+                            postForumAlert(context, alert, host, localId, bitmap, true);
+                        }
+                    });
+        }
+        if (!avatarRefresh) {
+            AppLogger.info(context, "notification_posted", "native Flarum alert | headsUp=" + headsUpChannelReady(context));
+        }
+    }
+
+    static void markNotificationHandled(Context context, String id) {
+        if (context == null || id == null || id.trim().isEmpty()) return;
+        synchronized (NotificationHelper.class) {
+            SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
+            Set<String> delivered = deliveredIds(prefs.getString("delivered_notification_ids", ""));
+            delivered.add(id.trim());
+            trimDeliveredIds(delivered, 100);
+            Set<String> handled = deliveredIds(prefs.getString("handled_notification_ids", ""));
+            handled.add(id.trim());
+            trimDeliveredIds(handled, 100);
+            prefs.edit()
+                    .putString("delivered_notification_ids", join(delivered))
+                    .putString("handled_notification_ids", join(handled))
+                    .apply();
+        }
+    }
+
     static Notification buildInstantServiceNotification(Context context) {
         Intent intent = new Intent(context, (Class<?>) HcfMainActivities.MainActivity.class);
         intent.addFlags(603979776);
@@ -842,12 +920,8 @@ final class NotificationHelper {
                         sawAlreadyDelivered = true;
                         continue;
                     }
-                    postInternal(context,
-                            trim(alert.title, 120, "Harley's Clan Forum"),
-                            trim(alert.body, 500, "You have a new forum notification."),
-                            validatedForumUri(alert.url),
-                            603979776 | (alert.id.hashCode() & 268435455),
-                            true);
+                    postForumAlert(context, alert, safeHost,
+                            603979776 | (alert.id.hashCode() & 268435455), null, false);
                     delivered.add(alert.id);
                     posted++;
                     if (posted >= max) break;
@@ -1162,4 +1236,465 @@ final class NotificationSyncScheduler {
     }
 
     private NotificationSyncScheduler() {}
+}
+
+// ---- HcfNotificationActions.java ----
+final class HcfNotificationActions {
+    static final String ACTION_OPEN = "com.harleytg.forum.dev.NOTIFICATION_OPEN_AND_READ";
+    static final String ACTION_REPLY = "com.harleytg.forum.dev.NOTIFICATION_INLINE_REPLY";
+    static final String ACTION_MARK_READ = "com.harleytg.forum.dev.NOTIFICATION_MARK_READ";
+    static final String REMOTE_INPUT_REPLY = "hcf_inline_reply";
+
+    private static final String EXTRA_HOST = "hcf_forum_host";
+    private static final String EXTRA_NOTIFICATION_ID = "hcf_notification_id";
+    private static final String EXTRA_CONVERSATION_ID = "hcf_conversation_id";
+    private static final String EXTRA_DISCUSSION_ID = "hcf_discussion_id";
+    private static final String EXTRA_NOTIFICATION_URL = "hcf_notification_url";
+    private static final String EXTRA_LOCAL_ID = "hcf_local_notification_id";
+    private static final String PREFS = "hcf_app";
+    private static final long IN_FLIGHT_TTL_MS = 120000L;
+    private static final long COMPLETE_TTL_MS = 604800000L;
+    private static final int MAX_AVATAR_BYTES = 1048576;
+    private static final int MAX_AVATAR_DIMENSION = 8192;
+    private static final int AVATAR_CACHE_SIZE = 16;
+    private static final Object CLAIM_LOCK = new Object();
+    private static final Object AVATAR_LOCK = new Object();
+    private static final Map<String, Bitmap> AVATAR_CACHE = new LinkedHashMap<String, Bitmap>(16, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(Map.Entry<String, Bitmap> eldest) {
+            return size() > AVATAR_CACHE_SIZE;
+        }
+    };
+    private static final Map<String, Boolean> AVATAR_IN_FLIGHT = new LinkedHashMap<>();
+
+    interface AvatarCallback {
+        void onLoaded(Bitmap bitmap);
+    }
+
+    static PendingIntent openPendingIntent(Context context, ForumNotificationClient.Alert alert, String host, int localId) {
+        Intent intent = baseIntent(context, ACTION_OPEN, alert, host, localId, "open");
+        return PendingIntent.getBroadcast(context, requestCode("open", host, alert, localId), intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    static void addActions(Context context, Notification.Builder builder, ForumNotificationClient.Alert alert, String host, int localId) {
+        if (context == null || builder == null || alert == null) return;
+        if (alert.replyCapable && numeric(alert.conversationId) && numeric(alert.id)) {
+            Intent replyIntent = baseIntent(context, ACTION_REPLY, alert, host, localId, "reply");
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= 31) flags |= PendingIntent.FLAG_MUTABLE;
+            PendingIntent replyPendingIntent = PendingIntent.getBroadcast(
+                    context, requestCode("reply", host, alert, localId), replyIntent, flags);
+            RemoteInput remoteInput = new RemoteInput.Builder(REMOTE_INPUT_REPLY)
+                    .setLabel("Reply")
+                    .build();
+            Notification.Action replyAction = new Notification.Action.Builder(
+                    android.R.drawable.ic_menu_send, "Reply", replyPendingIntent)
+                    .addRemoteInput(remoteInput)
+                    .build();
+            builder.addAction(replyAction);
+        }
+        if (numeric(alert.id)) {
+            Intent readIntent = baseIntent(context, ACTION_MARK_READ, alert, host, localId, "read");
+            PendingIntent readPendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    requestCode("read", host, alert, localId),
+                    readIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            builder.addAction(new Notification.Action.Builder(
+                    android.R.drawable.checkbox_on_background, "Mark as read", readPendingIntent).build());
+        }
+    }
+
+    private static Intent baseIntent(Context context, String action, ForumNotificationClient.Alert alert,
+                                     String host, int localId, String kind) {
+        Intent intent = new Intent(context, ActionReceiver.class);
+        intent.setAction(action);
+        String notificationId = alert == null ? "" : clean(alert.id);
+        String conversationId = alert == null ? "" : clean(alert.conversationId);
+        String discussionId = alert == null ? "" : clean(alert.discussionId);
+        String safeHost = ForumUrlRouter.isForumHost(host) ? host : ForumConfig.PRIMARY_HOST;
+        String identity = "hcf-action://" + kind + "/" + Uri.encode(safeHost) + "/"
+                + Uri.encode(notificationId) + "/" + Uri.encode(conversationId) + "/"
+                + Uri.encode(discussionId) + "/" + localId;
+        intent.setData(Uri.parse(identity));
+        intent.putExtra(EXTRA_HOST, safeHost);
+        intent.putExtra(EXTRA_NOTIFICATION_ID, notificationId);
+        intent.putExtra(EXTRA_CONVERSATION_ID, conversationId);
+        intent.putExtra(EXTRA_DISCUSSION_ID, discussionId);
+        intent.putExtra(EXTRA_NOTIFICATION_URL, alert == null ? "" : clean(alert.url));
+        intent.putExtra(EXTRA_LOCAL_ID, localId);
+        return intent;
+    }
+
+    private static int requestCode(String kind, String host, ForumNotificationClient.Alert alert, int localId) {
+        String value = kind + "|" + clean(host) + "|" + (alert == null ? "" : clean(alert.id)) + "|"
+                + (alert == null ? "" : clean(alert.conversationId)) + "|"
+                + (alert == null ? "" : clean(alert.discussionId)) + "|" + localId;
+        return 0x20000000 | (value.hashCode() & 0x1fffffff);
+    }
+
+    static Bitmap cachedAvatar(String url) {
+        String key = trustedAvatarUrl(url);
+        if (key.isEmpty()) return null;
+        synchronized (AVATAR_LOCK) {
+            Bitmap bitmap = AVATAR_CACHE.get(key);
+            return bitmap != null && !bitmap.isRecycled() ? bitmap : null;
+        }
+    }
+
+    static void requestAvatar(final Context context, final String avatarUrl, final String forumHost, final AvatarCallback callback) {
+        if (context == null || callback == null) return;
+        final String trusted = trustedAvatarUrl(avatarUrl);
+        if (trusted.isEmpty()) return;
+        Bitmap cached = cachedAvatar(trusted);
+        if (cached != null) {
+            callback.onLoaded(cached);
+            return;
+        }
+        synchronized (AVATAR_LOCK) {
+            if (Boolean.TRUE.equals(AVATAR_IN_FLIGHT.get(trusted))) return;
+            AVATAR_IN_FLIGHT.put(trusted, Boolean.TRUE);
+        }
+        final Context app = context.getApplicationContext();
+        AppExecutors.network().execute(new Runnable() {
+            @Override public void run() {
+                Bitmap loaded = null;
+                try {
+                    loaded = downloadAvatar(app, trusted, forumHost);
+                    if (loaded != null) {
+                        synchronized (AVATAR_LOCK) { AVATAR_CACHE.put(trusted, loaded); }
+                    }
+                } catch (Throwable error) {
+                    AppLogger.warn(app, "notification_avatar", "fetch failed | " + category(error));
+                } finally {
+                    synchronized (AVATAR_LOCK) { AVATAR_IN_FLIGHT.remove(trusted); }
+                }
+                if (loaded != null) {
+                    try { callback.onLoaded(loaded); } catch (Throwable ignored) {}
+                }
+            }
+        });
+    }
+
+    private static Bitmap downloadAvatar(Context context, String avatarUrl, String forumHost) throws Exception {
+        URL url = new URL(avatarUrl);
+        if (!"https".equalsIgnoreCase(url.getProtocol())) return null;
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        try {
+            connection.setConnectTimeout(2500);
+            connection.setReadTimeout(3500);
+            connection.setUseCaches(true);
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "image/*");
+            connection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 NotificationAvatar");
+            if (ForumUrlRouter.isForumHost(forumHost) && forumHost.equalsIgnoreCase(url.getHost())) {
+                String cookie = CookieManager.getInstance().getCookie("https://" + forumHost + "/");
+                if (cookie != null && !cookie.trim().isEmpty()) connection.setRequestProperty("Cookie", cookie);
+            }
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) return null;
+            int declared = connection.getContentLength();
+            if (declared > MAX_AVATAR_BYTES) return null;
+            InputStream input = connection.getInputStream();
+            ByteArrayOutputStream output = new ByteArrayOutputStream(declared > 0 ? declared : 32768);
+            byte[] buffer = new byte[8192];
+            int total = 0;
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                total += read;
+                if (total > MAX_AVATAR_BYTES) return null;
+                output.write(buffer, 0, read);
+            }
+            input.close();
+            byte[] bytes = output.toByteArray();
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0
+                    || bounds.outWidth > MAX_AVATAR_DIMENSION || bounds.outHeight > MAX_AVATAR_DIMENSION) return null;
+            int target = Math.max(96, (int) (96f * context.getResources().getDisplayMetrics().density));
+            int sample = 1;
+            while (bounds.outWidth / sample > target * 2 || bounds.outHeight / sample > target * 2) sample *= 2;
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inSampleSize = Math.max(1, sample);
+            Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
+            if (bitmap == null) return null;
+            int max = Math.max(bitmap.getWidth(), bitmap.getHeight());
+            if (max > target * 2) {
+                float scale = (target * 2f) / max;
+                int width = Math.max(1, Math.round(bitmap.getWidth() * scale));
+                int height = Math.max(1, Math.round(bitmap.getHeight() * scale));
+                Bitmap scaled = Bitmap.createScaledBitmap(bitmap, width, height, true);
+                if (scaled != bitmap) bitmap.recycle();
+                bitmap = scaled;
+            }
+            return bitmap;
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private static String trustedAvatarUrl(String raw) {
+        if (raw == null || raw.trim().isEmpty()) return "";
+        try {
+            Uri uri = Uri.parse(raw.trim());
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getHost().trim().isEmpty()) return "";
+            return uri.toString();
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    static String diagnosticSummary(Context context) {
+        if (context == null) return "Notification reply: Ready • Never used\nMark as read: Ready • Never used";
+        try {
+            SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            String reply = prefs.getString("notification_reply_action_state", "Never used");
+            String read = prefs.getString("notification_read_action_state", "Never used");
+            long at = prefs.getLong("notification_action_last_time", 0L);
+            int http = prefs.getInt("notification_action_last_http", 0);
+            String failure = prefs.getString("notification_action_last_failure", "");
+            StringBuilder out = new StringBuilder();
+            out.append("Notification reply: ").append("Never used".equals(reply) ? "Ready • Never used" : reply).append('\n');
+            out.append("Mark as read: ").append("Never used".equals(read) ? "Ready • Never used" : read).append('\n');
+            out.append("Last notification action: ");
+            if (at <= 0L) {
+                out.append("Never used");
+            } else {
+                out.append(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date(at)));
+                if (http > 0) out.append(" • HTTP ").append(http);
+                if (failure != null && !failure.trim().isEmpty()) out.append(" • ").append(clean(failure));
+            }
+            return HcfSupportSanitizer.sanitize(out.toString());
+        } catch (Throwable error) {
+            return "Notification reply: Ready\nMark as read: Ready\nLast notification action: unavailable";
+        }
+    }
+
+    private static void recordSuccess(Context context, String kind, int http) {
+        if (context == null) return;
+        SharedPreferences.Editor editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putLong("notification_action_last_time", System.currentTimeMillis())
+                .putInt("notification_action_last_http", Math.max(0, http))
+                .remove("notification_action_last_failure");
+        if ("reply".equals(kind)) editor.putString("notification_reply_action_state", "Last success");
+        if ("read".equals(kind)) editor.putString("notification_read_action_state", "Last success");
+        editor.apply();
+    }
+
+    private static void recordFailure(Context context, String kind, int http, String category) {
+        if (context == null) return;
+        String safeCategory = clean(category);
+        SharedPreferences.Editor editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putLong("notification_action_last_time", System.currentTimeMillis())
+                .putInt("notification_action_last_http", Math.max(0, http))
+                .putString("notification_action_last_failure", safeCategory);
+        if ("reply".equals(kind)) editor.putString("notification_reply_action_state", "Failed • " + safeCategory);
+        if ("read".equals(kind)) editor.putString("notification_read_action_state", "Failed • " + safeCategory);
+        editor.apply();
+    }
+
+    private static boolean numeric(String value) {
+        return value != null && value.matches("[0-9]+");
+    }
+
+    private static String clean(String value) {
+        if (value == null) return "";
+        String trimmed = value.trim();
+        return trimmed.length() <= 240 ? trimmed : trimmed.substring(0, 240);
+    }
+
+    private static String actionKey(String kind, String host, String notificationId, String target) {
+        return Integer.toHexString((kind + "|" + host + "|" + notificationId + "|" + target).hashCode());
+    }
+
+    private static boolean claim(Context context, String key) {
+        synchronized (CLAIM_LOCK) {
+            SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            long now = System.currentTimeMillis();
+            long done = prefs.getLong("notification_action_done_" + key, 0L);
+            if (done > 0L && now - done < COMPLETE_TTL_MS) return false;
+            long inFlight = prefs.getLong("notification_action_inflight_" + key, 0L);
+            if (inFlight > 0L && now - inFlight < IN_FLIGHT_TTL_MS) return false;
+            return prefs.edit().putLong("notification_action_inflight_" + key, now).commit();
+        }
+    }
+
+    private static void complete(Context context, String key) {
+        synchronized (CLAIM_LOCK) {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                    .remove("notification_action_inflight_" + key)
+                    .putLong("notification_action_done_" + key, System.currentTimeMillis())
+                    .commit();
+        }
+    }
+
+    private static void release(Context context, String key) {
+        synchronized (CLAIM_LOCK) {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                    .remove("notification_action_inflight_" + key).commit();
+        }
+    }
+
+    private static String category(Throwable error) {
+        if (error instanceof ForumNotificationClient.HttpStatusException) {
+            int code = ((ForumNotificationClient.HttpStatusException) error).statusCode;
+            if (code == 401) return "auth-expired";
+            if (code == 403) return "auth-or-permission";
+            if (code == 429) return "rate-limited";
+            return "http";
+        }
+        if (error instanceof java.io.IOException) return "network";
+        if (error instanceof org.json.JSONException) return "protocol";
+        return error == null ? "unknown" : error.getClass().getSimpleName();
+    }
+
+    private static int status(Throwable error) {
+        return error instanceof ForumNotificationClient.HttpStatusException
+                ? ((ForumNotificationClient.HttpStatusException) error).statusCode : 0;
+    }
+
+    private static void cancelLocal(Context context, int localId) {
+        try {
+            NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) manager.cancel(localId);
+        } catch (Throwable ignored) {}
+    }
+
+    private static boolean hasRecoverableSession(Context context) {
+        try {
+            String userId = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("session_user_id", "");
+            return userId != null && numeric(userId.trim());
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static void openTarget(Context context, Intent source, String host) {
+        String raw = source == null ? "" : source.getStringExtra(EXTRA_NOTIFICATION_URL);
+        Uri uri;
+        try { uri = Uri.parse(raw == null ? "" : raw); } catch (Throwable ignored) { uri = null; }
+        if (uri == null || !ForumUrlRouter.isForumUrl(uri)) uri = Uri.parse(ForumUrlRouter.home(host) + "notifications");
+        try {
+            Intent open = new Intent(context, HcfMainActivities.MainActivity.class);
+            open.setAction("com.harleytg.forum.dev.OPEN_NOTIFICATION");
+            open.setData(uri);
+            open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            context.startActivity(open);
+        } catch (Throwable error) {
+            AppLogger.warn(context, "notification_open_action", error.getClass().getSimpleName());
+        }
+    }
+
+    public static class ActionReceiver extends BroadcastReceiver {
+        @Override public void onReceive(Context context, final Intent intent) {
+            if (context == null || intent == null) return;
+            final Context app = context.getApplicationContext();
+            final String action = intent.getAction();
+            String rawHost = intent.getStringExtra(EXTRA_HOST);
+            final String host = ForumUrlRouter.isForumHost(rawHost) ? rawHost : "";
+            if (host.isEmpty()) {
+                recordFailure(app, ACTION_REPLY.equals(action) ? "reply" : "read", 0, "malformed-target");
+                return;
+            }
+            if (ACTION_OPEN.equals(action)) openTarget(app, intent, host);
+
+            final PendingResult pendingResult = goAsync();
+            AppExecutors.network().execute(new Runnable() {
+                @Override public void run() {
+                    try {
+                        handle(app, intent, action, host);
+                    } catch (Throwable error) {
+                        String kind = ACTION_REPLY.equals(action) ? "reply" : "read";
+                        int http = status(error);
+                        String failure = category(error);
+                        recordFailure(app, kind, http, failure);
+                        AppLogger.warn(app, "notification_" + kind + "_action",
+                                "failed | category=" + failure + (http > 0 ? " | http=" + http : ""));
+                        if (http == 401) HcfNotificationEngine.InstantNotificationService.clearSessionForAuthFailure(app, "notification-action");
+                    } finally {
+                        pendingResult.finish();
+                    }
+                }
+            });
+        }
+
+        private static void handle(Context context, Intent intent, String action, String host) throws Exception {
+            if (!ACTION_REPLY.equals(action) && !ACTION_MARK_READ.equals(action) && !ACTION_OPEN.equals(action)) return;
+            String notificationId = clean(intent.getStringExtra(EXTRA_NOTIFICATION_ID));
+            String conversationId = clean(intent.getStringExtra(EXTRA_CONVERSATION_ID));
+            int localId = intent.getIntExtra(EXTRA_LOCAL_ID, 0);
+            if (!numeric(notificationId)) {
+                if (!ACTION_OPEN.equals(action)) recordFailure(context, ACTION_REPLY.equals(action) ? "reply" : "read", 0, "malformed-target");
+                return;
+            }
+            if (!hasRecoverableSession(context)) {
+                recordFailure(context, ACTION_REPLY.equals(action) ? "reply" : "read", 0, "auth-expired");
+                return;
+            }
+            if (!RuntimeState.networkAvailable(context)) {
+                recordFailure(context, ACTION_REPLY.equals(action) ? "reply" : "read", 0, "offline");
+                return;
+            }
+
+            if (ACTION_REPLY.equals(action)) {
+                if (!numeric(conversationId)) {
+                    recordFailure(context, "reply", 0, "malformed-target");
+                    return;
+                }
+                Bundle results = RemoteInput.getResultsFromIntent(intent);
+                CharSequence rawReply = results == null ? null : results.getCharSequence(REMOTE_INPUT_REPLY);
+                String reply = rawReply == null ? "" : rawReply.toString().trim();
+                if (reply.isEmpty() || reply.length() > 10000) {
+                    recordFailure(context, "reply", 0, reply.isEmpty() ? "empty-reply" : "reply-too-long");
+                    return;
+                }
+                String key = actionKey("reply", host, notificationId, conversationId);
+                if (!claim(context, key)) return;
+                try {
+                    int replyHttp = ForumNotificationClient.sendConversationReply(context, host, conversationId, reply);
+                    recordSuccess(context, "reply", replyHttp);
+                    complete(context, key);
+                    try {
+                        int readHttp = ForumNotificationClient.markNotificationRead(context, host, notificationId);
+                        recordSuccess(context, "read", readHttp);
+                        NotificationHelper.markNotificationHandled(context, notificationId);
+                    } catch (Throwable readFailure) {
+                        int readStatus = status(readFailure);
+                        String readCategory = category(readFailure);
+                        recordFailure(context, "read", readStatus, readCategory);
+                        AppLogger.warn(context, "notification_read_after_reply",
+                                "failed | category=" + readCategory + (readStatus > 0 ? " | http=" + readStatus : ""));
+                        if (readStatus == 401) HcfNotificationEngine.InstantNotificationService.clearSessionForAuthFailure(context, "reply-read");
+                    }
+                    cancelLocal(context, localId);
+                    HcfNotificationEngine.InstantNotificationService.requestImmediateSync(context);
+                    AppLogger.info(context, "notification_reply_action", "success | http=" + replyHttp);
+                } catch (Throwable error) {
+                    release(context, key);
+                    throw error;
+                }
+                return;
+            }
+
+            String key = actionKey("read", host, notificationId, "");
+            if (!claim(context, key)) return;
+            try {
+                int readHttp = ForumNotificationClient.markNotificationRead(context, host, notificationId);
+                recordSuccess(context, "read", readHttp);
+                complete(context, key);
+                NotificationHelper.markNotificationHandled(context, notificationId);
+                cancelLocal(context, localId);
+                HcfNotificationEngine.InstantNotificationService.requestImmediateSync(context);
+                AppLogger.info(context, ACTION_OPEN.equals(action) ? "notification_open_read" : "notification_read_action",
+                        "success | http=" + readHttp);
+            } catch (Throwable error) {
+                release(context, key);
+                throw error;
+            }
+        }
+    }
+
+    private HcfNotificationActions() {}
 }

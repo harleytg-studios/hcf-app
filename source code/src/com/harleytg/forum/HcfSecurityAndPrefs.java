@@ -29,6 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 public final class HcfSecurityAndPrefs {
     private HcfSecurityAndPrefs() {}
@@ -582,7 +583,7 @@ final class AppLogger {
             if (sb.length() == 0) {
                 return "No app logs yet.";
             }
-            return sb.toString();
+            return HcfSupportSanitizer.sanitize(sb.toString());
         }
     }
 
@@ -611,9 +612,9 @@ final class AppLogger {
                 }
                 int i2 = max + 220;
                 if (sb.length() > i2) {
-                    return sb.substring(sb.length() - i2);
+                    return HcfSupportSanitizer.sanitize(sb.substring(sb.length() - i2));
                 }
-                return sb.toString();
+                return HcfSupportSanitizer.sanitize(sb.toString());
             } catch (Throwable unused) {
                 return "App logs are temporarily unavailable.";
             }
@@ -754,7 +755,7 @@ final class AppLogger {
         if (str == null) {
             return "";
         }
-        String replace = str.replace((char) 0, ' ').replace("\r", "");
+        String replace = HcfSupportSanitizer.sanitize(str).replace((char) 0, ' ').replace("\r", "");
         if (replace.length() <= i) {
             return replace;
         }
@@ -936,4 +937,48 @@ final class ErrorSystem {
 
     private ErrorSystem() {
     }
+}
+
+// ---- HcfSupportSanitizer.java ----
+final class HcfSupportSanitizer {
+    private static final String REDACTED = "[REDACTED]";
+    private static final Pattern HEADER = Pattern.compile(
+            "(?i)\\b(authorization|proxy-authorization|cookie|set-cookie)\\s*[:=]\\s*[^\\r\\n|]+"
+    );
+    private static final Pattern BEARER = Pattern.compile(
+            "(?i)\\bbearer\\s+[A-Za-z0-9._~+/=-]+"
+    );
+    private static final Pattern DISCORD_WEBHOOK = Pattern.compile(
+            "(?i)https://(?:www\\.)?discord(?:app)?\\.com/api/webhooks/[^\\s\\\"']+"
+    );
+    private static final Pattern KEY_VALUE = Pattern.compile(
+            "(?i)\\b(password|passwd|session[_-]?(?:id|token)|access[_-]?token|refresh[_-]?token|auth(?:entication)?[_-]?token|csrf[_-]?token|reply[_-]?(?:text|body|content)|message[_-]?(?:body|content|text)|notification[_-]?(?:body|message|content)|private[_-]?(?:message|body|content))\\b\\s*[:=]\\s*(?:\\\"[^\\\"]*\\\"|'[^']*'|[^,\\s|;}]+)"
+    );
+
+    static String sanitize(String value) {
+        if (value == null || value.isEmpty()) return value == null ? "" : value;
+        String out = value;
+        out = replaceHeader(out);
+        out = BEARER.matcher(out).replaceAll("Bearer " + REDACTED);
+        out = DISCORD_WEBHOOK.matcher(out).replaceAll("https://discord.com/api/webhooks/" + REDACTED);
+        Matcher matcher = KEY_VALUE.matcher(out);
+        StringBuffer buffer = new StringBuffer();
+        while (matcher.find()) {
+            matcher.appendReplacement(buffer, Matcher.quoteReplacement(matcher.group(1) + "=" + REDACTED));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
+    }
+
+    private static String replaceHeader(String value) {
+        Matcher matcher = HEADER.matcher(value);
+        StringBuffer buffer = new StringBuffer();
+        while (matcher.find()) {
+            matcher.appendReplacement(buffer, Matcher.quoteReplacement(matcher.group(1) + "=" + REDACTED));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
+    }
+
+    private HcfSupportSanitizer() {}
 }

@@ -88,8 +88,44 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import javax.net.ssl.HttpsURLConnection;
+import android.graphics.Outline;
+import android.util.AttributeSet;
+import android.view.ViewOutlineProvider;
 
 public final class HcfMainActivities {
+    public static final class IdentityAvatarView extends ImageView {
+        public IdentityAvatarView(Context context) { super(context); init(); }
+        public IdentityAvatarView(Context context, AttributeSet attrs) { super(context, attrs); init(); }
+        public IdentityAvatarView(Context context, AttributeSet attrs, int style) { super(context, attrs, style); init(); }
+
+        private void init() {
+            setAdjustViewBounds(false);
+            setCropToPadding(false);
+            setOutlineProvider(new ViewOutlineProvider() {
+                @Override public void getOutline(View view, Outline outline) {
+                    float radius = 9f * getResources().getDisplayMetrics().density;
+                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+                }
+            });
+            setClipToOutline(true);
+        }
+
+        @Override public void setScaleType(ScaleType scaleType) {
+            super.setScaleType(scaleType == ScaleType.FIT_XY ? ScaleType.CENTER_CROP : scaleType);
+        }
+
+        static FrameLayout frame(Context context, ImageView avatar) {
+            FrameLayout frame = new FrameLayout(context);
+            frame.setBackgroundResource(R.drawable.identity_avatar_background);
+            FrameLayout.LayoutParams inner = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
+            int inset = Math.max(1, Math.round(2f * context.getResources().getDisplayMetrics().density));
+            inner.setMargins(inset, inset, inset, inset);
+            frame.addView(avatar, inner);
+            return frame;
+        }
+    }
+
     private HcfMainActivities() {}
 
     // ---- MainActivity.java ----

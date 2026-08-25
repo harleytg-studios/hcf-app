@@ -442,12 +442,21 @@ final class ForumNotificationClient {
         final String id;
         final String title;
         final String url;
+        final String conversationId;
+        final String discussionId;
+        final String senderAvatarUrl;
+        final boolean replyCapable;
 
-        Alert(String str, String str2, String str3, String str4) {
-            this.id = ForumNotificationClient.clean(str, 120);
-            this.title = ForumNotificationClient.clean(str2, 120);
-            this.body = ForumNotificationClient.clean(str3, 500);
-            this.url = str4 == null ? "" : str4;
+        Alert(String id, String title, String body, String url, String conversationId,
+              String discussionId, String senderAvatarUrl, boolean replyCapable) {
+            this.id = ForumNotificationClient.clean(id, 120);
+            this.title = ForumNotificationClient.clean(title, 120);
+            this.body = ForumNotificationClient.clean(body, 500);
+            this.url = url == null ? "" : url;
+            this.conversationId = ForumNotificationClient.clean(conversationId, 120);
+            this.discussionId = ForumNotificationClient.clean(discussionId, 120);
+            this.senderAvatarUrl = senderAvatarUrl == null ? "" : senderAvatarUrl;
+            this.replyCapable = replyCapable;
         }
     }
 
@@ -585,7 +594,28 @@ final class ForumNotificationClient {
                 str5 = str5 + "/" + str2;
             }
         }
-        return new Alert(optString, str3, cleanNotificationBody, str5);
+        String senderAvatarUrl = absoluteHttpsUrl(str, attribute(jSONObject2, "avatarUrl"));
+        boolean privateMessageType = lowerCase.contains("privatediscussion")
+                || lowerCase.contains("private_message")
+                || lowerCase.contains("privatemessage")
+                || lowerCase.contains("conversationmessage")
+                || lowerCase.contains("conversation_message")
+                || lowerCase.contains("messenger");
+        boolean replyCapable = firstDeep.matches("[0-9]+")
+                && (privateMessageType || "messages".equals(optString3));
+        return new Alert(optString, str3, cleanNotificationBody, str5, firstDeep, firstDeep2, senderAvatarUrl, replyCapable);
+    }
+
+    private static String absoluteHttpsUrl(String base, String raw) {
+        if (raw == null || raw.trim().isEmpty()) return "";
+        try {
+            Uri uri = Uri.parse(raw.trim());
+            if (uri.isAbsolute()) return "https".equalsIgnoreCase(uri.getScheme()) ? uri.toString() : "";
+            Uri resolved = Uri.parse(base).buildUpon().encodedPath(raw.startsWith("/") ? raw : "/" + raw).build();
+            return "https".equalsIgnoreCase(resolved.getScheme()) ? resolved.toString() : "";
+        } catch (Throwable ignored) {
+            return "";
+        }
     }
 
     private static JSONObject relationData(JSONObject jSONObject, String str) {
@@ -779,6 +809,111 @@ final class ForumNotificationClient {
         } finally {
             httpURLConnection.disconnect();
         }
+    }
+
+    static int markNotificationRead(Context context, String host, String notificationId) throws Exception {
+        if (context == null || notificationId == null || !notificationId.matches("[0-9]+")) {
+            throw new IllegalArgumentException("Invalid notification id");
+        }
+        String base = trustedBase(host);
+        JSONObject attributes = new JSONObject().put("isRead", true);
+        JSONObject data = new JSONObject()
+                .put("type", "notifications")
+                .put("id", notificationId)
+                .put("attributes", attributes);
+        JSONObject body = new JSONObject().put("data", data);
+        return mutate(context, base, "api/notifications/" + notificationId, body, true);
+    }
+
+    static int sendConversationReply(Context context, String host, String conversationId, String replyText) throws Exception {
+        if (context == null || conversationId == null || !conversationId.matches("[0-9]+")) {
+            throw new IllegalArgumentException("Invalid conversation id");
+        }
+        String reply = replyText == null ? "" : replyText.trim();
+        if (reply.isEmpty() || reply.length() > 10000) throw new IllegalArgumentException("Invalid reply");
+        String base = trustedBase(host);
+        JSONObject attributes = new JSONObject()
+                .put("messageContents", reply)
+                .put("conversationId", conversationId);
+        JSONObject data = new JSONObject()
+                .put("type", "messages")
+                .put("attributes", attributes);
+        return mutate(context, base, "api/neoncube-private-messages/messages", new JSONObject().put("data", data), false);
+    }
+
+    private static int mutate(Context context, String base, String path, JSONObject body, boolean patch) throws Exception {
+        String cookie = CookieManager.getInstance().getCookie(base);
+        if (cookie == null || cookie.trim().isEmpty()) throw new HttpStatusException(401, 0L);
+        String csrf = currentCsrfToken(context, base, cookie);
+        if (csrf.isEmpty()) throw new HttpStatusException(401, 0L);
+        byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+        HttpURLConnection connection = (HttpURLConnection) new URL(base + path).openConnection();
+        try {
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(READ_TIMEOUT_MS);
+            connection.setUseCaches(false);
+            connection.setInstanceFollowRedirects(false);
+            connection.setDoOutput(true);
+            connection.setRequestMethod("POST");
+            if (patch) connection.setRequestProperty("X-HTTP-Method-Override", "PATCH");
+            connection.setRequestProperty("Accept", "application/vnd.api+json, application/json");
+            connection.setRequestProperty("Content-Type", "application/vnd.api+json");
+            connection.setRequestProperty("X-CSRF-Token", csrf);
+            connection.setRequestProperty("Cookie", cookie);
+            connection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 NotificationAction");
+            connection.setFixedLengthStreamingMode(bytes.length);
+            OutputStream output = connection.getOutputStream();
+            output.write(bytes);
+            output.flush();
+            output.close();
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) throw new HttpStatusException(status, retryAfterMillis(connection));
+            return status;
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private static String currentCsrfToken(Context context, String base, String cookie) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) new URL(base).openConnection();
+        try {
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(READ_TIMEOUT_MS);
+            connection.setUseCaches(false);
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "text/html,application/xhtml+xml");
+            connection.setRequestProperty("Cache-Control", "no-cache, max-age=0");
+            connection.setRequestProperty("Cookie", cookie);
+            connection.setRequestProperty("User-Agent", "HarleysClanForumApp/1.0 NotificationSession");
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) throw new HttpStatusException(status, retryAfterMillis(connection));
+            String html = readLimited(connection.getInputStream(), 1500000);
+            int marker = html.indexOf("flarum-json-payload");
+            if (marker < 0) marker = html.indexOf("id='flarum-json-payload'");
+            if (marker < 0) return "";
+            int start = html.indexOf('>', marker);
+            int end = start < 0 ? -1 : html.indexOf("</script>", start + 1);
+            if (start < 0 || end <= start) return "";
+            JSONObject payload = new JSONObject(html.substring(start + 1, end).trim());
+            JSONObject session = payload.optJSONObject("session");
+            if (session == null || session.optInt("userId", 0) <= 0) return "";
+            return clean(session.optString("csrfToken", ""), 1000);
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private static String readLimited(InputStream inputStream, int maxChars) throws Exception {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+        StringBuilder out = new StringBuilder(Math.min(maxChars, 131072));
+        char[] buffer = new char[8192];
+        int count;
+        while ((count = reader.read(buffer)) != -1 && out.length() < maxChars) {
+            out.append(buffer, 0, Math.min(count, maxChars - out.length()));
+        }
+        reader.close();
+        return out.toString();
     }
 
     private static long retryAfterMillis(HttpURLConnection connection) {

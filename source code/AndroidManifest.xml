@@ -90,6 +90,7 @@
         <service android:name="com.harleytg.forum.dev.HcfUpdateEngine$UpdateCheckJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
         <receiver android:name="com.harleytg.forum.dev.HcfUpdateEngine$UpdateDownloadReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.DOWNLOAD_COMPLETE"/></intent-filter></receiver>
         <receiver android:name="com.harleytg.forum.dev.HcfNotificationEngine$BootReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.MY_PACKAGE_REPLACED"/></intent-filter></receiver>
+        <receiver android:name="com.harleytg.forum.dev.HcfNotificationEngine$NotificationActionReceiver" android:enabled="true" android:exported="false"/>
         <activity
             android:name="com.harleytg.forum.dev.HcfMainActivities$MainActivity"
             android:exported="false"

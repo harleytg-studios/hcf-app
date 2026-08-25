@@ -174,17 +174,17 @@ public final class HcfSubActivities {
             LinearLayout linearLayout = new LinearLayout(this);
             linearLayout.setOrientation(0);
             linearLayout.setGravity(16);
-            ImageView imageView = new ImageView(this);
+            ImageView imageView = new HcfMainActivities.IdentityAvatarView(this);
             this.identityAvatar = imageView;
             imageView.setImageResource(R.drawable.htg_app_logo);
-            this.identityAvatar.setBackgroundResource(R.drawable.identity_avatar_background);
             this.identityAvatar.setScaleType(ImageView.ScaleType.FIT_CENTER);
             this.identityAvatar.setAdjustViewBounds(false);
             this.identityAvatar.setCropToPadding(false);
             this.identityAvatar.setPadding(dp(3), dp(3), dp(3), dp(3));
             this.identityAvatar.setClipToOutline(true);
             this.identityAvatar.setContentDescription("Current forum identity avatar placeholder");
-            linearLayout.addView(this.identityAvatar, new LinearLayout.LayoutParams(dp(72), dp(72)));
+            FrameLayout identityAvatarFrame = HcfMainActivities.IdentityAvatarView.frame(this, this.identityAvatar);
+            linearLayout.addView(identityAvatarFrame, new LinearLayout.LayoutParams(dp(72), dp(72)));
             LinearLayout linearLayout2 = new LinearLayout(this);
             linearLayout2.setOrientation(1);
             LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(0, -2, 1.0f);
@@ -1199,7 +1199,7 @@ public final class HcfSubActivities {
                 styled.append(empty);
                 plain.append(empty);
             }
-            visiblePlainText = plain.toString();
+            visiblePlainText = HcfSupportSanitizer.sanitize(plain.toString());
             contentText.setText(styled);
             viewerTitle.setText("App Logs");
             if (viewerSubtitle != null) viewerSubtitle.setText("Local troubleshooting history from this app");
@@ -1216,7 +1216,17 @@ public final class HcfSubActivities {
             if (this.contentText == null) {
                 return;
             }
-            String buildDiagnosticReport = buildDiagnosticReport();
+            String buildDiagnosticReport;
+            try {
+                buildDiagnosticReport = HcfSupportSanitizer.sanitize(
+                        buildDiagnosticReport() + "\n\nNotification actions\n" + HcfNotificationActions.diagnosticSummary(this));
+            } catch (Throwable error) {
+                AppLogger.warn(this, "diagnostics_render", error.getClass().getSimpleName());
+                buildDiagnosticReport = "Diagnostics temporarily unavailable.\nFailure category: "
+                        + error.getClass().getSimpleName() + "\n\nNotification actions\n"
+                        + HcfNotificationActions.diagnosticSummary(this);
+                buildDiagnosticReport = HcfSupportSanitizer.sanitize(buildDiagnosticReport);
+            }
             this.visiblePlainText = buildDiagnosticReport;
             SpannableStringBuilder spannableStringBuilder = new SpannableStringBuilder(buildDiagnosticReport);
             colorDiagnosticLabels(spannableStringBuilder);
@@ -1573,7 +1583,7 @@ public final class HcfSubActivities {
 
         private void copyVisible() {
             String str = this.visiblePlainText;
-            String trim = str == null ? "" : str.trim();
+            String trim = HcfSupportSanitizer.sanitize(str == null ? "" : str).trim();
             if (trim.isEmpty()) {
                 Toast.makeText(this, "Nothing to copy.", 0).show();
                 return;
@@ -1646,7 +1656,7 @@ public final class HcfSubActivities {
             super.onActivityResult(requestCode, resultCode, data);
             if (requestCode != EXPORT_TEXT || resultCode != RESULT_OK || data == null || data.getData() == null) return;
             pendingExportUri = data.getData();
-            String text = visiblePlainText == null ? "" : visiblePlainText;
+            String text = HcfSupportSanitizer.sanitize(visiblePlainText == null ? "" : visiblePlainText);
             try (OutputStream out = getContentResolver().openOutputStream(pendingExportUri, "w")) {
                 if (out == null) throw new IllegalStateException("No output stream");
                 out.write(text.getBytes(StandardCharsets.UTF_8));
