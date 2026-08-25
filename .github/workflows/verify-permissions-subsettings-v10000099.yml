@@ -1,0 +1,45 @@
+name: Verify Permissions Subsettings v10000099
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/verify-permissions-subsettings-v10000099.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+      - name: Verify permission and notification contracts
+        run: |
+          set -euo pipefail
+          FILE='source code/src/com/harleytg/forum/HcfSubActivities.java'
+          python3 .github/scripts/verify-hcf-notifications-v2.py 'source code'
+          grep -Fq 'isIgnoringBatteryOptimizations(getPackageName())' "$FILE"
+          grep -Fq 'Allow Background Battery Access' "$FILE"
+          grep -Fq 'Background battery access is an Android power-management setting' "$FILE"
+          grep -Fq 'android.permission.FOREGROUND_SERVICE_SPECIAL_USE' 'source code/AndroidManifest.xml'
+          grep -Fq 'android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS' 'source code/AndroidManifest.xml'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android 35 build tools
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Compile full Java source
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-permissions-verify"
+          mkdir -p "$WORK/gen" "$WORK/classes"
+          "$BT/aapt" package -f -m -J "$WORK/gen" -M "$ROOT/AndroidManifest.xml" -S "$ROOT/res" -A "$ROOT/assets" -I "$ANDROID_JAR" -F "$WORK/resources.apk"
+          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
+          echo 'Permissions subsettings full Java compile: PASS'
