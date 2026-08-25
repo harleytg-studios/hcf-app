@@ -19,7 +19,7 @@ jobs:
         with:
           ref: dev
 
-      - name: Apply focused source patch
+      - name: Apply focused source patch and stage final repo shape
         shell: bash
         run: |
           set -euo pipefail
@@ -36,22 +36,24 @@ jobs:
               raise SystemExit(f'csrf marker normalization expected 1 match, found {n}')
           p.write_text(s, encoding='utf-8')
           PY
+          rm .github/patches/apply-native-notification-actions.py
+          rm .github/patches/repair-native-notification-source-set.py
+          rm .github/workflows/temp-native-notification-actions.yml
 
-      - name: Run existing release source gates
+      - name: Run existing release source gates on final repository shape
         shell: bash
         run: |
           set -euo pipefail
           python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
           python3 .github/scripts/verify-release-readiness.py .
 
-      - name: Commit only finished source and remove temporary driver
+      - name: Commit finished source
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm .github/patches/apply-native-notification-actions.py .github/patches/repair-native-notification-source-set.py .github/workflows/temp-native-notification-actions.yml
-          git add 'source code' README.md
+          git add -A
           git diff --cached --check
           git commit -m 'Add native notification reply and read actions'
           git push origin HEAD:dev
