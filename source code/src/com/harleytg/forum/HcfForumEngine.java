@@ -1082,13 +1082,13 @@ final class ForumUrlRouter {
 final class LiveForumUpdater {
     private static final long AUTH_CHECK_MS = 15000L;
     private static final int CONNECT_TIMEOUT_MS = 4500;
-    private static final long FIRST_POLL_MS = 250L;
-    private static final long IDLE_ROUTE_POLL_MS = 5000L;
+    private static final long FIRST_POLL_MS = 100L;
+    private static final long IDLE_ROUTE_POLL_MS = 1500L;
     private static final int MAX_BODY_CHARS = 180000;
     private static final int MAX_WS_PAYLOAD_BYTES = 524288;
     private static final int PUSH_READ_TIMEOUT_MS = 60000;
-    private static final long RECONNECT_MAX_MS = 30000L;
-    private static final long RECONNECT_MIN_MS = 1000L;
+    private static final long RECONNECT_MAX_MS = 8000L;
+    private static final long RECONNECT_MIN_MS = 300L;
     private static final int READ_TIMEOUT_MS = 4500;
     private static final SecureRandom RANDOM = new SecureRandom();
     private final Context app;
@@ -1488,6 +1488,7 @@ final class LiveForumUpdater {
         this.main.removeCallbacks(this.tick);
         state("LIVE");
         AppLogger.info(this.app, "live_update_socket", "connected • push primary");
+        HcfNotificationEngine.InstantNotificationService.requestImmediateSync(this.app);
         schedulePushedRefresh(0L);
     }
 
@@ -1555,7 +1556,7 @@ final class LiveForumUpdater {
             HcfNotificationEngine.InstantNotificationService.requestImmediateSync(this.app);
         }
         if (eventAffectsCurrentRoute(event, data)) {
-            schedulePushedRefresh(60L);
+            schedulePushedRefresh(0L);
         }
     }
 
@@ -1753,7 +1754,7 @@ final class LiveForumUpdater {
             if (!this.socketConnected) {
                 state(RuntimeState.networkAvailable(this.app) ? "WAITING" : "OFFLINE");
                 if (fallbackPoll) {
-                    scheduleFallback(Math.min(15000L, 2000L << Math.min(Math.max(0, this.failures - 1), 3)));
+                    scheduleFallback(Math.min(4000L, 500L << Math.min(Math.max(0, this.failures - 1), 3)));
                 }
             }
         } else {

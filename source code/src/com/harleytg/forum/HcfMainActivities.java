@@ -4010,6 +4010,10 @@ public final class HcfMainActivities {
         protected void onResume() {
             WebView webView;
             super.onResume();
+            HcfNotificationEngine.InstantNotificationService.requestImmediateSync(this);
+            if (this.liveUpdater != null) {
+                this.liveUpdater.poke();
+            }
             this.appliedThemeSignature = ThemeManager.signature(this);
             resumeUpdateInstallPermissionIfNeeded();
             // SetupActivity may temporarily cover MainActivity during an upgrade.

@@ -71,6 +71,15 @@ public final class HcfApplication {
         public void onCreate() {
             super.onCreate();
 
+            // Dev/Beta realtime policy: latency wins over battery life.
+            try {
+                getSharedPreferences("hcf_app", 0).edit()
+                        .putBoolean("aggressive_realtime", true)
+                        .putString("performance_profile", PerformanceProfile.QUALITY)
+                        .apply();
+            } catch (Throwable ignored) {
+            }
+
             // Theme must run before any activity attaches / draws windowBackground.
             try {
                 ThemeManager.applyToApplication(this);
@@ -436,75 +445,99 @@ final class PerformanceProfile {
     }
 
     static long notificationPollInterval(Context context, SharedPreferences sharedPreferences) {
-        if (context == null || !RuntimeState.networkAvailable(context)) {
-            return 15000L;
-        }
-        String saved = saved(sharedPreferences);
+        final boolean aggressiveRealtime = sharedPreferences == null
+                || sharedPreferences.getBoolean("aggressive_realtime", true);
+        final boolean foreground = RuntimeState.isForeground();
+        final boolean interactive = context == null || RuntimeState.isInteractive(context);
+
         long interval;
-        if (!AUTO.equals(saved)) {
-            interval = QUALITY.equals(saved) ? 700L : BALANCED.equals(saved) ? 1800L : 5000L;
+        if (aggressiveRealtime) {
+            interval = foreground ? 400L : 1500L;
         } else {
-            String runtime = autoRuntime(context, sharedPreferences);
-            interval = AUTO_REALTIME.equals(runtime) ? 700L : AUTO_BALANCED.equals(runtime) ? 1800L : AUTO_EXTREME.equals(runtime) ? 10000L : 5000L;
-        }
-        int thermalStatus = thermalStatus(context);
-        if (thermalStatus >= severeThermalStatus() || isBatterySaver(context)) {
-            interval = Math.max(interval, 10000L);
-        } else if (thermalStatus >= moderateThermalStatus()) {
-            interval = Math.max(interval, 5000L);
-        }
-        if (RuntimeState.networkMetered(context)) {
-            interval = Math.max(interval, 3000L);
-        }
-        int batteryPercent = batteryPercent(context);
-        if (!isCharging(context) && batteryPercent >= 0) {
-            if (batteryPercent <= 10) {
-                interval = Math.max(interval, 10000L);
-            } else if (batteryPercent <= 20) {
-                interval = Math.max(interval, 5000L);
+            String saved = saved(sharedPreferences);
+            if (!AUTO.equals(saved)) {
+                interval = QUALITY.equals(saved) ? 500L : BALANCED.equals(saved) ? 1000L : 1800L;
+            } else {
+                String runtime = context == null ? AUTO_BALANCED : autoRuntime(context, sharedPreferences);
+                interval = AUTO_REALTIME.equals(runtime) ? 500L
+                        : AUTO_BALANCED.equals(runtime) ? 1000L
+                        : AUTO_EXTREME.equals(runtime) ? 4000L : 1800L;
+            }
+
+            if (!foreground) {
+                long backgroundDurationMs = RuntimeState.backgroundDurationMs();
+                interval = backgroundDurationMs <= 180000L
+                        ? Math.min(interval, 1500L)
+                        : Math.min(Math.max(interval, 1500L), 4000L);
             }
         }
-        if (!RuntimeState.isForeground()) {
-            long backgroundDurationMs = RuntimeState.backgroundDurationMs();
-            interval = Math.max(interval, backgroundDurationMs >= 60000L ? 15000L : 5000L);
+
+        if (context != null) {
+            int thermalStatus = thermalStatus(context);
+            if (thermalStatus >= severeThermalStatus()) {
+                interval = Math.max(interval, foreground ? 1500L : 3500L);
+            } else if (thermalStatus >= moderateThermalStatus()) {
+                interval = Math.max(interval, foreground ? 800L : 2200L);
+            }
+
+            if (isBatterySaver(context)) {
+                interval = Math.max(interval, foreground ? 1200L : 3000L);
+            }
+
+            int batteryPercent = batteryPercent(context);
+            if (!isCharging(context) && batteryPercent >= 0 && batteryPercent <= 10) {
+                interval = Math.max(interval, foreground ? 1500L : 4000L);
+            }
         }
-        if (!RuntimeState.isInteractive(context)) {
-            interval = Math.max(interval, 10000L);
+
+        if (!interactive) {
+            interval = Math.max(interval, 2500L);
+            interval = Math.min(interval, 3000L);
         }
-        long sinceLastInteractionMs = RuntimeState.sinceLastInteractionMs();
-        if (sinceLastInteractionMs >= 60000L) {
-            interval = Math.max(interval, 10000L);
-        } else if (sinceLastInteractionMs >= 12000L) {
-            interval = Math.max(interval, 5000L);
-        }
-        return interval;
+
+        return Math.max(300L, Math.min(interval, 8000L));
     }
 
     static long livePollInterval(Context context, SharedPreferences sharedPreferences) {
-        if (context == null || !RuntimeState.networkAvailable(context)) {
-            return 5000L;
-        }
-        String saved = saved(sharedPreferences);
-        long j = 1000;
-        if (!AUTO.equals(saved)) {
-            if (!QUALITY.equals(saved)) {
-                j = BALANCED.equals(saved) ? 3000L : 6000L;
-            }
+        final boolean aggressiveRealtime = sharedPreferences == null
+                || sharedPreferences.getBoolean("aggressive_realtime", true);
+        final boolean foreground = RuntimeState.isForeground();
+
+        long interval;
+        if (aggressiveRealtime) {
+            interval = foreground ? 450L : 1000L;
         } else {
-            String autoRuntime = autoRuntime(context, sharedPreferences);
-            if (!AUTO_REALTIME.equals(autoRuntime)) {
-                if (AUTO_BALANCED.equals(autoRuntime)) {
-                    j = 2500;
-                } else {
-                    j = AUTO_EXTREME.equals(autoRuntime) ? 10000L : 5000L;
-                }
+            String saved = saved(sharedPreferences);
+            if (!AUTO.equals(saved)) {
+                interval = QUALITY.equals(saved) ? 500L : BALANCED.equals(saved) ? 750L : 1200L;
+            } else {
+                String runtime = context == null ? AUTO_BALANCED : autoRuntime(context, sharedPreferences);
+                interval = AUTO_REALTIME.equals(runtime) ? 500L
+                        : AUTO_BALANCED.equals(runtime) ? 800L
+                        : AUTO_EXTREME.equals(runtime) ? 2000L : 1200L;
             }
         }
-        long sinceLastInteractionMs = RuntimeState.sinceLastInteractionMs();
-        if (sinceLastInteractionMs >= 60000) {
-            return Math.max(j, 10000L);
+
+        if (context != null) {
+            int thermalStatus = thermalStatus(context);
+            if (thermalStatus >= severeThermalStatus() || isBatterySaver(context)) {
+                interval = Math.max(interval, 2000L);
+            } else if (thermalStatus >= moderateThermalStatus()) {
+                interval = Math.max(interval, 1000L);
+            }
+            if (!RuntimeState.isInteractive(context)) {
+                interval = Math.max(interval, 1500L);
+            }
         }
-        return sinceLastInteractionMs >= 12000 ? Math.max(j, 5000L) : j;
+
+        long sinceLastInteractionMs = RuntimeState.sinceLastInteractionMs();
+        if (sinceLastInteractionMs >= 60000L) {
+            interval = Math.max(interval, 1500L);
+        } else if (sinceLastInteractionMs >= 12000L) {
+            interval = Math.max(interval, 750L);
+        }
+
+        return Math.max(400L, Math.min(interval, 4000L));
     }
 
     static long motionDuration(Context context, SharedPreferences sharedPreferences, long j) {

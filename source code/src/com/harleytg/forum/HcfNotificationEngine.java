@@ -39,8 +39,8 @@ public final class HcfNotificationEngine {
     // ---- InstantNotificationService.java ----
     public static final class InstantNotificationService extends Service {
         static final String ACTION_SYNC_NOW = "com.harleytg.forum.dev.SYNC_NOTIFICATIONS_NOW";
-        private static final long FAILURE_MAX_MS = 60000L;
-        private static final long FAILURE_MIN_MS = 2500L;
+        private static final long FAILURE_MAX_MS = 8000L;
+        private static final long FAILURE_MIN_MS = 500L;
         static final int SERVICE_NOTIFICATION_ID = 41070;
 
         private int failures;
@@ -206,7 +206,7 @@ public final class HcfNotificationEngine {
         }
 
         private void performAdaptiveSync() {
-            long nextDelay = 15000L;
+            long nextDelay = 1500L;
             try {
                 SharedPreferences prefs = getSharedPreferences("hcf_app", 0);
                 if (!prefs.getBoolean("background_notification_sync", true)) {
