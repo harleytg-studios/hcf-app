@@ -10,18 +10,20 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 
 /**
  * Keeps the App Setup hamburger entry aligned with setup completion state.
  *
  * While setup is incomplete, SetupCenter may expose its normal drawer entry.
- * Once Finish Setup marks SETUP_COMPLETED, the entry is removed whenever
- * MainActivity resumes so the completed wizard cannot be reopened from the
- * hamburger menu. If setup completion is reset later, the normal entry is
+ * Once Finish Setup marks SETUP_COMPLETED, the entry is removed and suppressed
+ * whenever MainActivity resumes so the completed wizard cannot be reopened from
+ * the hamburger menu. If setup completion is reset later, the normal entry is
  * allowed to return.
  */
 public final class HcfSetupCompletionGuard {
     private static final String DRAWER_TAG = "hcf_app_setup_drawer";
+    private static final String DRAWER_LABEL = "App Setup";
     private static boolean installed;
 
     private HcfSetupCompletionGuard() {}
@@ -39,7 +41,7 @@ public final class HcfSetupCompletionGuard {
 
                     @Override public void onActivityResumed(Activity activity) {
                         if (!(activity instanceof HcfMainActivities.MainActivity)) return;
-                        syncDrawer((HcfMainActivities.MainActivity) activity);
+                        scheduleSync((HcfMainActivities.MainActivity) activity);
                     }
 
                     @Override public void onActivityPaused(Activity activity) {}
@@ -50,8 +52,37 @@ public final class HcfSetupCompletionGuard {
         );
     }
 
-    private static void syncDrawer(HcfMainActivities.MainActivity activity) {
+    /**
+     * Run once immediately and again after the activity's other lifecycle callbacks have
+     * had a chance to rebuild the drawer. This prevents SetupCenter from re-adding the
+     * button after the completion guard has already run.
+     */
+    private static void scheduleSync(final HcfMainActivities.MainActivity activity) {
         if (activity == null || activity.isFinishing()) return;
+        syncDrawer(activity);
+
+        View root = activity.getWindow() == null ? null : activity.getWindow().getDecorView();
+        if (root == null) return;
+
+        root.post(new Runnable() {
+            @Override public void run() {
+                syncDrawer(activity);
+            }
+        });
+        root.postDelayed(new Runnable() {
+            @Override public void run() {
+                syncDrawer(activity);
+            }
+        }, 150L);
+        root.postDelayed(new Runnable() {
+            @Override public void run() {
+                syncDrawer(activity);
+            }
+        }, 600L);
+    }
+
+    private static void syncDrawer(HcfMainActivities.MainActivity activity) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
 
         boolean completed = activity
                 .getSharedPreferences(AppPrefs.FILE, 0)
@@ -68,26 +99,55 @@ public final class HcfSetupCompletionGuard {
         }
 
         try {
-            View settings = activity.findViewById(R.id.drawerSettings);
-            if (settings == null || !(settings.getParent() instanceof ViewGroup)) return;
-            ViewGroup parent = (ViewGroup) settings.getParent();
-
-            boolean removed = false;
-            for (int i = parent.getChildCount() - 1; i >= 0; i--) {
-                View child = parent.getChildAt(i);
-                if (DRAWER_TAG.equals(child.getTag())) {
-                    parent.removeViewAt(i);
-                    removed = true;
+            View drawerRoot = activity.findViewById(R.id.drawerPanel);
+            if (!(drawerRoot instanceof ViewGroup)) {
+                View settings = activity.findViewById(R.id.drawerSettings);
+                if (settings != null && settings.getParent() instanceof ViewGroup) {
+                    drawerRoot = (ViewGroup) settings.getParent();
                 }
             }
 
-            if (removed) {
-                AppLogger.info(activity, "app_setup_drawer", "hidden_after_completion");
+            int removed = drawerRoot instanceof ViewGroup
+                    ? removeSetupEntries((ViewGroup) drawerRoot)
+                    : 0;
+
+            if (removed > 0) {
+                AppLogger.info(activity, "app_setup_drawer",
+                        "hidden_after_completion count=" + removed);
             }
         } catch (Throwable error) {
             AppLogger.warn(activity, "app_setup_drawer_guard",
                     "hide_failed_" + error.getClass().getSimpleName());
         }
+    }
+
+    /** Remove both the tagged dynamic entry and any matching built-in App Setup row. */
+    private static int removeSetupEntries(ViewGroup parent) {
+        if (parent == null) return 0;
+        int removed = 0;
+
+        for (int i = parent.getChildCount() - 1; i >= 0; i--) {
+            View child = parent.getChildAt(i);
+            if (isSetupEntry(child)) {
+                parent.removeViewAt(i);
+                removed++;
+                continue;
+            }
+            if (child instanceof ViewGroup) {
+                removed += removeSetupEntries((ViewGroup) child);
+            }
+        }
+        return removed;
+    }
+
+    private static boolean isSetupEntry(View view) {
+        if (view == null) return false;
+        if (DRAWER_TAG.equals(view.getTag())) return true;
+        if (view instanceof TextView) {
+            CharSequence text = ((TextView) view).getText();
+            return text != null && DRAWER_LABEL.equals(text.toString().trim());
+        }
+        return false;
     }
 
     /** Installed before activities so the guard can react as soon as MainActivity resumes. */
