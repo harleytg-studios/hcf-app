@@ -44,7 +44,7 @@ The v10000098 workflow compiles the complete Java/resource source, packages and 
 
 The shared Stable + Dev Digital Asset Links source is [`configs/app-links/assetlinks.json`](./configs/app-links/assetlinks.json). Its canonical deployment source is the `main`-branch path `configs/app-links/assetlinks.json`; this Dev release does not modify or rebuild the Stable app.
 
-Individual authenticated forum message notifications can expose Android inline **Reply** and **Mark as read** when the Flarum payload contains a resolvable server notification/conversation target. Logs & Diagnostics records only sanitized action state/status metadata and never stores notification message or inline-reply content.
+Individual authenticated forum message notifications can expose Android inline **Reply** and **Mark as read** when the Flarum payload contains a resolvable server notification/conversation target. The Logs & Diagnostics screen records only sanitized action state/status metadata and never stores notification message or inline-reply content.
 
 ## HCF ban system
 
