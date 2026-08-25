@@ -1,0 +1,52 @@
+name: Harden HCF Notifications v2 Runner
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/fix-hcf-notifications-v2-runner.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix-runner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+      - name: Make grouping patch whitespace tolerant
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/apply-hcf-notifications-v2-final.yml')
+          text = path.read_text(encoding='utf-8')
+          old = "          s = replace_once(s, group_old, group_new, 'notification grouping')"
+          new = "          s, group_count = re.subn(r'if \\(z\\) \\{\\s*builder\\.setGroup\\(FORUM_GROUP_KEY\\);\\s*\\}', group_new, s, count=1)\n          if group_count != 1: raise RuntimeError('notification grouping replacement failed')"
+          if old not in text:
+              raise SystemExit('Grouping replacement line not found')
+          text = text.replace(old, new, 1)
+          trigger = "      - '.github/hcf-notifications-v2.trigger'"
+          if trigger not in text:
+              text = text.replace(
+                  "      - '.github/workflows/apply-hcf-notifications-v2-final.yml'",
+                  "      - '.github/workflows/apply-hcf-notifications-v2-final.yml'\n" + trigger,
+                  1)
+          cleanup = "          rm -f '.github/hcf-notifications-v2.trigger'"
+          if cleanup not in text:
+              text = text.replace(
+                  "          rm -f '.github/workflows/apply-hcf-notifications-v2-final.yml'",
+                  "          rm -f '.github/workflows/apply-hcf-notifications-v2-final.yml'\n" + cleanup,
+                  1)
+          path.write_text(text, encoding='utf-8')
+          PY
+          rm -f '.github/workflows/fix-hcf-notifications-v2-runner.yml'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'ci: harden Notifications v2 patch runner'
+          git push origin HEAD:dev
