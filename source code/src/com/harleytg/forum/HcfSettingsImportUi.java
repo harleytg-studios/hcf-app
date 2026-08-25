@@ -13,17 +13,22 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.WeakHashMap;
 
 /** Adds portable settings backup/import controls to the existing native HCF setup/settings UI. */
 public final class HcfSettingsImportUi {
     private static final String SETUP_TAG = "hcf_setup_import_settings";
     private static final String SETTINGS_TAG = "hcf_settings_backup_transfer";
     private static final String REFRESH_PREF = "settings_transfer_refresh_ui";
+    private static final WeakHashMap<Activity, Boolean> SETTINGS_OBSERVERS = new WeakHashMap<>();
     private static boolean registered;
 
     private HcfSettingsImportUi() {}
@@ -55,7 +60,8 @@ public final class HcfSettingsImportUi {
                                 activity.recreate();
                                 return;
                             }
-                            injectSettingsTransfer(activity);
+                            installSettingsObserver(activity);
+                            injectAdvancedSettingsTransfer(activity);
                         }
                     } catch (Throwable error) {
                         AppLogger.warn(activity, "settings_transfer_ui", error.getClass().getSimpleName());
@@ -65,7 +71,13 @@ public final class HcfSettingsImportUi {
                 @Override public void onActivityPaused(Activity activity) {}
                 @Override public void onActivityStopped(Activity activity) {}
                 @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) {}
-                @Override public void onActivityDestroyed(Activity activity) {}
+
+                @Override
+                public void onActivityDestroyed(Activity activity) {
+                    synchronized (SETTINGS_OBSERVERS) {
+                        SETTINGS_OBSERVERS.remove(activity);
+                    }
+                }
             });
             return true;
         }
@@ -191,32 +203,162 @@ public final class HcfSettingsImportUi {
         AppLogger.info(activity, "settings_transfer_ui", "setup_control_added");
     }
 
-    private static void injectSettingsTransfer(Activity activity) {
-        ViewGroup content = findScrollContent(activity);
+    private static void installSettingsObserver(final Activity activity) {
+        synchronized (SETTINGS_OBSERVERS) {
+            if (SETTINGS_OBSERVERS.containsKey(activity)) return;
+            SETTINGS_OBSERVERS.put(activity, Boolean.TRUE);
+        }
+        final View root = activity.getWindow() == null ? null : activity.getWindow().getDecorView();
+        if (root == null) return;
+        root.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                try {
+                    injectAdvancedSettingsTransfer(activity);
+                } catch (Throwable error) {
+                    AppLogger.warn(activity, "settings_transfer_advanced", error.getClass().getSimpleName());
+                }
+            }
+        });
+    }
+
+    /**
+     * Adds Backup & Transfer only inside Advanced & About. The outer shell and controls are
+     * created through SettingsActivity's own builders so this section stays visually identical
+     * to App Updates, Telemetry, Developer Tools and the other native sub-settings panels.
+     */
+    private static void injectAdvancedSettingsTransfer(Activity activity) {
+        if (!"advanced".equals(readStringField(activity, "currentSettingsSection"))) return;
+        ViewGroup content = readViewGroupField(activity, "settingsContent");
         if (content == null || findTagged(content, SETTINGS_TAG) != null) return;
 
-        LinearLayout card = card(activity, SETTINGS_TAG);
-        addTitle(activity, card, "Settings Backup & Transfer", "Move portable app settings between HCF Stable and Dev.");
+        LinearLayout inner = nativeCard(activity);
+        inner.setTag(SETTINGS_TAG + "_content");
 
-        Button exportButton = actionButton(activity, "Export Settings   ›");
-        exportButton.setOnClickListener(v -> TransferActivity.startExport(activity));
-        card.addView(exportButton, new LinearLayout.LayoutParams(-1, dp(activity, 44)));
+        View nativeTitle = nativeSectionTitle(activity,
+                "Backup & Transfer",
+                "Move portable app settings between HCF Stable and Dev");
+        if (nativeTitle != null) {
+            inner.addView(nativeTitle);
+        } else {
+            addTitle(activity, inner, "Backup & Transfer", "Move portable app settings between HCF Stable and Dev.");
+        }
 
-        Button importButton = actionButton(activity, "Import Settings   ›");
-        importButton.setOnClickListener(v -> TransferActivity.startImport(activity, false));
+        Button exportButton = nativeActionButton(activity, "Export Settings", v -> TransferActivity.startExport(activity));
+        inner.addView(exportButton, new LinearLayout.LayoutParams(-1, dp(activity, 44)));
+
+        Button importButton = nativeActionButton(activity, "Import Settings", v -> TransferActivity.startImport(activity, false));
         LinearLayout.LayoutParams importLp = new LinearLayout.LayoutParams(-1, dp(activity, 44));
         importLp.topMargin = dp(activity, 8);
-        card.addView(importButton, importLp);
+        inner.addView(importButton, importLp);
 
         TextView note = text(activity,
-                "App identity, Stable/Dev update channel, Android permissions, account/session data and runtime history are not transferred.",
+                "Portable preferences only. App identity, Stable/Dev update channel, Android permissions, account/session data and runtime history stay with the current app.",
                 10,
                 activity.getColor(R.color.hcf_hint));
         note.setPadding(0, dp(activity, 9), 0, 0);
-        card.addView(note);
+        inner.addView(note);
 
-        content.addView(card);
-        AppLogger.info(activity, "settings_transfer_ui", "settings_control_added");
+        View panel = nativeConnectedSettingsPanel(activity,
+                "Backup & Transfer",
+                "Export or import portable app settings between Stable and Dev",
+                inner,
+                false);
+        panel.setTag(SETTINGS_TAG);
+
+        int aboutIndex = directChildContainingText(content, "About Harley's Clan Forum");
+        if (aboutIndex < 0) aboutIndex = content.getChildCount();
+        content.addView(panel, aboutIndex);
+        AppLogger.info(activity, "settings_transfer_ui", "advanced_control_added");
+    }
+
+    private static String readStringField(Activity activity, String fieldName) {
+        try {
+            Field field = activity.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            Object value = field.get(activity);
+            return value instanceof String ? (String) value : "";
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    private static ViewGroup readViewGroupField(Activity activity, String fieldName) {
+        try {
+            Field field = activity.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            Object value = field.get(activity);
+            return value instanceof ViewGroup ? (ViewGroup) value : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static LinearLayout nativeCard(Activity activity) {
+        try {
+            Method method = activity.getClass().getDeclaredMethod("card");
+            method.setAccessible(true);
+            Object value = method.invoke(activity);
+            if (value instanceof LinearLayout) return (LinearLayout) value;
+        } catch (Throwable ignored) {
+        }
+        return card(activity, SETTINGS_TAG + "_fallback");
+    }
+
+    private static View nativeSectionTitle(Activity activity, String title, String subtitle) {
+        try {
+            Method method = activity.getClass().getDeclaredMethod("sectionTitle", String.class, String.class);
+            method.setAccessible(true);
+            Object value = method.invoke(activity, title, subtitle);
+            return value instanceof View ? (View) value : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static Button nativeActionButton(Activity activity, String title, View.OnClickListener listener) {
+        try {
+            Method method = activity.getClass().getDeclaredMethod("actionButton", String.class, View.OnClickListener.class);
+            method.setAccessible(true);
+            Object value = method.invoke(activity, title, listener);
+            if (value instanceof Button) return (Button) value;
+        } catch (Throwable ignored) {
+        }
+        Button fallback = actionButton(activity, title + "   ›");
+        fallback.setOnClickListener(listener);
+        return fallback;
+    }
+
+    private static View nativeConnectedSettingsPanel(Activity activity, String title, String subtitle, View inner, boolean expanded) {
+        try {
+            Method method = activity.getClass().getDeclaredMethod(
+                    "connectedSettingsPanel", String.class, String.class, View.class, boolean.class);
+            method.setAccessible(true);
+            Object value = method.invoke(activity, title, subtitle, inner, expanded);
+            if (value instanceof View) return (View) value;
+        } catch (Throwable ignored) {
+        }
+        return inner;
+    }
+
+    private static int directChildContainingText(ViewGroup parent, String expected) {
+        for (int i = 0; i < parent.getChildCount(); i++) {
+            if (containsText(parent.getChildAt(i), expected)) return i;
+        }
+        return -1;
+    }
+
+    private static boolean containsText(View view, String expected) {
+        if (view instanceof TextView) {
+            CharSequence value = ((TextView) view).getText();
+            if (value != null && expected.contentEquals(value)) return true;
+        }
+        if (!(view instanceof ViewGroup)) return false;
+        ViewGroup group = (ViewGroup) view;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            if (containsText(group.getChildAt(i), expected)) return true;
+        }
+        return false;
     }
 
     private static boolean consumeRefresh(Activity activity) {
