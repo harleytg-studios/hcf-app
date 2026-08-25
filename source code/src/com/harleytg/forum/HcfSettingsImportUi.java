@@ -21,6 +21,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.WeakHashMap;
 
 /** Adds portable settings backup/import controls to the existing native HCF setup/settings UI. */
@@ -127,7 +130,7 @@ public final class HcfSettingsImportUi {
                     intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                     intent.addCategory(Intent.CATEGORY_OPENABLE);
                     intent.setType("application/json");
-                    intent.putExtra(Intent.EXTRA_TITLE, "HCF-Settings-Backup.json");
+                    intent.putExtra(Intent.EXTRA_TITLE, suggestedExportFileName());
                     startActivityForResult(intent, REQUEST_EXPORT);
                 } else {
                     intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -144,6 +147,55 @@ public final class HcfSettingsImportUi {
                 AppLogger.warn(this, "settings_transfer_picker", error.getClass().getSimpleName());
                 finish();
             }
+        }
+
+        private String suggestedExportFileName() {
+            SharedPreferences prefs = getSharedPreferences(AppPrefs.FILE, 0);
+            String username = readStringPreference(prefs, AppPrefs.IDENTITY_USERNAME);
+            String accountPart;
+            if (username.isEmpty()) {
+                accountPart = "Guest";
+            } else {
+                accountPart = "@" + safeFilePart(username, "User");
+            }
+
+            String channel = BuildInfo.DEFAULT_UPDATE_CHANNEL == null
+                    ? ""
+                    : BuildInfo.DEFAULT_UPDATE_CHANNEL.trim();
+            String channelPart = ("dev".equalsIgnoreCase(channel) || "beta".equalsIgnoreCase(channel))
+                    ? "-Beta"
+                    : "";
+            String stamp = new SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(new Date());
+
+            return "HCF-Settings-" + accountPart
+                    + channelPart
+                    + "-v" + shortVersionCode()
+                    + "-" + stamp
+                    + ".json";
+        }
+
+        private static String readStringPreference(SharedPreferences prefs, String key) {
+            try {
+                String value = prefs.getString(key, "");
+                return value == null ? "" : value.trim();
+            } catch (Throwable ignored) {
+                return "";
+            }
+        }
+
+        private static String safeFilePart(String value, String fallback) {
+            String part = value == null ? "" : value.trim();
+            part = part.replaceAll("[^A-Za-z0-9._-]+", "-");
+            part = part.replaceAll("^-+|-+$", "");
+            return part.isEmpty() ? fallback : part;
+        }
+
+        private static long shortVersionCode() {
+            long code = BuildInfo.VERSION_CODE;
+            if (code >= 10000000L && code < 20000000L) {
+                return 100L + (code - 10000000L);
+            }
+            return code;
         }
 
         @Override
