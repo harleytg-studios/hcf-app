@@ -843,9 +843,9 @@ final class NotificationHelper {
             PendingIntent activity = PendingIntent.getActivity(context, uri.toString().hashCode(), intent, 201326592);
             Notification.Builder builder = new Notification.Builder(context, str3);
             builder.setSmallIcon(R.drawable.ic_notification_paw).setLargeIcon(largeIcon(context)).setContentTitle(str).setContentText(str2).setStyle(new Notification.BigTextStyle().bigText(str2)).setContentIntent(activity).setAutoCancel(true).setCategory(z2 ? "status" : "msg").setVisibility(0).setPriority(z2 ? -1 : 1).setOnlyAlertOnce(z2).setWhen(System.currentTimeMillis()).setShowWhen(true);
-            if (z) {
-                builder.setGroup(FORUM_GROUP_KEY);
-            }
+if (z) {
+        builder.setGroup(FORUM_GROUP_KEY);
+    }
             NotificationManager notificationManager = (NotificationManager) context.getSystemService("notification");
             if (notificationManager != null) {
                 notificationManager.notify(i, builder.build());
