@@ -9,11 +9,13 @@ manifest="$project_dir/AndroidManifest.xml"
 build_info="$project_dir/src/com/harleytg/forum/HcfApplication.java"
 ui_verifier="$project_dir/../.github/scripts/verify-hcf-alerts-ui.py"
 release_verifier="$project_dir/../.github/scripts/verify-release-readiness.py"
+onboarding_patcher="$project_dir/../.github/scripts/apply-onboarding-account.py"
 
 [[ -f "$manifest" ]] || { echo "Missing AndroidManifest.xml" >&2; exit 2; }
 [[ -f "$build_info" ]] || { echo "Missing HcfApplication.java" >&2; exit 2; }
 [[ -f "$ui_verifier" ]] || { echo "Missing HCF Alerts UI verifier" >&2; exit 24; }
 [[ -f "$release_verifier" ]] || { echo "Missing release-readiness verifier" >&2; exit 25; }
+[[ -f "$onboarding_patcher" ]] || { echo "Missing onboarding account patcher" >&2; exit 35; }
 python3 "$ui_verifier" "$project_dir"
 python3 "$release_verifier" "$project_dir/.."
 [[ -x "$build_tools/aapt" ]] || { echo "Missing aapt in $build_tools" >&2; exit 3; }
@@ -70,7 +72,11 @@ if [[ -n "$expected_signer" ]]; then
   [[ "$keyfp" == "$normalized_expected" ]] || { echo "Wrong $channel signer" >&2; exit 20; }
 fi
 
-mkdir -p "$work/gen" "$work/classes" "$work/dex" "$work/secret-src/com/harleytg/forum" "$output_dir"
+mkdir -p "$work/gen" "$work/classes" "$work/dex" "$work/src" "$work/secret-src/com/harleytg/forum" "$output_dir"
+cp -R "$project_dir/src/." "$work/src/"
+python3 "$onboarding_patcher" \
+  "$work/src/com/harleytg/forum/HcfMainActivities.java" \
+  "$work/src/com/harleytg/forum/HcfApplication.java"
 
 # The observation webhook is required for a release build but must never be committed.
 # It is encrypted into a generated Java class stored only in this temporary build directory.
@@ -143,7 +149,7 @@ fi
   -I "$android_jar" \
   -F "$work/resources.apk"
 
-mapfile -t java_files < <(find "$work/gen" "$project_dir/src" "$work/secret-src" -name '*.java' -print)
+mapfile -t java_files < <(find "$work/gen" "$work/src" "$work/secret-src" -name '*.java' -print)
 javac --release 8 -classpath "$android_jar" -d "$work/classes" "${java_files[@]}"
 
 mapfile -t class_files < <(find "$work/classes" -name '*.class' -print)
