@@ -10,12 +10,14 @@ build_info="$project_dir/src/com/harleytg/forum/HcfApplication.java"
 ui_verifier="$project_dir/../.github/scripts/verify-hcf-alerts-ui.py"
 release_verifier="$project_dir/../.github/scripts/verify-release-readiness.py"
 onboarding_patcher="$project_dir/../.github/scripts/apply-onboarding-account.py"
+session_patcher="$project_dir/../.github/scripts/apply-onboarding-live-session.py"
 
 [[ -f "$manifest" ]] || { echo "Missing AndroidManifest.xml" >&2; exit 2; }
 [[ -f "$build_info" ]] || { echo "Missing HcfApplication.java" >&2; exit 2; }
 [[ -f "$ui_verifier" ]] || { echo "Missing HCF Alerts UI verifier" >&2; exit 24; }
 [[ -f "$release_verifier" ]] || { echo "Missing release-readiness verifier" >&2; exit 25; }
 [[ -f "$onboarding_patcher" ]] || { echo "Missing onboarding account patcher" >&2; exit 35; }
+[[ -f "$session_patcher" ]] || { echo "Missing live forum session patcher" >&2; exit 36; }
 python3 "$ui_verifier" "$project_dir"
 python3 "$release_verifier" "$project_dir/.."
 [[ -x "$build_tools/aapt" ]] || { echo "Missing aapt in $build_tools" >&2; exit 3; }
@@ -77,6 +79,10 @@ cp -R "$project_dir/src/." "$work/src/"
 python3 "$onboarding_patcher" \
   "$work/src/com/harleytg/forum/HcfMainActivities.java" \
   "$work/src/com/harleytg/forum/HcfApplication.java"
+python3 "$session_patcher" \
+  "$work/src/com/harleytg/forum/HcfMainActivities.java"
+grep -Fq 'HCF_SETUP_LIVE_SESSION_PROBE_V1' \
+  "$work/src/com/harleytg/forum/HcfMainActivities.java"
 
 # The observation webhook is required for a release build but must never be committed.
 # It is encrypted into a generated Java class stored only in this temporary build directory.
@@ -157,6 +163,7 @@ mapfile -t class_files < <(find "$work/classes" -name '*.class' -print)
 
 strings "$work/dex/classes.dex" > "$work/dex-strings.txt"
 grep -Fq 'HcfDiscordSecret' "$work/dex-strings.txt" || { echo "Generated Discord binding missing from DEX" >&2; exit 32; }
+grep -Fq 'setup_forum_identity_probe' "$work/dex-strings.txt" || { echo "Live forum identity probe missing from DEX" >&2; exit 37; }
 if grep -Eaq 'https://(www\.)?discord(app)?\.com/api/webhooks/[0-9]{5,}/[A-Za-z0-9._-]{20,}' "$work/dex-strings.txt"; then
   echo "Plaintext Discord webhook credential found in DEX" >&2
   exit 33
