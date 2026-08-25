@@ -1,0 +1,19 @@
+name: Temporary Helper Branch Cleanup
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove temporary helper branch
+        shell: bash
+        run: |
+          git push origin --delete temp/noop
