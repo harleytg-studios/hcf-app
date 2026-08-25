@@ -48,8 +48,10 @@
         <provider android:name="com.harleytg.forum.dev.HcfSessionPersistence$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.sessionpersistence" android:initOrder="110"/>
         <provider android:name="com.harleytg.forum.dev.HcfAppLinksConfig$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.applinksconfig" android:initOrder="100"/>
         <provider android:name="com.harleytg.forum.dev.HcfDiscordObservation$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.discordobservation" android:initOrder="90"/>
+        <provider android:name="com.harleytg.forum.dev.HcfSettingsImportUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.settingstransfer" android:initOrder="85"/>
         <activity android:name="com.harleytg.forum.dev.HcfMainActivities$WelcomeActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfMainActivities$SetupActivity" android:exported="false"/>
+        <activity android:name="com.harleytg.forum.dev.HcfSettingsImportUi$TransferActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$SettingsActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$LogsActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfMainActivities$CookieManagerActivity" android:exported="false"/>
