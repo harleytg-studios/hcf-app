@@ -22,11 +22,20 @@ import android.widget.Toast;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.WeakHashMap;
 
-/** Adds portable settings backup/import controls to the existing native HCF setup/settings UI. */
+/**
+ * Adds HCF settings backup/import controls and account-scoped App Settings profiles.
+ *
+ * Every signed-in forum username keeps an independent set of user-facing App Settings.
+ * Guest has a separate profile. Account/session data is never copied between profiles.
+ */
 public final class HcfSettingsImportUi {
     private static final String SETUP_TAG = "hcf_setup_import_settings";
     private static final String SETTINGS_TAG = "hcf_settings_backup_transfer";
@@ -36,14 +45,15 @@ public final class HcfSettingsImportUi {
 
     private HcfSettingsImportUi() {}
 
-    /** Registers the UI hook without requiring changes to the large activity source bundle. */
+    /** Starts the account-scoped settings system as soon as the application process starts. */
     public static final class BootstrapProvider extends ContentProvider {
         @Override
         public boolean onCreate() {
             Context context = getContext();
-            if (registered || context == null) return true;
+            if (context == null) return true;
             Context appContext = context.getApplicationContext();
-            if (!(appContext instanceof Application)) return true;
+            UserSettingsProfiles.install(appContext);
+            if (registered || !(appContext instanceof Application)) return true;
             registered = true;
             ((Application) appContext).registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
                 @Override public void onActivityCreated(Activity activity, Bundle state) {}
@@ -52,6 +62,11 @@ public final class HcfSettingsImportUi {
                 @Override
                 public void onActivityResumed(Activity activity) {
                     try {
+                        boolean profileChanged = UserSettingsProfiles.ensureActiveProfile(activity);
+                        if (profileChanged && activity instanceof HcfSubActivities.SettingsActivity) {
+                            activity.recreate();
+                            return;
+                        }
                         if (activity instanceof HcfMainActivities.SetupActivity) {
                             if (consumeRefresh(activity)) {
                                 activity.recreate();
@@ -118,6 +133,7 @@ public final class HcfSettingsImportUi {
         protected void onCreate(Bundle state) {
             super.onCreate(state);
             ThemeManager.apply(this);
+            UserSettingsProfiles.ensureActiveProfile(this);
             mode = getIntent() == null ? MODE_IMPORT : getIntent().getStringExtra(EXTRA_MODE);
             if (!MODE_EXPORT.equals(mode)) mode = MODE_IMPORT;
             if (state == null) launchPicker();
@@ -152,12 +168,10 @@ public final class HcfSettingsImportUi {
         private String suggestedExportFileName() {
             SharedPreferences prefs = getSharedPreferences(AppPrefs.FILE, 0);
             String username = readStringPreference(prefs, AppPrefs.IDENTITY_USERNAME);
-            String accountPart;
-            if (username.isEmpty()) {
-                accountPart = "Guest";
-            } else {
-                accountPart = "@" + safeFilePart(username, "User");
-            }
+            boolean signedIn = isSignedIn(prefs);
+            String accountPart = signedIn && !username.isEmpty()
+                    ? "@" + safeFilePart(username, "User")
+                    : "Guest";
 
             String channel = BuildInfo.DEFAULT_UPDATE_CHANNEL == null
                     ? ""
@@ -172,6 +186,13 @@ public final class HcfSettingsImportUi {
                     + "-v" + shortVersionCode()
                     + "-" + stamp
                     + ".json";
+        }
+
+        private static boolean isSignedIn(SharedPreferences prefs) {
+            try {
+                if (prefs.getBoolean(AppPrefs.IDENTITY_LOGGED_IN, false)) return true;
+            } catch (Throwable ignored) {}
+            return !readStringPreference(prefs, AppPrefs.SESSION_USER_ID).isEmpty();
         }
 
         private static String readStringPreference(SharedPreferences prefs, String key) {
@@ -210,10 +231,10 @@ public final class HcfSettingsImportUi {
                 HcfSettingsTransfer.Result result = HcfSettingsTransfer.importFromUri(this, uri);
                 Toast.makeText(this, result.summary(), Toast.LENGTH_LONG).show();
                 if (result.ok) {
+                    UserSettingsProfiles.captureActiveProfile(this);
                     try {
                         NotificationSyncScheduler.apply(this);
-                    } catch (Throwable ignored) {
-                    }
+                    } catch (Throwable ignored) {}
                     getSharedPreferences(AppPrefs.FILE, 0).edit().putBoolean(REFRESH_PREF, true).apply();
                     AppLogger.info(this, "settings_transfer", "import_ok | " + result.summary());
                 } else {
@@ -221,9 +242,10 @@ public final class HcfSettingsImportUi {
                 }
             } else if (requestCode == REQUEST_EXPORT) {
                 try {
+                    UserSettingsProfiles.captureActiveProfile(this);
                     HcfSettingsTransfer.exportToUri(this, uri);
                     Toast.makeText(this, "HCF settings backup exported.", Toast.LENGTH_SHORT).show();
-                    AppLogger.info(this, "settings_transfer", "export_ok");
+                    AppLogger.info(this, "settings_transfer", "export_ok | " + UserSettingsProfiles.displayLabel(this));
                 } catch (Throwable error) {
                     Toast.makeText(this, "HCF could not export the settings backup.", Toast.LENGTH_LONG).show();
                     AppLogger.warn(this, "settings_transfer", "export_failed | " + error.getClass().getSimpleName());
@@ -238,9 +260,10 @@ public final class HcfSettingsImportUi {
         if (content == null || findTagged(content, SETUP_TAG) != null) return;
 
         LinearLayout card = card(activity, SETUP_TAG);
-        addTitle(activity, card, "Import Settings", "Restore compatible settings from HCF Stable or Dev.");
+        addTitle(activity, card, "Import Settings", "Restore App Settings into the current account profile.");
         TextView detail = text(activity,
-                "Optional — choose an HCF settings backup and the setup controls will update automatically.",
+                "Current settings profile: " + UserSettingsProfiles.displayLabel(activity)
+                        + "\nChoose an HCF settings backup to restore the user-configurable settings for this profile.",
                 11,
                 activity.getColor(R.color.hcf_muted));
         detail.setPadding(0, 0, 0, dp(activity, 10));
@@ -274,11 +297,7 @@ public final class HcfSettingsImportUi {
         });
     }
 
-    /**
-     * Adds Backup & Transfer only inside Advanced & About. The outer shell and controls are
-     * created through SettingsActivity's own builders so this section stays visually identical
-     * to App Updates, Telemetry, Developer Tools and the other native sub-settings panels.
-     */
+    /** Adds Backup & Transfer only inside Advanced & About using the native settings panel style. */
     private static void injectAdvancedSettingsTransfer(Activity activity) {
         if (!"advanced".equals(readStringField(activity, "currentSettingsSection"))) return;
         ViewGroup content = readViewGroupField(activity, "settingsContent");
@@ -289,12 +308,17 @@ public final class HcfSettingsImportUi {
 
         View nativeTitle = nativeSectionTitle(activity,
                 "Backup & Transfer",
-                "Move portable app settings between HCF Stable and Dev");
-        if (nativeTitle != null) {
-            inner.addView(nativeTitle);
-        } else {
-            addTitle(activity, inner, "Backup & Transfer", "Move portable app settings between HCF Stable and Dev.");
-        }
+                "Per-account App Settings backup and restore");
+        if (nativeTitle != null) inner.addView(nativeTitle);
+        else addTitle(activity, inner, "Backup & Transfer", "Per-account App Settings backup and restore.");
+
+        TextView profile = text(activity,
+                "Settings profile: " + UserSettingsProfiles.displayLabel(activity),
+                11,
+                activity.getColor(R.color.hcf_accent_text));
+        profile.setTypeface(null, 1);
+        profile.setPadding(0, 0, 0, dp(activity, 9));
+        inner.addView(profile);
 
         Button exportButton = nativeActionButton(activity, "Export Settings", v -> TransferActivity.startExport(activity));
         inner.addView(exportButton, new LinearLayout.LayoutParams(-1, dp(activity, 44)));
@@ -305,7 +329,7 @@ public final class HcfSettingsImportUi {
         inner.addView(importButton, importLp);
 
         TextView note = text(activity,
-                "Portable preferences only. App identity, Stable/Dev update channel, Android permissions, account/session data and runtime history stay with the current app.",
+                "Each signed-in forum username has its own App Settings profile. Guest has a separate profile. Switching accounts automatically saves the previous profile and restores the new one. Login/session data is never transferred.",
                 10,
                 activity.getColor(R.color.hcf_hint));
         note.setPadding(0, dp(activity, 9), 0, 0);
@@ -313,7 +337,7 @@ public final class HcfSettingsImportUi {
 
         View panel = nativeConnectedSettingsPanel(activity,
                 "Backup & Transfer",
-                "Export or import portable app settings between Stable and Dev",
+                "Per-user settings • " + UserSettingsProfiles.displayLabel(activity),
                 inner,
                 false);
         panel.setTag(SETTINGS_TAG);
@@ -321,7 +345,262 @@ public final class HcfSettingsImportUi {
         int aboutIndex = directChildContainingText(content, "About Harley's Clan Forum");
         if (aboutIndex < 0) aboutIndex = content.getChildCount();
         content.addView(panel, aboutIndex);
-        AppLogger.info(activity, "settings_transfer_ui", "advanced_control_added");
+        AppLogger.info(activity, "settings_transfer_ui", "advanced_control_added | " + UserSettingsProfiles.displayLabel(activity));
+    }
+
+    /**
+     * Keeps the existing global AppPrefs contract intact while making user-facing settings
+     * account-scoped. This avoids changing every settings consumer in the app.
+     */
+    private static final class UserSettingsProfiles implements SharedPreferences.OnSharedPreferenceChangeListener {
+        private static final String ACTIVE_PROFILE_KEY = "settings_profile_active";
+        private static final String PROFILE_FILE_PREFIX = "hcf_user_settings_profile_";
+        private static final String PROFILE_INITIALIZED = "__initialized";
+        private static final String PROFILE_LABEL = "__label";
+
+        private static final Set<String> BOOLEAN_KEYS = new LinkedHashSet<>(Arrays.asList(
+                AppPrefs.AUTO_FAILOVER,
+                AppPrefs.BACKGROUND_NOTIFICATION_SYNC,
+                AppPrefs.COMPACT_HEADER,
+                AppPrefs.EXTERNAL_LINKS,
+                AppPrefs.LIVE_FORUM_UPDATES,
+                AppPrefs.NOTIFICATIONS_ENABLED,
+                AppPrefs.PERFORMANCE_MODE,
+                AppPrefs.SHOW_BOTTOM_NAV,
+                AppPrefs.SHOW_STARTUP_SCREEN,
+                AppPrefs.SHOW_URL_BAR,
+                AppPrefs.SILENCE_BACKGROUND_SERVICE_NOTIFICATION,
+                AppPrefs.TELEMETRY_ASK_BEFORE_CRASH_REPORT,
+                AppPrefs.TELEMETRY_AUTO_CRASH_REPORTS,
+                AppPrefs.TELEMETRY_AUTO_ERROR_REPORTS,
+                AppPrefs.TELEMETRY_ENABLED,
+                AppPrefs.TELEMETRY_INCLUDE_DEVICE_MODEL,
+                AppPrefs.TELEMETRY_INCLUDE_EMAIL,
+                AppPrefs.TELEMETRY_INCLUDE_IDENTITY,
+                AppPrefs.TELEMETRY_INCLUDE_ROUTE,
+                AppPrefs.UPDATE_AUTO_CHECK,
+                AppPrefs.UPDATE_AUTO_DOWNLOAD,
+                AppPrefs.UPDATE_AUTO_INSTALL
+        ));
+
+        private static final Set<String> STRING_KEYS = new LinkedHashSet<>(Arrays.asList(
+                AppPrefs.APP_THEME,
+                AppPrefs.NATIVE_ACCENT,
+                AppPrefs.PERFORMANCE_PROFILE,
+                AppPrefs.TELEMETRY_LEVEL,
+                AppPrefs.FIREBASE_CONFIG_URL
+        ));
+
+        private static UserSettingsProfiles instance;
+        private final Context appContext;
+        private final SharedPreferences global;
+        private boolean switching;
+
+        private UserSettingsProfiles(Context context) {
+            appContext = context.getApplicationContext();
+            global = appContext.getSharedPreferences(AppPrefs.FILE, 0);
+        }
+
+        static synchronized void install(Context context) {
+            if (context == null) return;
+            if (instance == null) {
+                instance = new UserSettingsProfiles(context);
+                instance.global.registerOnSharedPreferenceChangeListener(instance);
+            }
+            instance.ensureProfile();
+        }
+
+        static boolean ensureActiveProfile(Context context) {
+            install(context);
+            return instance != null && instance.ensureProfile();
+        }
+
+        static void captureActiveProfile(Context context) {
+            install(context);
+            if (instance != null) instance.captureActive();
+        }
+
+        static String displayLabel(Context context) {
+            install(context);
+            if (instance == null) return "Guest";
+            String username = readString(instance.global, AppPrefs.IDENTITY_USERNAME);
+            if (instance.signedIn() && !username.isEmpty()) return "@" + username;
+            return "Guest";
+        }
+
+        private synchronized boolean ensureProfile() {
+            if (switching) return false;
+            String target = desiredProfileKey();
+            if (target.isEmpty()) return false; // Identity is currently syncing; keep the existing profile.
+            String active = readString(global, ACTIVE_PROFILE_KEY);
+
+            if (active.isEmpty()) {
+                switching = true;
+                try {
+                    SharedPreferences targetPrefs = profilePrefs(target);
+                    if (targetPrefs.getBoolean(PROFILE_INITIALIZED, false)) {
+                        loadProfile(target);
+                    } else {
+                        saveGlobalToProfile(target);
+                    }
+                    global.edit().putString(ACTIVE_PROFILE_KEY, target).commit();
+                    AppLogger.info(appContext, "settings_profile_init", displayLabelNoInstall());
+                } finally {
+                    switching = false;
+                }
+                return false;
+            }
+
+            if (active.equals(target)) return false;
+
+            switching = true;
+            try {
+                saveGlobalToProfile(active);
+                SharedPreferences targetPrefs = profilePrefs(target);
+                if (targetPrefs.getBoolean(PROFILE_INITIALIZED, false)) {
+                    loadProfile(target);
+                } else {
+                    clearGlobalUserSettings();
+                    targetPrefs.edit()
+                            .putBoolean(PROFILE_INITIALIZED, true)
+                            .putString(PROFILE_LABEL, targetLabel())
+                            .commit();
+                }
+                global.edit().putString(ACTIVE_PROFILE_KEY, target).commit();
+                try {
+                    NotificationSyncScheduler.apply(appContext);
+                } catch (Throwable ignored) {}
+                AppLogger.info(appContext, "settings_profile_switch", active + " -> " + target);
+                return true;
+            } finally {
+                switching = false;
+            }
+        }
+
+        private synchronized void captureActive() {
+            if (switching) return;
+            String active = readString(global, ACTIVE_PROFILE_KEY);
+            if (active.isEmpty()) {
+                ensureProfile();
+                active = readString(global, ACTIVE_PROFILE_KEY);
+            }
+            if (!active.isEmpty()) saveGlobalToProfile(active);
+        }
+
+        @Override
+        public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+            if (switching || key == null) return;
+            if (AppPrefs.IDENTITY_USERNAME.equals(key)
+                    || AppPrefs.IDENTITY_LOGGED_IN.equals(key)
+                    || AppPrefs.SESSION_USER_ID.equals(key)) {
+                ensureProfile();
+                return;
+            }
+            if (!isUserSettingKey(key)) return;
+            String active = readString(global, ACTIVE_PROFILE_KEY);
+            if (active.isEmpty()) {
+                ensureProfile();
+                active = readString(global, ACTIVE_PROFILE_KEY);
+            }
+            if (!active.isEmpty()) saveSingleSetting(active, key);
+        }
+
+        private String desiredProfileKey() {
+            boolean signedIn = signedIn();
+            String username = readString(global, AppPrefs.IDENTITY_USERNAME);
+            if (signedIn) {
+                if (username.isEmpty()) return "";
+                return "user:" + username.toLowerCase(Locale.US);
+            }
+            return "guest";
+        }
+
+        private boolean signedIn() {
+            try {
+                if (global.getBoolean(AppPrefs.IDENTITY_LOGGED_IN, false)) return true;
+            } catch (Throwable ignored) {}
+            return !readString(global, AppPrefs.SESSION_USER_ID).isEmpty();
+        }
+
+        private String targetLabel() {
+            String username = readString(global, AppPrefs.IDENTITY_USERNAME);
+            return signedIn() && !username.isEmpty() ? "@" + username : "Guest";
+        }
+
+        private String displayLabelNoInstall() {
+            return targetLabel();
+        }
+
+        private SharedPreferences profilePrefs(String profileKey) {
+            String safe = profileKey.toLowerCase(Locale.US).replaceAll("[^a-z0-9._-]+", "_");
+            if (safe.isEmpty()) safe = "profile";
+            safe = safe + "_" + Integer.toHexString(profileKey.hashCode());
+            return appContext.getSharedPreferences(PROFILE_FILE_PREFIX + safe, 0);
+        }
+
+        private void saveGlobalToProfile(String profileKey) {
+            if (profileKey == null || profileKey.isEmpty()) return;
+            Map<String, ?> all = global.getAll();
+            SharedPreferences.Editor out = profilePrefs(profileKey).edit().clear();
+            out.putBoolean(PROFILE_INITIALIZED, true);
+            out.putString(PROFILE_LABEL, "guest".equals(profileKey) ? "Guest" : profileKey.substring(profileKey.indexOf(':') + 1));
+            for (String key : BOOLEAN_KEYS) {
+                Object value = all.get(key);
+                if (value instanceof Boolean) out.putBoolean(key, ((Boolean) value).booleanValue());
+            }
+            for (String key : STRING_KEYS) {
+                Object value = all.get(key);
+                if (value instanceof String) out.putString(key, (String) value);
+            }
+            out.commit();
+        }
+
+        private void saveSingleSetting(String profileKey, String key) {
+            Object value = global.getAll().get(key);
+            SharedPreferences.Editor out = profilePrefs(profileKey).edit();
+            out.putBoolean(PROFILE_INITIALIZED, true);
+            if (value instanceof Boolean) out.putBoolean(key, ((Boolean) value).booleanValue());
+            else if (value instanceof String) out.putString(key, (String) value);
+            else out.remove(key);
+            out.apply();
+        }
+
+        private void loadProfile(String profileKey) {
+            SharedPreferences source = profilePrefs(profileKey);
+            Map<String, ?> saved = source.getAll();
+            SharedPreferences.Editor edit = global.edit();
+            for (String key : BOOLEAN_KEYS) edit.remove(key);
+            for (String key : STRING_KEYS) edit.remove(key);
+            for (String key : BOOLEAN_KEYS) {
+                Object value = saved.get(key);
+                if (value instanceof Boolean) edit.putBoolean(key, ((Boolean) value).booleanValue());
+            }
+            for (String key : STRING_KEYS) {
+                Object value = saved.get(key);
+                if (value instanceof String) edit.putString(key, (String) value);
+            }
+            edit.commit();
+        }
+
+        private void clearGlobalUserSettings() {
+            SharedPreferences.Editor edit = global.edit();
+            for (String key : BOOLEAN_KEYS) edit.remove(key);
+            for (String key : STRING_KEYS) edit.remove(key);
+            edit.commit();
+        }
+
+        private static boolean isUserSettingKey(String key) {
+            return BOOLEAN_KEYS.contains(key) || STRING_KEYS.contains(key);
+        }
+
+        private static String readString(SharedPreferences prefs, String key) {
+            try {
+                String value = prefs.getString(key, "");
+                return value == null ? "" : value.trim();
+            } catch (Throwable ignored) {
+                return "";
+            }
+        }
     }
 
     private static String readStringField(Activity activity, String fieldName) {
@@ -352,8 +631,7 @@ public final class HcfSettingsImportUi {
             method.setAccessible(true);
             Object value = method.invoke(activity);
             if (value instanceof LinearLayout) return (LinearLayout) value;
-        } catch (Throwable ignored) {
-        }
+        } catch (Throwable ignored) {}
         return card(activity, SETTINGS_TAG + "_fallback");
     }
 
@@ -374,8 +652,7 @@ public final class HcfSettingsImportUi {
             method.setAccessible(true);
             Object value = method.invoke(activity, title, listener);
             if (value instanceof Button) return (Button) value;
-        } catch (Throwable ignored) {
-        }
+        } catch (Throwable ignored) {}
         Button fallback = actionButton(activity, title + "   ›");
         fallback.setOnClickListener(listener);
         return fallback;
@@ -388,8 +665,7 @@ public final class HcfSettingsImportUi {
             method.setAccessible(true);
             Object value = method.invoke(activity, title, subtitle, inner, expanded);
             if (value instanceof View) return (View) value;
-        } catch (Throwable ignored) {
-        }
+        } catch (Throwable ignored) {}
         return inner;
     }
 
@@ -440,6 +716,7 @@ public final class HcfSettingsImportUi {
     }
 
     private static View findTagged(View view, String tag) {
+        if (view == null) return null;
         if (tag.equals(view.getTag())) return view;
         if (!(view instanceof ViewGroup)) return null;
         ViewGroup group = (ViewGroup) view;
