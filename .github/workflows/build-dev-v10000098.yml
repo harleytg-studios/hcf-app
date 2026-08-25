@@ -7,6 +7,7 @@ on:
       - 'source code/**'
       - 'configs/app-links/**'
       - 'README.md'
+      - '.github/scripts/apply-onboarding-account.py'
       - '.github/scripts/verify-hcf-alerts-ui.py'
       - '.github/scripts/verify-release-readiness.py'
       - '.github/workflows/build-dev-v10000098.yml'
@@ -29,6 +30,16 @@ jobs:
           python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
           python3 .github/scripts/verify-release-readiness.py .
           python3 -m json.tool configs/app-links/assetlinks.json >/dev/null
+
+      - name: Apply forum account onboarding
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/apply-onboarding-account.py \
+            'source code/src/com/harleytg/forum/HcfMainActivities.java' \
+            'source code/src/com/harleytg/forum/HcfApplication.java'
+          grep -Fq 'HCF_ONBOARDING_FORUM_ACCOUNT_V1' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          grep -Fq 'HCF_ONBOARDING_ACCOUNT_FLOW_GUARD_V1' 'source code/src/com/harleytg/forum/HcfApplication.java'
 
       - name: Verify live sanitized ban configuration
         shell: bash
@@ -182,6 +193,10 @@ jobs:
           grep -Fq 'same build code, revised APK hash' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'APK SHA-256 does not match' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'App Setup' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Forum Account' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Sign In to Forum' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Create Forum Account' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'hcf_setup_account_flow' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'HCF Alerts are the real forum alerts.' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'HcfDiscordSecret' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'configs/ban-list.json' "$OUT/DEX-STRINGS.txt"
