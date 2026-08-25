@@ -20,6 +20,7 @@ import android.view.ViewGroup;
 import android.webkit.WebView;
 import android.webkit.WebSettings;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -130,7 +131,7 @@ public final class HcfDesktopMode {
         private View copyUrlButton;
         private View urlHomeButton;
         private TextView secureForumLabel;
-        private TextView currentUrlText;
+        private EditText currentUrlText;
         private TextView hostBadge;
         private View bottomNav;
         private View errorShell;
