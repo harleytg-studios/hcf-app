@@ -54,31 +54,73 @@ public final class HcfUITheme {
     public static final class StartupActivity extends ThemedActivity {
         private static final int REQUEST_WELCOME = 4101;
         private static final int REQUEST_SETUP = 4102;
-        private static final long BACKDROP_REVEAL_MS = 120L;
-        private static final long HEADER_FADE_MS = 180L;
+
+        private static final long QUICK_PATH_WINDOW_MS = 6L * 60L * 60L * 1000L;
+        private static final long LOADER_FIRST_FRAME_HOLD_MS = 420L;
+        private static final long STAGE_MIN_DWELL_MS = 110L;
+        private static final long FULL_MIN_VISIBLE_MS = 1400L;
+        private static final long FULL_EXTRA_WAIT_CAP_MS = 450L;
+        private static final long HEADER_FADE_MS = 200L;
         private static final long URL_FADE_MS = 180L;
         private static final long LOADER_FADE_MS = 220L;
-        private static final long LOADER_FIRST_FRAME_HOLD_MS = 300L;
-        private static final long WEBVIEW_HANDOFF_DELAY_MS = 80L;
+        private static final long WEBVIEW_HANDOFF_DELAY_MS = 90L;
+
+        private static final String PREF_STARTUP_LAST_GOOD_AT = "startup_last_good_at";
+        private static final String PREF_STARTUP_LAST_GOOD_HOST = "startup_last_good_host";
+
+        private static final int W_ACCESS = 110;
+        private static final int W_PREFS = 55;
+        private static final int W_WEBVIEW = 90;
+        private static final int W_COOKIES = 55;
+        private static final int W_IDENTITY = 90;
+        private static final int W_DOMAINS = 75;
+        private static final int W_INTEGRATION = 80;
+        private static final int W_NOTIFICATIONS = 90;
+        private static final int W_UPDATES = 75;
+        private static final int W_RECOVERY = 60;
+        private static final int W_STORAGE = 70;
+        private static final int W_HOSTS = 100;
+        private static final int W_READY = 50;
+        private static final int FULL_WEIGHT_TOTAL = 1000;
+        private static final int QUICK_WEIGHT_TOTAL = FULL_WEIGHT_TOTAL - W_DOMAINS - W_UPDATES - W_RECOVERY;
+        private static final int FULL_STAGE_COUNT = 13;
+        private static final int QUICK_STAGE_COUNT = 10;
 
         private final Handler mainHandler = new Handler(Looper.getMainLooper());
+        private final java.util.ArrayList<String> completedSteps = new java.util.ArrayList<String>();
+
         private SharedPreferences prefs;
         private View topAppBar;
         private View urlBar;
         private View loaderBackdrop;
         private View loaderOverlay;
         private LinearLayout loaderPanel;
+        private ImageView loaderLogo;
         private TextView loaderTitle;
+        private TextView loaderStep;
         private TextView loaderStatus;
         private TextView loaderDetail;
+        private TextView loaderPercent;
+        private TextView completedTicker;
         private ProgressBar loaderProgress;
         private Button retryButton;
         private WebView startupWebView;
+        private android.animation.ValueAnimator progressAnimator;
+        private android.animation.ValueAnimator logoPulseAnimator;
+
         private boolean gateInProgress;
         private boolean loaderStarted;
         private boolean handoffStarted;
+        private boolean handoffPending;
+        private boolean hardFailure;
         private boolean destroyed;
         private boolean resumed;
+        private boolean quickPath;
+        private int runGeneration;
+        private int completedWeight;
+        private int totalWeight;
+        private int totalStages;
+        private long loaderVisibleAt;
 
         @Override
         protected void onCreate(Bundle state) {
@@ -113,7 +155,12 @@ public final class HcfUITheme {
             resumed = true;
             mainHandler.post(new Runnable() {
                 @Override public void run() {
-                    advanceStartupGate();
+                    if (handoffPending) {
+                        handoffPending = false;
+                        beginChromeHandoff();
+                    } else {
+                        advanceStartupGate();
+                    }
                 }
             });
         }
@@ -137,7 +184,9 @@ public final class HcfUITheme {
         protected void onDestroy() {
             destroyed = true;
             resumed = false;
+            runGeneration++;
             mainHandler.removeCallbacksAndMessages(null);
+            stopLoaderAnimations();
             HcfSessionPersistence.flushCookies();
             destroyStartupWebView();
             super.onDestroy();
@@ -145,7 +194,7 @@ public final class HcfUITheme {
 
         private void advanceStartupGate() {
             if (!resumed || destroyed || isFinishing() || isDestroyed()
-                    || gateInProgress || loaderStarted || handoffStarted) {
+                    || gateInProgress || loaderStarted || handoffStarted || hardFailure) {
                 return;
             }
 
@@ -179,19 +228,18 @@ public final class HcfUITheme {
             urlBar = findViewById(R.id.urlBar);
             startupWebView = findViewById(R.id.webView);
 
-            // MainActivity always applies the compact chrome profile. Apply the exact
-            // same dimensions before the startup chrome can ever become visible so
-            // the URL bar cannot appear at XML/default size and then snap smaller.
             applyStartupChromeDensity();
 
             if (topAppBar != null) {
                 topAppBar.animate().cancel();
                 topAppBar.setAlpha(0.0f);
+                topAppBar.setTranslationY(-dp(8));
                 topAppBar.setVisibility(View.INVISIBLE);
             }
             if (urlBar != null) {
                 urlBar.animate().cancel();
                 urlBar.setAlpha(0.0f);
+                urlBar.setTranslationY(-dp(6));
                 urlBar.setVisibility(View.INVISIBLE);
             }
 
@@ -212,23 +260,10 @@ public final class HcfUITheme {
                 contentFrame.setBackgroundColor(ThemeManager.isAmoled(this) ? Color.BLACK : getColor(R.color.hcf_bg));
             }
 
-            String host = preferredHost();
-            TextView hostBadge = findViewById(R.id.hostBadge);
-            if (hostBadge != null) {
-                hostBadge.setText(SetupCenter.BACKUP_FORUM_HOST.equalsIgnoreCase(host) ? "Backup" : "Primary");
-            }
-
-            EditText currentUrl = findViewById(R.id.currentUrlText);
-            if (currentUrl != null) {
-                currentUrl.setText("https://" + host + "/");
-                currentUrl.setFocusable(false);
-                currentUrl.setCursorVisible(false);
-            }
+            updateChromeHostDisplay();
 
             TextView subtitle = findViewById(R.id.appHeaderSubtitle);
-            if (subtitle != null) {
-                subtitle.setText("Native startup • System checks");
-            }
+            if (subtitle != null) subtitle.setText("Native startup • System checks");
         }
 
         private void applyStartupChromeDensity() {
@@ -254,15 +289,8 @@ public final class HcfUITheme {
             styleStartupUrlNav(R.id.copyUrlButton, R.drawable.fa_copy);
             styleStartupUrlNav(R.id.urlHomeButton, R.drawable.fa_house);
 
-            if (topAppBar != null) {
-                int side = dp(6);
-                topAppBar.setPadding(side, 0, side, 0);
-            }
-            if (urlBar != null) {
-                int side = dp(6);
-                int vertical = dp(2);
-                urlBar.setPadding(side, vertical, side, vertical);
-            }
+            if (topAppBar != null) topAppBar.setPadding(dp(6), 0, dp(6), 0);
+            if (urlBar != null) urlBar.setPadding(dp(6), dp(2), dp(6), dp(2));
 
             View secureLabel = findViewById(R.id.secureForumLabel);
             if (secureLabel != null) secureLabel.setVisibility(View.GONE);
@@ -318,33 +346,47 @@ public final class HcfUITheme {
             loaderPanel = new LinearLayout(this);
             loaderPanel.setOrientation(LinearLayout.VERTICAL);
             loaderPanel.setGravity(Gravity.CENTER_HORIZONTAL);
-            loaderPanel.setPadding(dp(24), dp(24), dp(24), dp(24));
+            loaderPanel.setPadding(dp(24), dp(20), dp(24), dp(20));
 
-            ImageView logo = new ImageView(this);
-            logo.setImageResource(R.drawable.htg_app_logo);
-            logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            logo.setContentDescription("Harley's Clan Forum logo");
-            loaderPanel.addView(logo, new LinearLayout.LayoutParams(dp(104), dp(104)));
+            loaderLogo = new ImageView(this);
+            loaderLogo.setImageResource(R.drawable.htg_app_logo);
+            loaderLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            loaderLogo.setContentDescription("Harley's Clan Forum logo");
+            loaderPanel.addView(loaderLogo, new LinearLayout.LayoutParams(dp(96), dp(96)));
 
             TextView brand = text("HARLEY'S STUDIOS", 10, getColor(R.color.hcf_meta));
             brand.setTypeface(null, 1);
             brand.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams brandLp = new LinearLayout.LayoutParams(-1, -2);
-            brandLp.topMargin = dp(14);
+            brandLp.topMargin = dp(12);
             loaderPanel.addView(brand, brandLp);
 
             loaderTitle = text("Starting Harley's Clan Forum", 21, getColor(R.color.hcf_text));
             loaderTitle.setTypeface(null, 1);
             loaderTitle.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(-1, -2);
-            titleLp.topMargin = dp(6);
+            titleLp.topMargin = dp(5);
             loaderPanel.addView(loaderTitle, titleLp);
+
+            LinearLayout stepRow = new LinearLayout(this);
+            stepRow.setOrientation(LinearLayout.HORIZONTAL);
+            stepRow.setGravity(Gravity.CENTER_VERTICAL);
+            loaderStep = text("Step 0 of " + FULL_STAGE_COUNT, 10, getColor(R.color.hcf_meta));
+            loaderStep.setTypeface(null, 1);
+            loaderPercent = text("0%", 10, getColor(R.color.hcf_cyan_bright));
+            loaderPercent.setTypeface(null, 1);
+            loaderPercent.setGravity(Gravity.END);
+            stepRow.addView(loaderStep, new LinearLayout.LayoutParams(0, -2, 1.0f));
+            stepRow.addView(loaderPercent, new LinearLayout.LayoutParams(-2, -2));
+            LinearLayout.LayoutParams stepLp = new LinearLayout.LayoutParams(-1, -2);
+            stepLp.topMargin = dp(16);
+            loaderPanel.addView(stepRow, stepLp);
 
             loaderStatus = text("Waiting for startup gate…", 13, getColor(R.color.hcf_cyan_bright));
             loaderStatus.setTypeface(null, 1);
             loaderStatus.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(-1, -2);
-            statusLp.topMargin = dp(18);
+            statusLp.topMargin = dp(8);
             loaderPanel.addView(loaderStatus, statusLp);
 
             loaderDetail = text("Welcome and App Setup run before native system initialization.", 11,
@@ -352,22 +394,34 @@ public final class HcfUITheme {
             loaderDetail.setGravity(Gravity.CENTER);
             loaderDetail.setLineSpacing(0.0f, 1.12f);
             LinearLayout.LayoutParams detailLp = new LinearLayout.LayoutParams(-1, -2);
-            detailLp.topMargin = dp(6);
+            detailLp.topMargin = dp(5);
             loaderPanel.addView(loaderDetail, detailLp);
 
             loaderProgress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
             loaderProgress.setIndeterminate(false);
-            loaderProgress.setMax(100);
+            loaderProgress.setMax(1000);
             loaderProgress.setProgress(0);
             loaderProgress.setProgressTintList(ColorStateList.valueOf(getColor(R.color.hcf_cyan)));
             LinearLayout.LayoutParams progressLp = new LinearLayout.LayoutParams(-1, dp(6));
-            progressLp.topMargin = dp(22);
+            progressLp.topMargin = dp(16);
             loaderPanel.addView(loaderProgress, progressLp);
+
+            TextView completedLabel = text("COMPLETED CHECKS", 9, getColor(R.color.hcf_meta));
+            completedLabel.setTypeface(null, 1);
+            LinearLayout.LayoutParams completedLabelLp = new LinearLayout.LayoutParams(-1, -2);
+            completedLabelLp.topMargin = dp(12);
+            loaderPanel.addView(completedLabel, completedLabelLp);
+
+            completedTicker = text("Waiting for completed checks…", 10, getColor(R.color.hcf_hint));
+            completedTicker.setLineSpacing(dp(1), 1.05f);
+            LinearLayout.LayoutParams tickerLp = new LinearLayout.LayoutParams(-1, -2);
+            tickerLp.topMargin = dp(4);
+            loaderPanel.addView(completedTicker, tickerLp);
 
             TextView build = text(BuildInfo.VERSION_BUILD_LINE, 9, getColor(R.color.hcf_hint));
             build.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams buildLp = new LinearLayout.LayoutParams(-1, -2);
-            buildLp.topMargin = dp(14);
+            buildLp.topMargin = dp(12);
             loaderPanel.addView(build, buildLp);
 
             retryButton = new Button(this);
@@ -379,13 +433,12 @@ public final class HcfUITheme {
             retryButton.setVisibility(View.GONE);
             retryButton.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View view) {
-                    retryButton.setVisibility(View.GONE);
-                    loaderStarted = false;
+                    resetLoaderStateForRetry();
                     startSystemLoader();
                 }
             });
-            LinearLayout.LayoutParams retryLp = new LinearLayout.LayoutParams(-1, dp(50));
-            retryLp.topMargin = dp(18);
+            LinearLayout.LayoutParams retryLp = new LinearLayout.LayoutParams(-1, dp(48));
+            retryLp.topMargin = dp(14);
             loaderPanel.addView(retryButton, retryLp);
 
             FrameLayout.LayoutParams panelLp = new FrameLayout.LayoutParams(
@@ -402,50 +455,43 @@ public final class HcfUITheme {
         }
 
         private void startSystemLoader() {
-            if (!resumed || loaderStarted || handoffStarted || destroyed) return;
+            if (!resumed || loaderStarted || handoffStarted || destroyed || hardFailure) return;
+
+            quickPath = shouldUseQuickPath();
+            totalWeight = quickPath ? QUICK_WEIGHT_TOTAL : FULL_WEIGHT_TOTAL;
+            totalStages = quickPath ? QUICK_STAGE_COUNT : FULL_STAGE_COUNT;
+            completedWeight = 0;
             loaderStarted = true;
+            handoffPending = false;
+            loaderVisibleAt = android.os.SystemClock.elapsedRealtime();
+            final int token = ++runGeneration;
 
-            // Both first-run and returning users must see a real 0% loader frame
-            // before background checks are allowed to advance the progress bar.
-            if (loaderOverlay != null) {
-                loaderOverlay.animate().cancel();
-                loaderOverlay.setAlpha(1.0f);
-                loaderOverlay.setVisibility(View.VISIBLE);
-            }
-            if (loaderBackdrop != null) {
-                loaderBackdrop.animate().cancel();
-                loaderBackdrop.setAlpha(1.0f);
-                loaderBackdrop.setVisibility(View.VISIBLE);
-            }
-            if (loaderPanel != null) {
-                loaderPanel.animate().cancel();
-                loaderPanel.setAlpha(1.0f);
-                loaderPanel.setVisibility(View.VISIBLE);
-            }
-            if (retryButton != null) retryButton.setVisibility(View.GONE);
-            if (loaderTitle != null) loaderTitle.setText("Starting Harley's Clan Forum");
-            if (loaderStatus != null) loaderStatus.setText("Starting native systems");
+            resetLoaderVisuals();
+            animateLogoEntrance();
+
+            if (loaderTitle != null) loaderTitle.setText(quickPath ? "Welcome back" : "Starting Harley's Clan Forum");
+            if (loaderStep != null) loaderStep.setText("Step 0 of " + totalStages);
+            if (loaderStatus != null) loaderStatus.setText(quickPath ? "Quick system check" : "Starting native systems");
             if (loaderDetail != null) {
-                loaderDetail.setText("Preparing system checks before the forum opens.");
+                loaderDetail.setText(quickPath
+                        ? "Recent successful startup found. Running safety-critical checks and connectivity only."
+                        : "Preparing the complete native system gate before the forum opens.");
             }
-            if (loaderProgress != null) loaderProgress.setProgress(0, false);
 
-            AppLogger.info(this, "startup_loader", "visible_zero");
+            AppLogger.info(this, "startup_loader",
+                    "visible_zero | mode=" + (quickPath ? "quick" : "full") + " | stages=" + totalStages);
 
             mainHandler.postDelayed(new Runnable() {
                 @Override public void run() {
-                    if (destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
+                    if (!isRunValid(token)) return;
                     if (!resumed) {
                         loaderStarted = false;
                         return;
                     }
-
-                    publishStage(4, "Loading app preferences", "Applying theme, performance and saved native settings.");
-                    AppLogger.info(StartupActivity.this, "startup_loader", "begin_after_visible_frame");
-
+                    startLogoPulse();
                     Thread worker = new Thread(new Runnable() {
                         @Override public void run() {
-                            runSystemChecks();
+                            runSystemChecks(token);
                         }
                     }, "hcf-startup-checks");
                     worker.setPriority(Thread.NORM_PRIORITY);
@@ -454,123 +500,385 @@ public final class HcfUITheme {
             }, LOADER_FIRST_FRAME_HOLD_MS);
         }
 
-        private void runSystemChecks() {
+        private void runSystemChecks(int token) {
+            int step = 0;
             try {
-                publishStage(6, "Checking access status", "Checking account and network against the HCF ban list.");
+                long started = beginStage(token, ++step, "Checking access status",
+                        "Checking account and network against the HCF ban list.");
                 try {
                     HcfBanSystem.CheckResult access = HcfBanSystem.checkCurrentAccess(this);
                     if (access != null && access.banned) {
-                        AppLogger.warn(this, "startup_ban_gate", "blocked | scope=" + access.scope + " | id=" + access.banId);
-                        openAccessRestricted(access);
+                        AppLogger.warn(this, "startup_ban_gate",
+                                "blocked | scope=" + access.scope + " | id=" + access.banId);
+                        openAccessRestricted(token, access);
                         return;
                     }
-                    publishStage(10, "Access allowed", "No active HCF ban was found.");
+                    if (!completeStage(token, W_ACCESS, started,
+                            "No active HCF access restriction was found.", "Access • allowed")) return;
                 } catch (Throwable accessError) {
-                    AppLogger.warn(this, "startup_ban_gate", "fail-open | " + accessError.getClass().getSimpleName());
-                    publishStage(10, "Access check unavailable", "The HCF ban list could not be reached; startup will continue.");
+                    AppLogger.warn(this, "startup_ban_gate",
+                            "fail-open | " + accessError.getClass().getSimpleName());
+                    if (!completeStage(token, W_ACCESS, started,
+                            "Ban list unavailable; startup is continuing fail-open.", "Access • fail-open")) return;
                 }
 
-                HcfSessionPersistence.flushCookies();
-                prefs.getAll().size();
-                publishStage(12, "Loading native configuration", "Preferences and app configuration are readable.");
+                started = beginStage(token, ++step, "Loading app preferences",
+                        "Validating saved native settings and the active theme profile.");
+                int preferenceCount = prefs.getAll().size();
+                String themeLabel = ThemeManager.label(this);
+                if (!completeStage(token, W_PREFS, started,
+                        "Preferences are readable • " + preferenceCount + " entries • theme: " + themeLabel + ".",
+                        "Preferences • " + preferenceCount + " • " + themeLabel)) return;
 
+                started = beginStage(token, ++step, "Checking WebView engine",
+                        "Verifying Android System WebView provider and package version.");
                 PackageInfo webViewPackage = WebView.getCurrentWebViewPackage();
                 if (webViewPackage == null || TextUtils.isEmpty(webViewPackage.packageName)) {
-                    failStartup("Android System WebView is unavailable",
+                    failStartup(token, "Android System WebView is unavailable",
                             "HCF cannot open the forum until Android has a working WebView provider.");
                     return;
                 }
-                publishStage(24, "Checking WebView engine", "WebView provider: " + webViewPackage.packageName);
+                String webViewVersion = TextUtils.isEmpty(webViewPackage.versionName)
+                        ? "unknown version" : webViewPackage.versionName;
+                if (!completeStage(token, W_WEBVIEW, started,
+                        "Provider: " + webViewPackage.packageName + " • " + webViewVersion + ".",
+                        "WebView • " + shortText(webViewVersion, 34))) return;
 
+                started = beginStage(token, ++step, "Flushing cookie store",
+                        "Persisting the existing first-party forum session without creating a temporary WebView.");
+                try {
+                    HcfSessionPersistence.flushCookies();
+                    if (!completeStage(token, W_COOKIES, started,
+                            "Android WebView cookie storage was flushed to persistent storage.",
+                            "Cookies • persisted")) return;
+                } catch (Throwable cookieError) {
+                    AppLogger.warn(this, "startup_cookies", cookieError.getClass().getSimpleName());
+                    if (!completeStage(token, W_COOKIES, started,
+                            "Cookie flush could not be confirmed; the lifecycle persistence hook will retry.",
+                            "Cookies • deferred")) return;
+                }
+
+                started = beginStage(token, ++step, "Restoring forum identity",
+                        "Loading the saved forum identity and session marker.");
                 ForumIdentity.Snapshot identity = ForumIdentity.load(this);
-                String identityText = identity != null && identity.loggedIn
-                        ? "Restored signed-in forum identity."
-                        : "Guest forum session ready.";
-                publishStage(36, "Restoring forum session", identityText);
+                String sessionUserId = prefs.getString("session_user_id", "");
+                String identityDetail;
+                String identitySummary;
+                if (identity != null && identity.loggedIn) {
+                    identityDetail = "Restored " + identity.usernameDisplay()
+                            + (TextUtils.isEmpty(sessionUserId) ? " • session marker will refresh in the forum." : " • signed-in session marker present.");
+                    identitySummary = "Identity • " + shortText(identity.usernameDisplay(), 32);
+                } else {
+                    identityDetail = "Guest forum identity ready; sign-in can continue inside the forum.";
+                    identitySummary = "Identity • guest";
+                }
+                if (!completeStage(token, W_IDENTITY, started, identityDetail, identitySummary)) return;
 
+                if (!quickPath) {
+                    started = beginStage(token, ++step, "Refreshing domain registry",
+                            "Loading the trusted primary and backup forum-domain configuration.");
+                    try {
+                        RemoteDomainConfig.initialize(this);
+                        if (hasInternetNetwork()) RemoteDomainConfig.refresh(this);
+                        if (!completeStage(token, W_DOMAINS, started,
+                                "Trusted domains ready • primary " + ForumConfig.PRIMARY_HOST
+                                        + " • backup " + ForumConfig.BACKUP_HOST + ".",
+                                "Domains • registry ready")) return;
+                    } catch (Throwable domainError) {
+                        AppLogger.warn(this, "startup_domains", domainError.getClass().getSimpleName());
+                        if (!completeStage(token, W_DOMAINS, started,
+                                "Remote domain refresh failed; cached/built-in trusted domains remain active.",
+                                "Domains • cached fallback")) return;
+                    }
+                }
+
+                started = beginStage(token, ++step, "Checking Android integration",
+                        "Verifying forum links and secure APK installer permission state.");
                 SetupCenter.ForumLinksState links = SetupCenter.forumLinksState(this);
                 boolean canInstallUpdates = AppSecurity.canInstallUpdates(this);
-                String integrationDetail = (links != null && links.ready ? "Forum links ready" : "Forum links managed by Android")
-                        + " • secure installer " + (canInstallUpdates ? "ready" : "permission not granted");
-                publishStage(49, "Checking Android integration", integrationDetail);
+                String integrationDetail = (links != null && links.ready
+                        ? "Forum links verified" : "Forum links are managed by Android")
+                        + " • installer " + (canInstallUpdates ? "ready" : "permission not granted") + ".";
+                if (!completeStage(token, W_INTEGRATION, started, integrationDetail,
+                        "Android • links " + (links != null && links.ready ? "ready" : "managed"))) return;
 
+                started = beginStage(token, ++step, "Starting notification systems",
+                        "Checking HCF notification channels, foreground sync and the safety-net schedule.");
                 try {
                     NotificationHelper.refreshChannels(this);
                     NotificationSyncScheduler.apply(this);
-                    publishStage(61, "Starting notification systems", "Notification channels and background alert schedule checked.");
+                    if (!completeStage(token, W_NOTIFICATIONS, started,
+                            "Notification channels and background alert schedule are ready.",
+                            "Notifications • ready")) return;
                 } catch (Throwable notificationError) {
                     AppLogger.warn(this, "startup_notifications", notificationError.getClass().getSimpleName());
-                    publishStage(61, "Checking notification systems", "Notifications are optional; startup can continue.");
+                    if (!completeStage(token, W_NOTIFICATIONS, started,
+                            "Notification startup was deferred; the main app can recover it after handoff.",
+                            "Notifications • deferred")) return;
                 }
 
+                if (!quickPath) {
+                    started = beginStage(token, ++step, "Checking update system",
+                            "Applying the update schedule and cleaning same-version downloaded update state.");
+                    try {
+                        UpdateScheduler.apply(this);
+                        AppUpdateDownloader.cleanupIfCurrentVersionWasDownloaded(this);
+                        if (!completeStage(token, W_UPDATES, started,
+                                "Update scheduler and same-version cleanup completed.",
+                                "Updates • ready")) return;
+                    } catch (Throwable updateError) {
+                        AppLogger.warn(this, "startup_updates", updateError.getClass().getSimpleName());
+                        if (!completeStage(token, W_UPDATES, started,
+                                "Update maintenance was deferred; it will retry after startup.",
+                                "Updates • deferred")) return;
+                    }
+
+                    started = beginStage(token, ++step, "Checking recovery state",
+                            "Inspecting the saved crash-recovery state before forum handoff.");
+                    try {
+                        boolean pendingCrash = TelemetryService.hasPendingCrash(this);
+                        if (!completeStage(token, W_RECOVERY, started,
+                                pendingCrash
+                                        ? "A saved recovery report is present; the main app can process it safely."
+                                        : "No pending crash recovery report was found.",
+                                pendingCrash ? "Recovery • report pending" : "Recovery • clean")) return;
+                    } catch (Throwable recoveryError) {
+                        AppLogger.warn(this, "startup_recovery", recoveryError.getClass().getSimpleName());
+                        if (!completeStage(token, W_RECOVERY, started,
+                                "Recovery state could not be read; no blocking action is required.",
+                                "Recovery • fail-open")) return;
+                    }
+                }
+
+                started = beginStage(token, ++step, "Checking app storage",
+                        "Measuring free space on the app data volume for cache, cookies and update metadata.");
                 try {
-                    UpdateScheduler.apply(this);
-                    AppUpdateDownloader.cleanupIfCurrentVersionWasDownloaded(this);
-                    publishStage(72, "Starting update system", "Update scheduler and downloaded-update state checked.");
-                } catch (Throwable updateError) {
-                    AppLogger.warn(this, "startup_updates", updateError.getClass().getSimpleName());
-                    publishStage(72, "Checking update system", "Update checks can recover after the forum opens.");
+                    android.os.StatFs stat = new android.os.StatFs(getFilesDir().getAbsolutePath());
+                    long freeBytes = stat.getAvailableBytes();
+                    String free = formatBytes(freeBytes);
+                    String detail = freeBytes < 64L * 1024L * 1024L
+                            ? "Low free app-data storage: " + free + ". Startup will continue, but Android may reclaim caches aggressively."
+                            : "Free app-data storage: " + free + ".";
+                    if (!completeStage(token, W_STORAGE, started, detail,
+                            "Storage • " + free + " free")) return;
+                } catch (Throwable storageError) {
+                    AppLogger.warn(this, "startup_storage", storageError.getClass().getSimpleName());
+                    if (!completeStage(token, W_STORAGE, started,
+                            "Free-space check was unavailable; startup will continue fail-open.",
+                            "Storage • unavailable")) return;
                 }
 
-                try {
-                    boolean pendingCrash = TelemetryService.hasPendingCrash(this);
-                    publishStage(80, "Checking recovery state",
-                            pendingCrash ? "A saved recovery report is ready for the main app to handle."
-                                    : "No pending crash recovery report was found.");
-                } catch (Throwable recoveryError) {
-                    AppLogger.warn(this, "startup_recovery", recoveryError.getClass().getSimpleName());
-                    publishStage(80, "Checking recovery state", "No blocking recovery action is required.");
-                }
-
-                boolean network = hasInternetNetwork();
-                if (!network) {
-                    AppLogger.warn(this, "startup_network", "no active internet network");
-                    publishStage(92, "Checking forum connection", "No active internet connection; HCF recovery UI remains available.");
+                if (quickPath) {
+                    started = beginStage(token, ++step, "Checking connectivity",
+                            "Using the recent healthy-host result and checking only Android network connectivity.");
+                    boolean network = hasInternetNetwork();
+                    String lastGoodHost = prefs.getString(PREF_STARTUP_LAST_GOOD_HOST, "");
+                    if (!ForumUrlRouter.isForumHost(lastGoodHost)) lastGoodHost = preferredHost();
+                    String detail = network
+                            ? "Internet network available • recent good host: " + lastGoodHost + "."
+                            : "No active internet network; the forum recovery UI remains available.";
+                    if (!completeStage(token, W_HOSTS, started, detail,
+                            network ? "Connectivity • online" : "Connectivity • offline")) return;
                 } else {
-                    String savedHost = preferredHost();
-                    boolean primaryHealthy = probeHost(SetupCenter.PRIMARY_FORUM_HOST);
-                    boolean backupHealthy = probeHost(SetupCenter.BACKUP_FORUM_HOST);
-
-                    if (!primaryHealthy && backupHealthy) {
-                        prefs.edit().putString("active_host", SetupCenter.BACKUP_FORUM_HOST).apply();
-                    } else if (primaryHealthy
-                            && !SetupCenter.PRIMARY_FORUM_HOST.equalsIgnoreCase(savedHost)
-                            && !SetupCenter.BACKUP_FORUM_HOST.equalsIgnoreCase(savedHost)) {
-                        prefs.edit().putString("active_host", SetupCenter.PRIMARY_FORUM_HOST).apply();
-                    }
-
-                    String detail;
-                    if (primaryHealthy && backupHealthy) {
-                        detail = "Primary and backup forum hosts responded.";
-                    } else if (primaryHealthy) {
-                        detail = "Primary forum host responded; backup is currently unavailable.";
-                    } else if (backupHealthy) {
-                        detail = "Primary is unavailable; backup forum host is ready.";
+                    started = beginStage(token, ++step, "Probing forum hosts",
+                            "Checking primary and backup forum hosts with 2.5-second connection/read timeouts.");
+                    boolean network = hasInternetNetwork();
+                    if (!network) {
+                        AppLogger.warn(this, "startup_network", "no active internet network");
+                        if (!completeStage(token, W_HOSTS, started,
+                                "No active internet connection; host probes were skipped and recovery UI remains available.",
+                                "Hosts • offline")) return;
                     } else {
-                        detail = "Hosts did not respond to the startup probe; the forum recovery system will retry.";
+                        HostProbeResult probes = probeForumHosts();
+                        applyHealthyHostSelection(probes);
+                        String detail;
+                        String summary;
+                        if (probes.primaryHealthy && probes.backupHealthy) {
+                            detail = "Primary and backup forum hosts responded.";
+                            summary = "Hosts • primary + backup ready";
+                        } else if (probes.primaryHealthy) {
+                            detail = "Primary forum host responded; backup is currently unavailable.";
+                            summary = "Hosts • primary ready";
+                        } else if (probes.backupHealthy) {
+                            detail = "Primary is unavailable; backup forum host is ready and selected if needed.";
+                            summary = "Hosts • backup ready";
+                        } else {
+                            detail = "Neither host answered the startup probe; the forum recovery system will retry after handoff.";
+                            summary = "Hosts • recovery mode";
+                        }
+                        if (!completeStage(token, W_HOSTS, started, detail, summary)) return;
                     }
-                    publishStage(92, "Checking forum connection", detail);
                 }
 
-                publishStage(100, "Systems ready", "Native startup complete. Preparing the forum interface.");
-                AppLogger.info(this, "startup_loader", "systems_ready");
+                started = beginStage(token, ++step, "Systems ready",
+                        "Finalizing the native gate and preparing the forum chrome handoff.");
+                if (!completeStage(token, W_READY, started,
+                        quickPath ? "Quick system check complete. Preparing the forum interface."
+                                : "Full native startup gate complete. Preparing the forum interface.",
+                        "Systems • ready")) return;
+
+                if (!quickPath) persistSuccessfulFullGate();
+                enforceFullMinimumVisibleTime(token);
+                if (!isRunValid(token)) return;
+
+                AppLogger.info(this, "startup_loader",
+                        "systems_ready | mode=" + (quickPath ? "quick" : "full") + " | host=" + preferredHost());
                 mainHandler.post(new Runnable() {
                     @Override public void run() {
                         beginChromeHandoff();
                     }
                 });
             } catch (Throwable error) {
-                AppLogger.error(this, "startup_loader", error.getClass().getSimpleName() + ": " + String.valueOf(error.getMessage()));
-                failStartup("Startup check failed",
-                        error.getClass().getSimpleName() + (error.getMessage() == null ? "" : " • " + error.getMessage()));
+                AppLogger.error(this, "startup_loader",
+                        error.getClass().getSimpleName() + ": " + String.valueOf(error.getMessage()));
+                failStartup(token, "Startup check failed",
+                        error.getClass().getSimpleName()
+                                + (error.getMessage() == null ? "" : " • " + error.getMessage()));
             }
         }
 
-        private void openAccessRestricted(final HcfBanSystem.CheckResult result) {
+        private long beginStage(final int token, final int step, final String status, final String detail) {
+            final long started = android.os.SystemClock.elapsedRealtime();
             mainHandler.post(new Runnable() {
                 @Override public void run() {
-                    if (destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
+                    if (!isRunValid(token)) return;
+                    if (loaderStep != null) loaderStep.setText("Step " + step + " of " + totalStages);
+                    if (loaderStatus != null) loaderStatus.setText(status);
+                    if (loaderDetail != null) loaderDetail.setText(detail);
+                }
+            });
+            return started;
+        }
+
+        private boolean completeStage(final int token, int weight, long stageStarted,
+                                      final String finalDetail, final String summary) {
+            if (!isRunValid(token)) return false;
+            mainHandler.post(new Runnable() {
+                @Override public void run() {
+                    if (isRunValid(token) && loaderDetail != null) loaderDetail.setText(finalDetail);
+                }
+            });
+            dwellStage(stageStarted);
+            if (!isRunValid(token)) return false;
+
+            completedWeight = Math.min(totalWeight, completedWeight + weight);
+            final int target = Math.min(1000,
+                    Math.round((completedWeight * 1000.0f) / Math.max(1, totalWeight)));
+            mainHandler.post(new Runnable() {
+                @Override public void run() {
+                    if (!isRunValid(token)) return;
+                    animateProgressTo(target);
+                    recordCompletedStep(summary);
+                }
+            });
+            return true;
+        }
+
+        private void dwellStage(long stageStarted) {
+            long elapsed = android.os.SystemClock.elapsedRealtime() - stageStarted;
+            long remaining = STAGE_MIN_DWELL_MS - elapsed;
+            if (remaining <= 0L) return;
+            try {
+                Thread.sleep(remaining);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        private void enforceFullMinimumVisibleTime(int token) {
+            if (quickPath || !isRunValid(token)) return;
+            long elapsed = android.os.SystemClock.elapsedRealtime() - loaderVisibleAt;
+            long remaining = FULL_MIN_VISIBLE_MS - elapsed;
+            if (remaining <= 0L) return;
+            long capped = Math.min(remaining, FULL_EXTRA_WAIT_CAP_MS);
+            try {
+                Thread.sleep(capped);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        private boolean shouldUseQuickPath() {
+            Intent launchIntent = getIntent();
+            if (launchIntent != null && launchIntent.getData() != null) return false;
+            long lastGoodAt = prefs == null ? 0L : prefs.getLong(PREF_STARTUP_LAST_GOOD_AT, 0L);
+            if (lastGoodAt <= 0L) return false;
+            long age = System.currentTimeMillis() - lastGoodAt;
+            return age >= 0L && age <= QUICK_PATH_WINDOW_MS;
+        }
+
+        private void persistSuccessfulFullGate() {
+            if (prefs == null || quickPath) return;
+            String host = preferredHost();
+            prefs.edit()
+                    .putLong(PREF_STARTUP_LAST_GOOD_AT, System.currentTimeMillis())
+                    .putString(PREF_STARTUP_LAST_GOOD_HOST, host)
+                    .apply();
+            AppLogger.info(this, "startup_gate", "full_gate_good | host=" + host);
+        }
+
+        private HostProbeResult probeForumHosts() {
+            final String primary = ForumConfig.PRIMARY_HOST;
+            final String backup = ForumConfig.BACKUP_HOST;
+            java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+            java.util.concurrent.Future<Boolean> primaryFuture = pool.submit(new java.util.concurrent.Callable<Boolean>() {
+                @Override public Boolean call() {
+                    return Boolean.valueOf(probeHost(primary));
+                }
+            });
+            java.util.concurrent.Future<Boolean> backupFuture = pool.submit(new java.util.concurrent.Callable<Boolean>() {
+                @Override public Boolean call() {
+                    return Boolean.valueOf(probeHost(backup));
+                }
+            });
+
+            boolean primaryHealthy = false;
+            boolean backupHealthy = false;
+            try {
+                primaryHealthy = Boolean.TRUE.equals(primaryFuture.get(5500L, java.util.concurrent.TimeUnit.MILLISECONDS));
+            } catch (Throwable error) {
+                AppLogger.warn(this, "startup_host_probe", primary + " | future " + error.getClass().getSimpleName());
+            }
+            try {
+                backupHealthy = Boolean.TRUE.equals(backupFuture.get(5500L, java.util.concurrent.TimeUnit.MILLISECONDS));
+            } catch (Throwable error) {
+                AppLogger.warn(this, "startup_host_probe", backup + " | future " + error.getClass().getSimpleName());
+            } finally {
+                pool.shutdownNow();
+            }
+            return new HostProbeResult(primary, backup, primaryHealthy, backupHealthy);
+        }
+
+        private void applyHealthyHostSelection(HostProbeResult probes) {
+            if (prefs == null || probes == null) return;
+            String selected = prefs.getString(AppPrefs.ACTIVE_HOST, "");
+            boolean selectedPrimary = probes.primary.equalsIgnoreCase(selected);
+            boolean selectedBackup = probes.backup.equalsIgnoreCase(selected);
+
+            if (probes.primaryHealthy && !probes.backupHealthy) {
+                selected = probes.primary;
+            } else if (!probes.primaryHealthy && probes.backupHealthy) {
+                selected = probes.backup;
+            } else if (probes.primaryHealthy && probes.backupHealthy && !selectedPrimary && !selectedBackup) {
+                selected = probes.primary;
+            }
+
+            if (!TextUtils.isEmpty(selected)) {
+                String current = prefs.getString(AppPrefs.ACTIVE_HOST, "");
+                if (!selected.equalsIgnoreCase(current)) {
+                    prefs.edit().putString(AppPrefs.ACTIVE_HOST, selected).apply();
+                    AppLogger.info(this, "startup_host_select", "active_host=" + selected);
+                }
+            }
+        }
+
+        private void openAccessRestricted(final int token, final HcfBanSystem.CheckResult result) {
+            mainHandler.post(new Runnable() {
+                @Override public void run() {
+                    if (!isRunValid(token) || isFinishing() || isDestroyed()) return;
                     handoffStarted = true;
+                    loaderStarted = false;
+                    stopLoaderAnimations();
                     Intent intent = new Intent(StartupActivity.this, HcfBanSystem.BanActivity.class);
                     intent.putExtra("ban_id", result.banId);
                     intent.putExtra("reason", result.reason);
@@ -580,23 +888,29 @@ public final class HcfUITheme {
                     intent.putExtra("masked_ip", result.maskedIp);
                     intent.putExtra("appeal_allowed", result.appealAllowed);
                     startActivity(intent);
-                    overridePendingTransition(0, 0);
+                    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
                     finish();
                 }
             });
         }
 
         private void beginChromeHandoff() {
-            if (!resumed || destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
+            if (destroyed || isFinishing() || isDestroyed() || handoffStarted) return;
+            if (!resumed) {
+                handoffPending = true;
+                return;
+            }
             handoffStarted = true;
+            loaderStarted = false;
+            stopLogoPulse();
+            updateChromeHostDisplay();
 
             TextView subtitle = findViewById(R.id.appHeaderSubtitle);
             if (subtitle != null) {
-                subtitle.setText("Live forum • " + (SetupCenter.BACKUP_FORUM_HOST.equalsIgnoreCase(preferredHost()) ? "Backup" : "Primary"));
+                subtitle.setText("Live forum • "
+                        + (ForumConfig.BACKUP_HOST.equalsIgnoreCase(preferredHost()) ? "Backup" : "Primary"));
             }
 
-            // Keep the loader visually present while exposing only the real native chrome.
-            // Moving the opaque backdrop into contentFrame avoids the old blank-shell flash.
             dockBackdropBelowChrome();
             animateHeaderIn();
         }
@@ -630,9 +944,12 @@ public final class HcfUITheme {
             }
             topAppBar.animate().cancel();
             topAppBar.setAlpha(0.0f);
+            topAppBar.setTranslationY(-dp(8));
             topAppBar.setVisibility(View.VISIBLE);
             topAppBar.animate()
                     .alpha(1.0f)
+                    .translationY(0.0f)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator())
                     .setDuration(HEADER_FADE_MS)
                     .withEndAction(new Runnable() {
                         @Override public void run() {
@@ -649,9 +966,12 @@ public final class HcfUITheme {
             }
             urlBar.animate().cancel();
             urlBar.setAlpha(0.0f);
+            urlBar.setTranslationY(-dp(6));
             urlBar.setVisibility(View.VISIBLE);
             urlBar.animate()
                     .alpha(1.0f)
+                    .translationY(0.0f)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator())
                     .setDuration(URL_FADE_MS)
                     .withEndAction(new Runnable() {
                         @Override public void run() {
@@ -662,15 +982,15 @@ public final class HcfUITheme {
         }
 
         private void fadeLoaderOut() {
-            if (loaderPanel == null && loaderBackdrop == null) {
-                scheduleForumHandoff();
-                return;
-            }
+            stopLogoPulse();
 
             if (loaderPanel != null) {
                 loaderPanel.animate().cancel();
                 loaderPanel.animate()
                         .alpha(0.0f)
+                        .scaleX(0.97f)
+                        .scaleY(0.97f)
+                        .setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator())
                         .setDuration(LOADER_FADE_MS)
                         .start();
             }
@@ -687,7 +1007,7 @@ public final class HcfUITheme {
                             }
                         })
                         .start();
-            } else {
+            } else if (loaderPanel != null) {
                 loaderPanel.animate()
                         .withEndAction(new Runnable() {
                             @Override public void run() {
@@ -696,6 +1016,8 @@ public final class HcfUITheme {
                             }
                         })
                         .start();
+            } else {
+                scheduleForumHandoff();
             }
         }
 
@@ -724,37 +1046,167 @@ public final class HcfUITheme {
                 }
             }
 
-            AppLogger.info(this, "startup_handoff", "launch_main_after_" + WEBVIEW_HANDOFF_DELAY_MS + "ms");
+            AppLogger.info(this, "startup_handoff",
+                    "launch_main_after_" + WEBVIEW_HANDOFF_DELAY_MS + "ms | mode=" + (quickPath ? "quick" : "full"));
             startActivity(target);
             overridePendingTransition(0, 0);
             finish();
         }
 
-        private void publishStage(final int progress, final String status, final String detail) {
-            mainHandler.post(new Runnable() {
-                @Override public void run() {
-                    if (destroyed || isFinishing() || isDestroyed()) return;
-                    if (loaderStatus != null) loaderStatus.setText(status);
-                    if (loaderDetail != null) loaderDetail.setText(detail);
-                    if (loaderProgress != null) loaderProgress.setProgress(Math.max(0, Math.min(100, progress)), true);
+        private void animateProgressTo(int target) {
+            if (loaderProgress == null) return;
+            int bounded = Math.max(0, Math.min(1000, target));
+            int start = loaderProgress.getProgress();
+            if (progressAnimator != null) progressAnimator.cancel();
+            if (start == bounded) {
+                updatePercentLabel(bounded);
+                return;
+            }
+            progressAnimator = android.animation.ValueAnimator.ofInt(start, bounded);
+            int distance = Math.abs(bounded - start);
+            progressAnimator.setDuration(Math.max(120L, Math.min(240L, 100L + distance / 3L)));
+            progressAnimator.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+            progressAnimator.addUpdateListener(new android.animation.ValueAnimator.AnimatorUpdateListener() {
+                @Override public void onAnimationUpdate(android.animation.ValueAnimator animation) {
+                    if (loaderProgress == null) return;
+                    int value = ((Integer) animation.getAnimatedValue()).intValue();
+                    loaderProgress.setProgress(value);
+                    updatePercentLabel(value);
                 }
             });
+            progressAnimator.start();
         }
 
-        private void failStartup(final String title, final String detail) {
+        private void updatePercentLabel(int progress) {
+            if (loaderPercent == null) return;
+            int percent = Math.max(0, Math.min(100, Math.round(progress / 10.0f)));
+            loaderPercent.setText(percent + "%");
+        }
+
+        private void recordCompletedStep(String summary) {
+            if (completedTicker == null) return;
+            String value = shortText(summary, 62);
+            completedSteps.add(value);
+            while (completedSteps.size() > 4) completedSteps.remove(0);
+            StringBuilder text = new StringBuilder();
+            for (String item : completedSteps) {
+                if (text.length() > 0) text.append('\n');
+                text.append("✓ ").append(item);
+            }
+            completedTicker.setText(text.toString());
+        }
+
+        private void animateLogoEntrance() {
+            if (loaderLogo == null) return;
+            loaderLogo.animate().cancel();
+            loaderLogo.setAlpha(0.0f);
+            loaderLogo.setScaleX(0.78f);
+            loaderLogo.setScaleY(0.78f);
+            loaderLogo.animate()
+                    .alpha(1.0f)
+                    .scaleX(1.0f)
+                    .scaleY(1.0f)
+                    .setDuration(400L)
+                    .setInterpolator(new android.view.animation.OvershootInterpolator(0.75f))
+                    .start();
+        }
+
+        private void startLogoPulse() {
+            stopLogoPulse();
+            if (loaderLogo == null || handoffStarted || hardFailure) return;
+            logoPulseAnimator = android.animation.ValueAnimator.ofFloat(0.88f, 1.0f);
+            logoPulseAnimator.setDuration(900L);
+            logoPulseAnimator.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+            logoPulseAnimator.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+            logoPulseAnimator.addUpdateListener(new android.animation.ValueAnimator.AnimatorUpdateListener() {
+                @Override public void onAnimationUpdate(android.animation.ValueAnimator animation) {
+                    if (loaderLogo != null) {
+                        loaderLogo.setAlpha(((Float) animation.getAnimatedValue()).floatValue());
+                    }
+                }
+            });
+            logoPulseAnimator.start();
+        }
+
+        private void stopLogoPulse() {
+            if (logoPulseAnimator != null) {
+                logoPulseAnimator.cancel();
+                logoPulseAnimator = null;
+            }
+            if (loaderLogo != null) loaderLogo.setAlpha(1.0f);
+        }
+
+        private void stopLoaderAnimations() {
+            stopLogoPulse();
+            if (progressAnimator != null) {
+                progressAnimator.cancel();
+                progressAnimator = null;
+            }
+            if (loaderLogo != null) loaderLogo.animate().cancel();
+            if (loaderPanel != null) loaderPanel.animate().cancel();
+            if (loaderBackdrop != null) loaderBackdrop.animate().cancel();
+            if (loaderOverlay != null) loaderOverlay.animate().cancel();
+            if (topAppBar != null) topAppBar.animate().cancel();
+            if (urlBar != null) urlBar.animate().cancel();
+        }
+
+        private void resetLoaderVisuals() {
+            stopLoaderAnimations();
+            completedSteps.clear();
+
+            if (loaderOverlay != null) {
+                loaderOverlay.setAlpha(1.0f);
+                loaderOverlay.setVisibility(View.VISIBLE);
+            }
+            if (loaderBackdrop != null) {
+                loaderBackdrop.setAlpha(1.0f);
+                loaderBackdrop.setVisibility(View.VISIBLE);
+            }
+            if (loaderPanel != null) {
+                loaderPanel.setAlpha(1.0f);
+                loaderPanel.setScaleX(1.0f);
+                loaderPanel.setScaleY(1.0f);
+                loaderPanel.setVisibility(View.VISIBLE);
+            }
+            if (loaderProgress != null) loaderProgress.setProgress(0);
+            if (loaderPercent != null) loaderPercent.setText("0%");
+            if (completedTicker != null) completedTicker.setText("Waiting for completed checks…");
+            if (retryButton != null) retryButton.setVisibility(View.GONE);
+        }
+
+        private void resetLoaderStateForRetry() {
+            runGeneration++;
+            loaderStarted = false;
+            handoffStarted = false;
+            handoffPending = false;
+            hardFailure = false;
+            completedWeight = 0;
+            resetLoaderVisuals();
+            if (loaderTitle != null) loaderTitle.setText("Retrying Harley's Clan Forum");
+            if (loaderStatus != null) loaderStatus.setText("Resetting startup checks");
+            if (loaderDetail != null) loaderDetail.setText("Starting a clean validation pass.");
+        }
+
+        private void failStartup(final int token, final String title, final String detail) {
             mainHandler.post(new Runnable() {
                 @Override public void run() {
-                    if (destroyed || isFinishing() || isDestroyed()) return;
+                    if (!isRunValid(token) || isFinishing() || isDestroyed()) return;
                     loaderStarted = false;
                     handoffStarted = false;
+                    handoffPending = false;
+                    hardFailure = true;
+                    stopLogoPulse();
                     if (loaderTitle != null) loaderTitle.setText(title);
                     if (loaderStatus != null) loaderStatus.setText("Startup paused");
                     if (loaderDetail != null) loaderDetail.setText(detail);
-                    if (loaderProgress != null) loaderProgress.setProgress(0, true);
                     if (retryButton != null) retryButton.setVisibility(View.VISIBLE);
                     AppLogger.error(StartupActivity.this, "startup_blocked", title + " | " + detail);
                 }
             });
+        }
+
+        private boolean isRunValid(int token) {
+            return token == runGeneration && !destroyed && !handoffStarted && !hardFailure;
         }
 
         private boolean hasInternetNetwork() {
@@ -784,7 +1236,8 @@ public final class HcfUITheme {
                 connection.setRequestProperty("Range", "bytes=0-0");
                 int code = connection.getResponseCode();
                 boolean healthy = code >= 200 && code < 400;
-                AppLogger.info(this, "startup_host_probe", host + " | HTTP " + code + " | " + (healthy ? "ready" : "not-ready"));
+                AppLogger.info(this, "startup_host_probe",
+                        host + " | HTTP " + code + " | " + (healthy ? "ready" : "not-ready"));
                 return healthy;
             } catch (Throwable error) {
                 AppLogger.warn(this, "startup_host_probe", host + " | " + error.getClass().getSimpleName());
@@ -795,9 +1248,36 @@ public final class HcfUITheme {
         }
 
         private String preferredHost() {
-            String host = prefs == null ? "" : prefs.getString("active_host", "");
-            if (SetupCenter.BACKUP_FORUM_HOST.equalsIgnoreCase(host)) return SetupCenter.BACKUP_FORUM_HOST;
-            return SetupCenter.PRIMARY_FORUM_HOST;
+            String host = prefs == null ? "" : prefs.getString(AppPrefs.ACTIVE_HOST, "");
+            if (ForumUrlRouter.isForumHost(host)) return host;
+            return ForumConfig.PRIMARY_HOST;
+        }
+
+        private void updateChromeHostDisplay() {
+            String host = preferredHost();
+            TextView hostBadge = findViewById(R.id.hostBadge);
+            if (hostBadge != null) {
+                hostBadge.setText(ForumConfig.BACKUP_HOST.equalsIgnoreCase(host) ? "Backup" : "Primary");
+            }
+            EditText currentUrl = findViewById(R.id.currentUrlText);
+            if (currentUrl != null) {
+                currentUrl.setText("https://" + host + "/");
+                currentUrl.setFocusable(false);
+                currentUrl.setCursorVisible(false);
+            }
+        }
+
+        private String formatBytes(long bytes) {
+            if (bytes < 1024L * 1024L) return Math.max(0L, bytes / 1024L) + " KB";
+            long mb = bytes / (1024L * 1024L);
+            if (mb < 1024L) return mb + " MB";
+            return String.format(Locale.US, "%.1f GB", bytes / (1024.0d * 1024.0d * 1024.0d));
+        }
+
+        private String shortText(String value, int max) {
+            String clean = value == null ? "" : value.trim();
+            if (clean.length() <= max) return clean;
+            return clean.substring(0, Math.max(1, max - 1)) + "…";
         }
 
         private void destroyStartupWebView() {
@@ -852,7 +1332,8 @@ public final class HcfUITheme {
             titleLp.topMargin = dp(16);
             root.addView(title, titleLp);
 
-            TextView body = text("The native startup screen could not be created.\n\n" + error.getClass().getSimpleName(),
+            TextView body = text("The native startup screen could not be created.\n\n"
+                            + error.getClass().getSimpleName(),
                     12, getColor(R.color.hcf_text));
             body.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams bodyLp = new LinearLayout.LayoutParams(-1, -2);
@@ -860,6 +1341,20 @@ public final class HcfUITheme {
             root.addView(body, bodyLp);
 
             setContentView(root);
+        }
+
+        private static final class HostProbeResult {
+            final String primary;
+            final String backup;
+            final boolean primaryHealthy;
+            final boolean backupHealthy;
+
+            HostProbeResult(String primary, String backup, boolean primaryHealthy, boolean backupHealthy) {
+                this.primary = primary;
+                this.backup = backup;
+                this.primaryHealthy = primaryHealthy;
+                this.backupHealthy = backupHealthy;
+            }
         }
     }
 
