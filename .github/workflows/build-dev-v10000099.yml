@@ -1,0 +1,229 @@
+name: HCF Beta v10000099 Release Gate
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'source code/**'
+      - 'configs/app-links/**'
+      - 'README.md'
+      - '.github/scripts/apply-onboarding-account.py'
+      - '.github/scripts/apply-onboarding-live-session.py'
+      - '.github/scripts/verify-hcf-alerts-ui.py'
+      - '.github/scripts/verify-hcf-notifications-v2.py'
+      - '.github/scripts/verify-release-readiness.py'
+      - '.github/workflows/build-dev-v10000099.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-source-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Dev source
+        uses: actions/checkout@v4
+
+      - name: Run release source gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
+          python3 .github/scripts/verify-hcf-notifications-v2.py 'source code'
+          python3 .github/scripts/verify-release-readiness.py .
+          python3 -m json.tool configs/app-links/assetlinks.json >/dev/null
+
+      - name: Apply forum account onboarding
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/apply-onboarding-account.py \
+            'source code/src/com/harleytg/forum/HcfMainActivities.java' \
+            'source code/src/com/harleytg/forum/HcfApplication.java'
+          python3 .github/scripts/apply-onboarding-live-session.py \
+            'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          grep -Fq 'HCF_ONBOARDING_FORUM_ACCOUNT_V1' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          grep -Fq 'HCF_ONBOARDING_ACCOUNT_FLOW_GUARD_V1' 'source code/src/com/harleytg/forum/HcfApplication.java'
+          grep -Fq 'HCF_SETUP_LIVE_SESSION_PROBE_V1' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+
+      - name: Verify live sanitized ban configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import urllib.request
+
+          urls = {
+              "config": "https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/ban-system.config",
+              "list": "https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/ban-list.json",
+          }
+          for name, url in urls.items():
+              with urllib.request.urlopen(url, timeout=10) as response:
+                  data = response.read().decode("utf-8")
+              if name == "config":
+                  assert "enabled=true" in data
+                  assert "[ban_list]" in data
+                  assert "cloudfunctions.net" not in data
+              else:
+                  parsed = json.loads(data)
+                  assert parsed.get("schema_version") == 1
+                  assert isinstance(parsed.get("users"), dict)
+                  assert isinstance(parsed.get("ip_sha256"), dict)
+          print("Static HCF ban configuration verified.")
+          PY
+
+      - name: Generate encrypted Discord webhook binding
+        shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DISCORD_WEBHOOK_URL:-}" ]; then
+            echo "DISCORD_WEBHOOK_URL is not configured in GitHub Actions secrets."
+            exit 1
+          fi
+
+          case "$DISCORD_WEBHOOK_URL" in
+            https://discord.com/api/webhooks/*|https://www.discord.com/api/webhooks/*|https://discordapp.com/api/webhooks/*|https://www.discordapp.com/api/webhooks/*) ;;
+            *)
+              echo "DISCORD_WEBHOOK_URL is not a supported Discord HTTPS webhook URL."
+              exit 1
+              ;;
+          esac
+
+          GEN_DIR="$GITHUB_WORKSPACE/source code/src/com/harleytg/forum"
+          TMP="$RUNNER_TEMP/hcf-discord-secret"
+          mkdir -p "$TMP"
+          chmod 700 "$TMP"
+          printf '%s' "$DISCORD_WEBHOOK_URL" > "$TMP/plain.txt"
+          chmod 600 "$TMP/plain.txt"
+          openssl rand 32 > "$TMP/key.bin"
+          openssl rand 16 > "$TMP/iv.bin"
+          KEY_HEX="$(xxd -p -c 256 "$TMP/key.bin")"
+          IV_HEX="$(xxd -p -c 256 "$TMP/iv.bin")"
+          openssl enc -aes-256-cbc \
+            -K "$KEY_HEX" \
+            -iv "$IV_HEX" \
+            -in "$TMP/plain.txt" \
+            -out "$TMP/cipher.bin"
+
+          python3 - "$TMP/key.bin" "$TMP/iv.bin" "$TMP/cipher.bin" "$GEN_DIR/HcfDiscordSecret.java" <<'PY'
+          import pathlib
+          import sys
+
+          key_path, iv_path, cipher_path, out_path = map(pathlib.Path, sys.argv[1:])
+
+          def java_bytes(data):
+              return ", ".join(f"(byte)0x{value:02x}" for value in data)
+
+          source = f'''package com.harleytg.forum.dev;
+
+          import java.nio.charset.StandardCharsets;
+          import javax.crypto.Cipher;
+          import javax.crypto.spec.IvParameterSpec;
+          import javax.crypto.spec.SecretKeySpec;
+
+          /** Generated only inside GitHub Actions. Never commit this file. */
+          public final class HcfDiscordSecret {{
+              private static final byte[] KEY = new byte[]{{{java_bytes(key_path.read_bytes())}}};
+              private static final byte[] IV = new byte[]{{{java_bytes(iv_path.read_bytes())}}};
+              private static final byte[] DATA = new byte[]{{{java_bytes(cipher_path.read_bytes())}}};
+
+              private HcfDiscordSecret() {{}}
+
+              public static String decrypt() throws Exception {{
+                  Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+                  cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(KEY, "AES"), new IvParameterSpec(IV));
+                  return new String(cipher.doFinal(DATA), StandardCharsets.UTF_8);
+              }}
+          }}
+          '''
+          out_path.write_text(source, encoding="utf-8")
+          PY
+
+          rm -rf "$TMP"
+          unset DISCORD_WEBHOOK_URL KEY_HEX IV_HEX
+          test -s "$GEN_DIR/HcfDiscordSecret.java"
+          ! grep -Fq 'https://discord.com/api/webhooks/' "$GEN_DIR/HcfDiscordSecret.java"
+          ! grep -Fq 'https://discordapp.com/api/webhooks/' "$GEN_DIR/HcfDiscordSecret.java"
+          echo "Encrypted Discord webhook binding generated for this build only."
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Compile full source and package unsigned APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-beta-v10000099"
+          OUT="$GITHUB_WORKSPACE/out-v10000099"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
+
+          "$BT/aapt" package -f -m \
+            -J "$WORK/gen" \
+            -M "$ROOT/AndroidManifest.xml" \
+            -S "$ROOT/res" \
+            -A "$ROOT/assets" \
+            -I "$ANDROID_JAR" \
+            -F "$WORK/resources.apk"
+
+          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
+          mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
+
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
+          APK="$OUT/HCF-Beta-v10000099-aligned-unsigned.apk"
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$APK"
+          "$BT/zipalign" -c -p 4 "$APK"
+
+          "$BT/aapt" dump badging "$APK" | head -1 | tee "$OUT/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
+          grep -q "versionCode='10000099'" "$OUT/APK-BADGING.txt"
+          grep -q "versionName='1.0 (10000099)'" "$OUT/APK-BADGING.txt"
+
+          unzip -p "$APK" classes.dex | strings > "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'same build code, revised APK hash' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'APK SHA-256 does not match' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'App Setup' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Forum Account' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Sign In to Forum' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Create Forum Account' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'hcf_setup_account_flow' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'setup_forum_identity_probe' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Checking the existing Harley' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Real forum alerts (messages, mentions, replies, updates) use HCF Alerts.' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'hcf_notification_channels_v2' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'hcf_alerts_v2' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'hcf_silent_alerts_v2' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'hcf_test_alerts_v2' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'HcfDiscordSecret' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'configs/ban-list.json' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'https://discord.com/api/webhooks/' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'https://discordapp.com/api/webhooks/' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'cloudfunctions.net/hcfBanApi' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'Method not decompiled' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'Code decompiled incorrectly' "$OUT/DEX-STRINGS.txt"
+          cp "$BT/lib/apksigner.jar" "$OUT/apksigner.jar"
+          sha256sum "$APK" | tee "$OUT/SHA256SUMS.txt"
+
+      - name: Upload verified unsigned APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-Beta-v10000099-Unsigned
+          path: out-v10000099/
+          if-no-files-found: error
+          retention-days: 7
