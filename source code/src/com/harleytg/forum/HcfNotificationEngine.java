@@ -931,7 +931,6 @@ final class NotificationHelper {
                 .setCategory(Notification.CATEGORY_SERVICE)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setPriority(Notification.PRIORITY_LOW)
-                .setSilent(true)
                 .build();
     }
 
