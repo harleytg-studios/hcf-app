@@ -43,7 +43,7 @@ def patch_main(path: Path) -> None:
             grid.addView(buildFeatureItem(R.drawable.fa_globe, "Open Forum\\nLinks in App"));
             grid.addView(buildFeatureItem(R.drawable.fa_shield, "Secure App\\nUpdate Permission"));
             grid.addView(buildFeatureItem(R.drawable.fa_circle_info, "Background\\nAlert Health"));''',
-        '''            grid.addView(buildFeatureItem(R.drawable.fa_user, "Forum Account\\nSign in or Sign up"));
+        '''            grid.addView(buildFeatureItem(R.drawable.fa_user, "Forum Account\\nSign in, Sign up or Guest"));
             grid.addView(buildFeatureItem(R.drawable.fa_bell, "Forum\\nNotifications"));
             grid.addView(buildFeatureItem(R.drawable.fa_globe, "Open Forum\\nLinks in App"));
             grid.addView(buildFeatureItem(R.drawable.fa_shield, "Secure App\\nUpdates"));''',
@@ -64,6 +64,7 @@ def patch_main(path: Path) -> None:
         private TextView forumAccountDetail;
         private Button forumSignInAction;
         private Button forumSignUpAction;
+        private Button forumGuestAction;
 
         private TextView notificationStatus;''',
         "setup-account-fields",
@@ -102,7 +103,7 @@ def patch_main(path: Path) -> None:
             ));''',
         '''            card.addView(sectionTitle(
                     "Set up this device",
-                    "Connect your forum account, choose how HCF looks and performs, then configure optional Android features."
+                    "Connect a forum account or continue as a guest, choose how HCF looks and performs, then configure optional Android features."
             ));''',
         "setup-intro-title",
     )
@@ -114,7 +115,7 @@ def patch_main(path: Path) -> None:
             LinearLayout card = settingsCard();
             card.addView(sectionTitle(
                     "Forum Account",
-                    "Sign in, create an account, or keep using the forum as a guest"
+                    "Sign in, create an account, or continue without signing in"
             ));
 
             forumAccountStatus = statusBadge();
@@ -134,8 +135,12 @@ def patch_main(path: Path) -> None:
             forumSignUpAction.setOnClickListener(v -> openForumAccountRoute("/signup", "sign_up"));
             card.addView(withTopMargin(forumSignUpAction, 0, 44));
 
+            forumGuestAction = actionButton("Continue as Guest   ›");
+            forumGuestAction.setOnClickListener(v -> continueAsGuest());
+            card.addView(withTopMargin(forumGuestAction, 0, 44));
+
             TextView privacy = text(
-                    "Sign-in and sign-up happen on the Harley's Clan Forum page inside HCF. App Setup does not store or re-submit your forum password.",
+                    "Sign-in and sign-up happen on the Harley's Clan Forum page inside HCF. App Setup does not store or re-submit your forum password. Guest mode does not require an account.",
                     10,
                     getColor(R.color.hcf_hint)
             );
@@ -149,12 +154,19 @@ def patch_main(path: Path) -> None:
 
         private void refreshForumAccountStatus() {
             if (forumAccountStatus == null || forumAccountDetail == null
-                    || forumSignInAction == null || forumSignUpAction == null) {
+                    || forumSignInAction == null || forumSignUpAction == null
+                    || forumGuestAction == null) {
                 return;
             }
 
             ForumIdentity.Snapshot identity = ForumIdentity.load(this);
+            boolean guestSelected = prefs != null
+                    && prefs.getBoolean("setup_forum_guest_selected", false);
+
             if (identity != null && identity.loggedIn) {
+                if (guestSelected && prefs != null) {
+                    prefs.edit().remove("setup_forum_guest_selected").apply();
+                }
                 setStatus(forumAccountStatus, "✓ Signed in", true);
                 String account = identity.usernameDisplay();
                 if (account == null || account.trim().isEmpty()) {
@@ -165,14 +177,34 @@ def patch_main(path: Path) -> None:
                 );
                 forumSignInAction.setText("Open My Forum Profile   ›");
                 forumSignUpAction.setVisibility(View.GONE);
+                forumGuestAction.setVisibility(View.GONE);
+            } else if (guestSelected) {
+                setStatus(forumAccountStatus, "✓ Guest selected", true);
+                forumAccountDetail.setText(
+                        "No forum account will be connected during App Setup. Continue with the remaining setup options below. You can sign in or create an account later from the forum profile area."
+                );
+                forumSignInAction.setText("Sign In Instead   ›");
+                forumSignInAction.setVisibility(View.VISIBLE);
+                forumSignUpAction.setVisibility(View.VISIBLE);
+                forumGuestAction.setVisibility(View.GONE);
             } else {
                 setStatus(forumAccountStatus, "Guest • Optional", true);
                 forumAccountDetail.setText(
-                        "Sign in to connect your existing forum profile, or create a Harley's Clan Forum account. You can also finish App Setup and continue as a guest."
+                        "Sign in to connect your existing forum profile, create a Harley's Clan Forum account, or choose Continue as Guest to use HCF without signing in."
                 );
                 forumSignInAction.setText("Sign In to Forum   ›");
+                forumSignInAction.setVisibility(View.VISIBLE);
                 forumSignUpAction.setVisibility(View.VISIBLE);
+                forumGuestAction.setVisibility(View.VISIBLE);
             }
+        }
+
+        private void continueAsGuest() {
+            if (prefs != null) {
+                prefs.edit().putBoolean("setup_forum_guest_selected", true).apply();
+            }
+            AppLogger.info(this, "setup_forum_account", "continue_as_guest");
+            refreshForumAccountStatus();
         }
 
         private void handleForumAccountPrimaryAction() {
