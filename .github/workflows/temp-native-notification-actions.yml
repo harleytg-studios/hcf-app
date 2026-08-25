@@ -1,0 +1,56 @@
+name: Temporary native notification action patch
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/temp-native-notification-actions.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Apply focused source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/patches/apply-native-notification-actions.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('source code/src/com/harleytg/forum/HcfForumEngine.java')
+          s = p.read_text(encoding='utf-8')
+          s, n = re.subn(r'            int marker = html\.indexOf\([^\n]+\);',
+                         '            int marker = html.indexOf("flarum-json-payload");', s, count=1)
+          if n != 1:
+              raise SystemExit(f'csrf marker normalization expected 1 match, found {n}')
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Run existing release source gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
+          python3 .github/scripts/verify-release-readiness.py .
+
+      - name: Commit only finished source and remove temporary driver
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/patches/apply-native-notification-actions.py .github/workflows/temp-native-notification-actions.yml
+          git add 'source code' README.md
+          git diff --cached --check
+          git commit -m 'Add native notification reply and read actions'
+          git push origin HEAD:dev
