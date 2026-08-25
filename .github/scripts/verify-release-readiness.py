@@ -45,6 +45,7 @@ main_activity = text(source / "src/com/harleytg/forum/HcfMainActivities.java")
 hcf_application = text(source / "src/com/harleytg/forum/HcfApplication.java")
 setup_center = text(source / "src/com/harleytg/forum/HcfMainActivities.java")
 setup_completion_guard = text(source / "src/com/harleytg/forum/HcfSetupCompletionGuard.java")
+desktop_mode = text(source / "src/com/harleytg/forum/HcfDesktopMode.java")
 ban_system = text(source / "src/com/harleytg/forum/HcfBanSystem.java")
 discord_observation = text(source / "src/com/harleytg/forum/HcfDiscordObservation.java")
 session_persistence = text(source / "src/com/harleytg/forum/HcfSessionPersistence.java")
@@ -84,6 +85,7 @@ expected_java_files = {
     "HcfAppLinksConfig.java",
     "HcfApplication.java",
     "HcfBanSystem.java",
+    "HcfDesktopMode.java",
     "HcfDiscordObservation.java",
     "HcfSessionPersistence.java",
     "HcfSetupCompletionGuard.java",
@@ -122,6 +124,20 @@ require("Setup completion guard provider missing from manifest", f'{EXPECTED_PAC
 require("Setup completion guard does not check completion state", "AppPrefs.SETUP_COMPLETED" in setup_completion_guard)
 require("Setup completion guard does not remove drawer entry", "hidden_after_completion" in setup_completion_guard and "removeViewAt" in setup_completion_guard)
 require("Setup completion guard cannot restore entry after reset", "SetupCenter.installDrawerEntry(activity)" in setup_completion_guard)
+
+require("Desktop mode provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfDesktopMode$BootstrapProvider' in manifest)
+require("application is not explicitly resizable", 'android:resizeableActivity="true"' in manifest)
+require("desktop resize configChanges missing", 'screenSize|smallestScreenSize|orientation|screenLayout|keyboardHidden|keyboard|uiMode' in manifest)
+require("desktop phone breakpoint missing", "TABLET_MIN_DP = 600" in desktop_mode)
+require("desktop expanded breakpoint missing", "DESKTOP_MIN_DP = 840" in desktop_mode)
+require("desktop mode label missing", 'DESKTOP("Desktop / DeX")' in desktop_mode)
+require("desktop navigation rail missing", "hcf_desktop_nav_rail" in desktop_mode and "HCF Desktop" in desktop_mode)
+require("desktop mode does not react to live resize", "View.OnLayoutChangeListener" in desktop_mode and "onLayoutChange" in desktop_mode)
+require("desktop WebView wide viewport missing", "setUseWideViewPort(true)" in desktop_mode)
+require("desktop Ctrl+R shortcut missing", "KEYCODE_R" in desktop_mode)
+require("desktop Ctrl+L shortcut missing", "KEYCODE_L" in desktop_mode)
+require("desktop window mode state missing", 'putString("hcf_window_mode"' in desktop_mode)
+
 require("legacy permission onboarding guard missing", "PERMISSION_ONBOARDING_DONE" in hcf_application)
 require("settings transfer provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfSettingsImportUi$BootstrapProvider' in manifest)
 require("settings transfer activity missing from manifest", f'{EXPECTED_PACKAGE}.HcfSettingsImportUi$TransferActivity' in manifest)
@@ -180,5 +196,5 @@ for path in workflows:
 
 print(
     "Release readiness verification: PASS "
-    f"({EXPECTED_PACKAGE} v{version_code}, internal {EXPECTED_INTERNAL_BUILD}, SHA-256 updater + ban gate + session persistence + native settings URL + settings transfer + setup completion guard enabled)"
+    f"({EXPECTED_PACKAGE} v{version_code}, internal {EXPECTED_INTERNAL_BUILD}, SHA-256 updater + ban gate + session persistence + native settings URL + settings transfer + setup completion guard + adaptive desktop/DeX mode enabled)"
 )
