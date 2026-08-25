@@ -190,6 +190,7 @@ jobs:
           ! grep -Fq 'cloudfunctions.net/hcfBanApi' "$OUT/DEX-STRINGS.txt"
           ! grep -Fq 'Method not decompiled' "$OUT/DEX-STRINGS.txt"
           ! grep -Fq 'Code decompiled incorrectly' "$OUT/DEX-STRINGS.txt"
+          cp "$BT/lib/apksigner.jar" "$OUT/apksigner.jar"
           sha256sum "$APK" | tee "$OUT/SHA256SUMS.txt"
 
       - name: Upload verified unsigned APK
