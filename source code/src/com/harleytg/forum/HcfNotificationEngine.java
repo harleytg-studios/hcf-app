@@ -14,6 +14,7 @@ import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -27,11 +28,13 @@ import android.os.IBinder;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 public final class HcfNotificationEngine {
     private HcfNotificationEngine() {}
@@ -39,14 +42,19 @@ public final class HcfNotificationEngine {
     // ---- InstantNotificationService.java ----
     public static final class InstantNotificationService extends Service {
         static final String ACTION_SYNC_NOW = "com.harleytg.forum.dev.SYNC_NOTIFICATIONS_NOW";
+        private static final long DEFAULT_NEXT_DELAY_MS = 2000L;
         private static final long FAILURE_MAX_MS = 8000L;
-        private static final long FAILURE_MIN_MS = 500L;
+        private static final long FAILURE_MIN_MS = 1000L;
+        private static final long THROTTLE_MIN_MS = 5000L;
+        private static final long THROTTLE_MAX_MS = 120000L;
         static final int SERVICE_NOTIFICATION_ID = 41070;
 
         private int failures;
         private volatile boolean immediateRequested;
         private ConnectivityManager.NetworkCallback networkCallback;
         private boolean networkCallbackRegistered;
+        private BroadcastReceiver screenOnReceiver;
+        private boolean screenOnReceiverRegistered;
         private volatile boolean running;
         private ScheduledFuture<?> scheduled;
         private final Object scheduleLock = new Object();
@@ -74,8 +82,8 @@ public final class HcfNotificationEngine {
 
         static void start(Context context) {
             if (context == null) return;
-            if (!hasSession(context) || NotificationHelper.silencePassiveEnabled(context)) {
-                stop(context);
+            if (!hasSession(context)) {
+                stop(context, "no-session");
                 return;
             }
             startWithAction(context, null);
@@ -83,8 +91,7 @@ public final class HcfNotificationEngine {
 
         static void requestImmediateSync(Context context) {
             if (context == null || !hasSession(context)) return;
-            if (NotificationHelper.silencePassiveEnabled(context)) requestOneShotSync(context);
-            else startWithAction(context, ACTION_SYNC_NOW);
+            startWithAction(context, ACTION_SYNC_NOW);
         }
 
         private static void requestOneShotSync(Context context) {
@@ -104,6 +111,12 @@ public final class HcfNotificationEngine {
                 if (!ForumUrlRouter.isForumHost(host)) host = "forum.harleytg.com";
                 ForumNotificationSync.perform(context, host, userId.trim(), "silent-one-shot");
                 AppLogger.info(context, "instant_notification_service", "one-shot sync • silent channel hidden");
+            } catch (ForumNotificationClient.HttpStatusException e) {
+                if (e.statusCode == 401) {
+                    clearSessionForAuthFailure(context, "one-shot");
+                } else {
+                    AppLogger.warn(context, "instant_notification_service", "one-shot HTTP " + e.statusCode + " • retryAfter=" + e.retryAfterMs + "ms");
+                }
             } catch (JSONException e) {
                 // A transient 2xx response can occasionally contain HTML or an
                 // unexpected payload instead of the Flarum JSON API object. Skip
@@ -121,11 +134,6 @@ public final class HcfNotificationEngine {
                 stop(context);
                 return;
             }
-            if (NotificationHelper.silencePassiveEnabled(context)) {
-                if (ACTION_SYNC_NOW.equals(action)) requestOneShotSync(context);
-                else stop(context);
-                return;
-            }
             try {
                 Intent intent = new Intent(context, InstantNotificationService.class);
                 if (action != null) intent.setAction(action);
@@ -137,9 +145,40 @@ public final class HcfNotificationEngine {
         }
 
         static void stop(Context context) {
+            stop(context, "requested");
+        }
+
+        static void stop(Context context, String reason) {
             if (context == null) return;
-            try { context.stopService(new Intent(context, InstantNotificationService.class)); }
-            catch (Throwable t) { AppLogger.warn(context, "instant_notification_service", "stop | " + t.getClass().getSimpleName()); }
+            try {
+                context.getSharedPreferences("hcf_app", 0).edit()
+                        .putString("notification_service_stop_reason", reason == null ? "requested" : reason)
+                        .apply();
+                context.stopService(new Intent(context, InstantNotificationService.class));
+            } catch (Throwable t) {
+                AppLogger.warn(context, "instant_notification_service", "stop | " + t.getClass().getSimpleName());
+            }
+        }
+
+        static void clearSessionForAuthFailure(Context context, String source) {
+            if (context == null) return;
+            try {
+                SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
+                String host = prefs.getString("active_host", ForumConfig.PRIMARY_HOST);
+                ForumIdentity.save(context, ForumIdentity.guest(host));
+                ForumSecurity.clear(context);
+                prefs.edit()
+                        .remove("session_user_id")
+                        .remove("last_notification_count")
+                        .remove("delivered_notification_ids")
+                        .putString("notification_last_sync_status", "Signed out • forum session expired")
+                        .putString("notification_service_stop_reason", "auth-failure-" + (source == null ? "unknown" : source))
+                        .apply();
+                NotificationSyncScheduler.cancel(context);
+                AppLogger.warn(context, "notification_auth", "HTTP 401 • cleared stale forum session | " + String.valueOf(source));
+            } catch (Throwable error) {
+                AppLogger.error(context, "notification_auth_clear", error.getClass().getSimpleName());
+            }
         }
 
         @Override
@@ -160,6 +199,7 @@ public final class HcfNotificationEngine {
             running = true;
             failures = 0;
             registerNetworkCallback();
+            registerScreenOnReceiver();
             AppLogger.info(this, "instant_notification_service", "started • adaptive v" + BuildInfo.VERSION_CODE);
             scheduleNext(0L);
         }
@@ -206,23 +246,24 @@ public final class HcfNotificationEngine {
         }
 
         private void performAdaptiveSync() {
-            long nextDelay = 1500L;
+            long nextDelay = DEFAULT_NEXT_DELAY_MS;
             try {
                 SharedPreferences prefs = getSharedPreferences("hcf_app", 0);
                 if (!prefs.getBoolean("background_notification_sync", true)) {
                     running = false;
+                    stop(this, "background-sync-disabled");
                     stopSelf();
                     return;
                 }
                 String userId = prefs.getString("session_user_id", "");
                 if (userId == null || userId.trim().isEmpty()) {
                     running = false;
+                    stop(this, "signed-out");
                     stopSelf();
                     return;
                 }
                 if (!RuntimeState.networkAvailable(this)) {
-                    failures = 0;
-                    nextDelay = PerformanceProfile.notificationPollInterval(this, prefs);
+                    nextDelay = Math.max(DEFAULT_NEXT_DELAY_MS, PerformanceProfile.notificationPollInterval(this, prefs));
                 } else {
                     String host = prefs.getString("active_host", "forum.harleytg.com");
                     if (!ForumUrlRouter.isForumHost(host)) host = "forum.harleytg.com";
@@ -230,9 +271,28 @@ public final class HcfNotificationEngine {
                     failures = 0;
                     nextDelay = PerformanceProfile.notificationPollInterval(this, prefs);
                 }
+            } catch (ForumNotificationClient.HttpStatusException http) {
+                if (http.statusCode == 401) {
+                    clearSessionForAuthFailure(this, "adaptive");
+                    running = false;
+                    stopSelf();
+                    nextDelay = 0L;
+                } else if (http.statusCode == 429 || http.statusCode == 503) {
+                    failures = Math.min(failures + 1, 8);
+                    int shift = Math.min(Math.max(failures - 1, 0), 4);
+                    long exponential = Math.min(THROTTLE_MAX_MS, THROTTLE_MIN_MS * (1L << shift));
+                    nextDelay = Math.max(exponential, Math.min(THROTTLE_MAX_MS, http.retryAfterMs));
+                    AppLogger.warn(this, "instant_notification_throttle",
+                            "HTTP " + http.statusCode + " | failures=" + failures + " | retry=" + nextDelay + "ms");
+                } else {
+                    failures = Math.min(failures + 1, 8);
+                    int shift = Math.min(Math.max(failures - 1, 0), 3);
+                    nextDelay = Math.min(FAILURE_MAX_MS, FAILURE_MIN_MS * (1L << shift));
+                    AppLogger.warn(this, "instant_notification_http", "HTTP " + http.statusCode + " | retry=" + nextDelay + "ms");
+                }
             } catch (Throwable t) {
                 failures = Math.min(failures + 1, 8);
-                int shift = Math.min(Math.max(failures - 1, 0), 4);
+                int shift = Math.min(Math.max(failures - 1, 0), 3);
                 long retry = Math.min(FAILURE_MAX_MS, FAILURE_MIN_MS * (1L << shift));
                 try {
                     retry = Math.max(retry, PerformanceProfile.notificationPollInterval(this, getSharedPreferences("hcf_app", 0)));
@@ -248,7 +308,7 @@ public final class HcfNotificationEngine {
                         immediateRequested = false;
                         scheduleNext(0L);
                     } else {
-                        scheduleNext(nextDelay);
+                        scheduleNext(Math.max(0L, nextDelay));
                     }
                 }
             }
@@ -263,8 +323,7 @@ public final class HcfNotificationEngine {
                     @Override public void onAvailable(Network network) {
                         if (running) {
                             failures = 0;
-                            immediateRequested = true;
-                            scheduleNext(0L);
+                            requestImmediateSync(InstantNotificationService.this);
                         }
                     }
                 };
@@ -273,6 +332,33 @@ public final class HcfNotificationEngine {
             } catch (Throwable t) {
                 AppLogger.warn(this, "notification_network_callback", t.getClass().getSimpleName());
             }
+        }
+
+        private void registerScreenOnReceiver() {
+            if (screenOnReceiverRegistered) return;
+            try {
+                screenOnReceiver = new BroadcastReceiver() {
+                    @Override public void onReceive(Context context, Intent intent) {
+                        if (intent != null && Intent.ACTION_SCREEN_ON.equals(intent.getAction()) && running) {
+                            requestImmediateSync(InstantNotificationService.this);
+                        }
+                    }
+                };
+                registerReceiver(screenOnReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON));
+                screenOnReceiverRegistered = true;
+            } catch (Throwable error) {
+                AppLogger.warn(this, "notification_screen_receiver", error.getClass().getSimpleName());
+            }
+        }
+
+        private void unregisterScreenOnReceiver() {
+            if (!screenOnReceiverRegistered) return;
+            try {
+                if (screenOnReceiver != null) unregisterReceiver(screenOnReceiver);
+            } catch (Throwable ignored) {
+            }
+            screenOnReceiver = null;
+            screenOnReceiverRegistered = false;
         }
 
         private void unregisterNetworkCallback() {
@@ -286,6 +372,13 @@ public final class HcfNotificationEngine {
         }
 
         @Override
+        public void onTaskRemoved(Intent rootIntent) {
+            AppLogger.warn(this, "instant_notification_service", "task removed • START_STICKY remains armed");
+            try { NotificationSyncScheduler.schedule(this); } catch (Throwable ignored) {}
+            super.onTaskRemoved(rootIntent);
+        }
+
+        @Override
         public void onDestroy() {
             running = false;
             try { stopForeground(true); } catch (Throwable ignored) {}
@@ -294,7 +387,11 @@ public final class HcfNotificationEngine {
                 scheduled = null;
             }
             unregisterNetworkCallback();
-            AppLogger.info(this, "instant_notification_service", "stopped");
+            unregisterScreenOnReceiver();
+            SharedPreferences prefs = getSharedPreferences("hcf_app", 0);
+            String reason = prefs.getString("notification_service_stop_reason", "system-or-process");
+            prefs.edit().remove("notification_service_stop_reason").apply();
+            AppLogger.info(this, "instant_notification_service", "stopped | reason=" + reason);
             super.onDestroy();
         }
     }
@@ -328,7 +425,14 @@ public final class HcfNotificationEngine {
             String userId = prefs.getString("session_user_id", "");
             if (userId == null || userId.trim().isEmpty()) return;
             String host = prefs.getString("active_host", "forum.harleytg.com");
-            ForumNotificationSync.perform(this, ForumUrlRouter.isForumHost(host) ? host : "forum.harleytg.com", userId.trim(), "fallback-job");
+            try {
+                ForumNotificationSync.perform(this, ForumUrlRouter.isForumHost(host) ? host : "forum.harleytg.com", userId.trim(), "fallback-job");
+            } catch (ForumNotificationClient.HttpStatusException http) {
+                if (http.statusCode == 401) {
+                    InstantNotificationService.clearSessionForAuthFailure(this, "fallback-job");
+                }
+                throw http;
+            }
         }
     }
 
@@ -580,6 +684,73 @@ final class NotificationHelper {
         }
     }
 
+    static boolean postFromPushPayload(Context context, JSONObject data) {
+        if (context == null || data == null || !canPost(context)) return false;
+        try {
+            JSONObject attributes = data.optJSONObject("attributes");
+            if (attributes == null) attributes = data;
+
+            String id = firstNonEmpty(
+                    data.optString("id", ""),
+                    attributes.optString("id", ""),
+                    attributes.optString("notificationId", ""),
+                    attributes.optString("notification_id", ""));
+            String title = firstNonEmpty(
+                    attributes.optString("title", ""),
+                    data.optString("title", ""));
+            String body = firstNonEmpty(
+                    attributes.optString("body", ""),
+                    attributes.optString("message", ""),
+                    attributes.optString("text", ""),
+                    attributes.optString("content", ""),
+                    data.optString("body", ""),
+                    data.optString("message", ""),
+                    data.optString("content", ""));
+
+            if (id.isEmpty() || title.isEmpty() || body.isEmpty()) {
+                return false;
+            }
+            if (!claimDeliveredId(context, id)) {
+                return false;
+            }
+
+            SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
+            String host = prefs.getString("active_host", ForumConfig.PRIMARY_HOST);
+            if (!ForumUrlRouter.isForumHost(host)) host = ForumConfig.PRIMARY_HOST;
+            String url = firstNonEmpty(attributes.optString("url", ""), data.optString("url", ""));
+            if (url.isEmpty()) url = ForumUrlRouter.home(host) + "notifications";
+
+            postInternal(context,
+                    trim(title, 120, "Harley's Clan Forum"),
+                    trim(body, 500, "You have a new forum notification."),
+                    validatedForumUri(url),
+                    603979776 | (id.hashCode() & 268435455),
+                    true);
+            AppLogger.info(context, "notification_push_payload", "posted native Flarum id=" + id);
+            return true;
+        } catch (Throwable error) {
+            AppLogger.warn(context, "notification_push_payload", error.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    /** Future FCM receive hook: FirebaseMessagingService can call this unchanged. */
+    static boolean onPushMessageReceived(Context context, Map<String, String> data) {
+        JSONObject payload = new JSONObject();
+        if (data != null) {
+            for (Map.Entry<String, String> entry : data.entrySet()) {
+                try {
+                    if (entry.getKey() != null && entry.getValue() != null) {
+                        payload.put(entry.getKey(), entry.getValue());
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+        boolean posted = postFromPushPayload(context, payload);
+        HcfNotificationEngine.InstantNotificationService.requestImmediateSync(context);
+        return posted;
+    }
+
     static void post(Context context, String str, String str2, String str3) {
         postInternal(context, trim(str, 120, "Harley's Clan Forum"), trim(str2, 500, "You have a new forum message."), validatedForumUri(str3), (int) (System.currentTimeMillis() & 2147483647L), false, false);
     }
@@ -652,46 +823,52 @@ final class NotificationHelper {
         return hadBaseline && normalized > previous ? normalized - previous : 0;
     }
 
-    static synchronized int deliverDetailedAlerts(Context context, List<ForumNotificationClient.Alert> list, int i, String str, String str2) {
+    static synchronized int deliverDetailedAlerts(Context context, List<ForumNotificationClient.Alert> list, int expected, String host, String source) {
         synchronized (NotificationHelper.class) {
-            int i2 = 0;
-            if (context == null || i <= 0) {
+            if (context == null || expected <= 0) {
                 return 0;
             }
-            String str3 = !ForumUrlRouter.isForumHost(str) ? "forum.harleytg.com" : str;
-            SharedPreferences sharedPreferences = context.getSharedPreferences("hcf_app", 0);
-            Set<String> deliveredIds = deliveredIds(sharedPreferences.getString("delivered_notification_ids", ""));
-            int max = Math.max(1, i);
+            String safeHost = !ForumUrlRouter.isForumHost(host) ? "forum.harleytg.com" : host;
+            SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
+            Set<String> delivered = deliveredIds(prefs.getString("delivered_notification_ids", ""));
+            int max = Math.max(1, expected);
+            int posted = 0;
+            boolean sawAlreadyDelivered = false;
+
             if (list != null) {
-                int i3 = 0;
                 for (ForumNotificationClient.Alert alert : list) {
-                    if (alert != null && !alert.id.isEmpty() && !deliveredIds.contains(alert.id)) {
-                        postInternal(context, trim(alert.title, 120, "Harley's Clan Forum"), trim(alert.body, 500, "You have a new forum notification."), validatedForumUri(alert.url), 603979776 | (alert.id.hashCode() & 268435455), true);
-                        deliveredIds.add(alert.id);
-                        i3++;
-                        if (i3 >= max) {
-                            break;
-                        }
+                    if (alert == null || alert.id.isEmpty()) continue;
+                    if (delivered.contains(alert.id)) {
+                        sawAlreadyDelivered = true;
+                        continue;
                     }
+                    postInternal(context,
+                            trim(alert.title, 120, "Harley's Clan Forum"),
+                            trim(alert.body, 500, "You have a new forum notification."),
+                            validatedForumUri(alert.url),
+                            603979776 | (alert.id.hashCode() & 268435455),
+                            true);
+                    delivered.add(alert.id);
+                    posted++;
+                    if (posted >= max) break;
                 }
-                i2 = i3;
             }
-            trimDeliveredIds(deliveredIds, 100);
-            sharedPreferences.edit().putString("delivered_notification_ids", join(deliveredIds)).apply();
-            if (i2 == 0) {
-                postGenericDelta(context, i, str3);
+
+            trimDeliveredIds(delivered, 100);
+            prefs.edit().putString("delivered_notification_ids", join(delivered)).apply();
+
+            // If Pusher already posted this exact Flarum ID, do not emit a second
+            // generic notification during the authoritative polling reconciliation.
+            if (posted == 0 && !sawAlreadyDelivered) {
+                postGenericDelta(context, expected, safeHost);
             }
-            if (i2 > 1) {
-                postGroupSummary(context, i2, str3);
+            if (posted > 1) {
+                postGroupSummary(context, posted, safeHost);
             }
-            StringBuilder sb = new StringBuilder();
-            sb.append(str2 == null ? "sync" : str2);
-            sb.append(" | delivered=");
-            sb.append(i2);
-            sb.append(" expected=");
-            sb.append(i);
-            AppLogger.info(context, "notification_details", sb.toString());
-            return i2;
+            AppLogger.info(context, "notification_details",
+                    (source == null ? "sync" : source) + " | delivered=" + posted
+                            + " expected=" + expected + " reconciled=" + sawAlreadyDelivered);
+            return posted;
         }
     }
 
@@ -833,6 +1010,28 @@ final class NotificationHelper {
         return bitmap;
     }
 
+    private static boolean claimDeliveredId(Context context, String id) {
+        if (context == null || id == null || id.trim().isEmpty()) return false;
+        synchronized (NotificationHelper.class) {
+            SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
+            Set<String> delivered = deliveredIds(prefs.getString("delivered_notification_ids", ""));
+            String cleanId = id.trim();
+            if (delivered.contains(cleanId)) return false;
+            delivered.add(cleanId);
+            trimDeliveredIds(delivered, 100);
+            prefs.edit().putString("delivered_notification_ids", join(delivered)).apply();
+            return true;
+        }
+    }
+
+    private static String firstNonEmpty(String... values) {
+        if (values == null) return "";
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) return value.trim();
+        }
+        return "";
+    }
+
     private static Set<String> deliveredIds(String str) {
         LinkedHashSet linkedHashSet = new LinkedHashSet();
         if (str != null && !str.isEmpty()) {
@@ -911,29 +1110,21 @@ final class NotificationSyncScheduler {
         try {
             SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
             if (!prefs.getBoolean("background_notification_sync", true)) {
-                HcfNotificationEngine.InstantNotificationService.stop(context);
+                HcfNotificationEngine.InstantNotificationService.stop(context, "background-sync-disabled");
                 cancel(context);
                 AppLogger.info(context, "notification_sync_mode", "disabled");
                 return;
             }
 
             String userId = prefs.getString("session_user_id", "");
-            boolean silenceForegroundStatus = prefs.getBoolean("silence_background_service_notification", false);
 
             if (userId != null && !userId.trim().isEmpty()) {
-                if (silenceForegroundStatus) {
-                    // Android requires a visible notification for a foreground service.
-                    // Honor the user's silence switch by stopping that foreground service.
-                    // Foreground WebSocket events can still request silent one-shot syncs,
-                    // while JobScheduler remains the background fallback.
-                    HcfNotificationEngine.InstantNotificationService.stop(context);
-                    AppLogger.info(context, "notification_sync_mode", "silent fallback • foreground service stopped");
-                } else {
-                    HcfNotificationEngine.InstantNotificationService.start(context);
-                    AppLogger.info(context, "notification_sync_mode", "foreground live sync");
-                }
+                // Reliability rule: signed-in + background sync enabled always keeps
+                // the legal foreground service running with its required ongoing notification.
+                HcfNotificationEngine.InstantNotificationService.start(context);
+                AppLogger.info(context, "notification_sync_mode", "foreground live sync • signed-in");
             } else {
-                HcfNotificationEngine.InstantNotificationService.stop(context);
+                HcfNotificationEngine.InstantNotificationService.stop(context, "signed-out");
                 AppLogger.info(context, "notification_sync_mode", "waiting for signed-in session");
             }
 

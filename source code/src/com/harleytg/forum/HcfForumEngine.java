@@ -426,6 +426,17 @@ final class ForumNotificationClient {
     private static final int MAX_BODY_CHARS = 700000;
     private static final int READ_TIMEOUT_MS = 4500;
 
+    static final class HttpStatusException extends IOException {
+        final int statusCode;
+        final long retryAfterMs;
+
+        HttpStatusException(int statusCode, long retryAfterMs) {
+            super("HTTP " + statusCode);
+            this.statusCode = statusCode;
+            this.retryAfterMs = Math.max(0L, retryAfterMs);
+        }
+    }
+
     static final class Alert {
         final String body;
         final String id;
@@ -451,7 +462,10 @@ final class ForumNotificationClient {
         int max = Math.max(1, Math.min(20, i));
         try {
             str2 = get(context, trustedBase, "api/notifications?include=fromUser,subject&page%5Blimit%5D=" + max, "Details");
-        } catch (Throwable unused) {
+        } catch (Throwable error) {
+            if (error instanceof HttpStatusException) {
+                throw (HttpStatusException) error;
+            }
             str2 = get(context, trustedBase, "api/notifications?page%5Blimit%5D=" + max, "DetailsFallback");
         }
         return parseAlerts(new JSONObject(str2), trustedBase, max);
@@ -759,11 +773,23 @@ final class ForumNotificationClient {
             }
             int responseCode = httpURLConnection.getResponseCode();
             if (responseCode < 200 || responseCode >= 300) {
-                throw new IllegalStateException("HTTP " + responseCode);
+                throw new HttpStatusException(responseCode, retryAfterMillis(httpURLConnection));
             }
             return read(httpURLConnection.getInputStream());
         } finally {
             httpURLConnection.disconnect();
+        }
+    }
+
+    private static long retryAfterMillis(HttpURLConnection connection) {
+        if (connection == null) return 0L;
+        String value = connection.getHeaderField("Retry-After");
+        if (value == null || value.trim().isEmpty()) return 0L;
+        try {
+            long seconds = Long.parseLong(value.trim());
+            return Math.min(300000L, Math.max(0L, seconds * 1000L));
+        } catch (Throwable ignored) {
+            return 0L;
         }
     }
 
@@ -837,6 +863,9 @@ final class ForumNotificationSync {
                 try {
                     i = NotificationHelper.deliverDetailedAlerts(context, ForumNotificationClient.fetchLatest(context, str, Math.max(recordForumNotificationCount + 4, 8)), recordForumNotificationCount, str, str3);
                 } catch (Throwable th) {
+                    if (th instanceof ForumNotificationClient.HttpStatusException) {
+                        throw (ForumNotificationClient.HttpStatusException) th;
+                    }
                     NotificationHelper.postGenericDelta(context, recordForumNotificationCount, str);
                     AppLogger.warn(context, "notification_detail", th.getClass().getSimpleName() + " | generic-fallback");
                 }
@@ -1553,6 +1582,7 @@ final class LiveForumUpdater {
             return;
         }
         if ("notification".equals(event)) {
+            NotificationHelper.postFromPushPayload(this.app, data);
             HcfNotificationEngine.InstantNotificationService.requestImmediateSync(this.app);
         }
         if (eventAffectsCurrentRoute(event, data)) {

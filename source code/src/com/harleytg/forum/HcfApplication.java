@@ -20,6 +20,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.provider.Settings;
 import android.util.Base64;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -112,6 +113,11 @@ public final class HcfApplication {
 
                 @Override public void onActivityResumed(Activity activity) {
                     if (activity instanceof HcfMainActivities.MainActivity) {
+                        try {
+                            BatteryOptimizationHelper.maybeRequest(activity);
+                        } catch (Throwable error) {
+                            AppLogger.warn(App.this, "battery_optimization_request", error.getClass().getSimpleName());
+                        }
                         try {
                             SetupCenter.installDrawerEntry((HcfMainActivities.MainActivity) activity);
                         } catch (Throwable error) {
@@ -445,96 +451,107 @@ final class PerformanceProfile {
     }
 
     static long notificationPollInterval(Context context, SharedPreferences sharedPreferences) {
+        if (context == null) {
+            return 2000L;
+        }
+
         final boolean aggressiveRealtime = sharedPreferences == null
                 || sharedPreferences.getBoolean("aggressive_realtime", true);
         final boolean foreground = RuntimeState.isForeground();
-        final boolean interactive = context == null || RuntimeState.isInteractive(context);
+        final boolean interactive = RuntimeState.isInteractive(context);
+        final boolean batteryExempt = BatteryOptimizationHelper.isIgnoring(context);
+        final long backgroundDurationMs = RuntimeState.backgroundDurationMs();
 
         long interval;
         if (aggressiveRealtime) {
-            interval = foreground ? 400L : 1500L;
+            if (foreground) {
+                interval = batteryExempt ? 500L : 650L;
+            } else if (backgroundDurationMs <= 180000L) {
+                interval = batteryExempt ? 1500L : 2000L;
+            } else {
+                interval = batteryExempt ? 4000L : 5000L;
+            }
         } else {
             String saved = saved(sharedPreferences);
             if (!AUTO.equals(saved)) {
-                interval = QUALITY.equals(saved) ? 500L : BALANCED.equals(saved) ? 1000L : 1800L;
+                interval = QUALITY.equals(saved) ? 600L : BALANCED.equals(saved) ? 1200L : 2000L;
             } else {
-                String runtime = context == null ? AUTO_BALANCED : autoRuntime(context, sharedPreferences);
-                interval = AUTO_REALTIME.equals(runtime) ? 500L
-                        : AUTO_BALANCED.equals(runtime) ? 1000L
-                        : AUTO_EXTREME.equals(runtime) ? 4000L : 1800L;
+                String runtime = autoRuntime(context, sharedPreferences);
+                interval = AUTO_REALTIME.equals(runtime) ? 600L
+                        : AUTO_BALANCED.equals(runtime) ? 1200L
+                        : AUTO_EXTREME.equals(runtime) ? 5000L : 2000L;
             }
 
             if (!foreground) {
-                long backgroundDurationMs = RuntimeState.backgroundDurationMs();
                 interval = backgroundDurationMs <= 180000L
-                        ? Math.min(interval, 1500L)
-                        : Math.min(Math.max(interval, 1500L), 4000L);
+                        ? Math.min(Math.max(interval, 1200L), 2000L)
+                        : Math.min(Math.max(interval, 2500L), 5000L);
             }
         }
 
-        if (context != null) {
-            int thermalStatus = thermalStatus(context);
-            if (thermalStatus >= severeThermalStatus()) {
-                interval = Math.max(interval, foreground ? 1500L : 3500L);
-            } else if (thermalStatus >= moderateThermalStatus()) {
-                interval = Math.max(interval, foreground ? 800L : 2200L);
-            }
+        int thermalStatus = thermalStatus(context);
+        boolean powerSave = isBatterySaver(context);
 
-            if (isBatterySaver(context)) {
-                interval = Math.max(interval, foreground ? 1200L : 3000L);
+        // Severe thermal pressure and Battery Saver are the only states allowed
+        // to relax the realtime target all the way to the 8-second ceiling.
+        if (powerSave || thermalStatus >= severeThermalStatus()) {
+            interval = 8000L;
+        } else {
+            if (thermalStatus >= moderateThermalStatus()) {
+                interval = Math.max(interval, 3500L);
             }
 
             int batteryPercent = batteryPercent(context);
             if (!isCharging(context) && batteryPercent >= 0 && batteryPercent <= 10) {
-                interval = Math.max(interval, foreground ? 1500L : 4000L);
+                interval = Math.max(interval, 5000L);
+            }
+
+            // Screen-off polling stays at four seconds or faster in normal power state.
+            if (!interactive) {
+                interval = Math.min(Math.max(interval, 2500L), 4000L);
             }
         }
 
-        if (!interactive) {
-            interval = Math.max(interval, 2500L);
-            interval = Math.min(interval, 3000L);
+        if (!RuntimeState.networkAvailable(context)) {
+            interval = Math.max(interval, 5000L);
         }
 
-        return Math.max(300L, Math.min(interval, 8000L));
+        return Math.max(400L, Math.min(interval, 8000L));
     }
 
     static long livePollInterval(Context context, SharedPreferences sharedPreferences) {
+        if (context == null) {
+            return 1000L;
+        }
+
         final boolean aggressiveRealtime = sharedPreferences == null
                 || sharedPreferences.getBoolean("aggressive_realtime", true);
         final boolean foreground = RuntimeState.isForeground();
 
         long interval;
         if (aggressiveRealtime) {
-            interval = foreground ? 450L : 1000L;
+            interval = foreground ? 500L : 1200L;
         } else {
             String saved = saved(sharedPreferences);
             if (!AUTO.equals(saved)) {
-                interval = QUALITY.equals(saved) ? 500L : BALANCED.equals(saved) ? 750L : 1200L;
+                interval = QUALITY.equals(saved) ? 600L : BALANCED.equals(saved) ? 900L : 1500L;
             } else {
-                String runtime = context == null ? AUTO_BALANCED : autoRuntime(context, sharedPreferences);
-                interval = AUTO_REALTIME.equals(runtime) ? 500L
-                        : AUTO_BALANCED.equals(runtime) ? 800L
-                        : AUTO_EXTREME.equals(runtime) ? 2000L : 1200L;
+                String runtime = autoRuntime(context, sharedPreferences);
+                interval = AUTO_REALTIME.equals(runtime) ? 600L
+                        : AUTO_BALANCED.equals(runtime) ? 900L
+                        : AUTO_EXTREME.equals(runtime) ? 2500L : 1500L;
             }
         }
 
-        if (context != null) {
-            int thermalStatus = thermalStatus(context);
-            if (thermalStatus >= severeThermalStatus() || isBatterySaver(context)) {
-                interval = Math.max(interval, 2000L);
-            } else if (thermalStatus >= moderateThermalStatus()) {
-                interval = Math.max(interval, 1000L);
-            }
-            if (!RuntimeState.isInteractive(context)) {
-                interval = Math.max(interval, 1500L);
-            }
+        int thermalStatus = thermalStatus(context);
+        if (isBatterySaver(context) || thermalStatus >= severeThermalStatus()) {
+            interval = Math.max(interval, 3000L);
+        } else if (thermalStatus >= moderateThermalStatus()) {
+            interval = Math.max(interval, 1200L);
         }
 
-        long sinceLastInteractionMs = RuntimeState.sinceLastInteractionMs();
-        if (sinceLastInteractionMs >= 60000L) {
+        if (!RuntimeState.isInteractive(context)) {
             interval = Math.max(interval, 1500L);
-        } else if (sinceLastInteractionMs >= 12000L) {
-            interval = Math.max(interval, 750L);
         }
 
         return Math.max(400L, Math.min(interval, 4000L));
@@ -677,6 +694,68 @@ final class PerformanceProfile {
 
     private PerformanceProfile() {
     }
+}
+
+
+// ---- BatteryOptimizationHelper.java ----
+final class BatteryOptimizationHelper {
+    private static final String PREF_REQUEST_SHOWN = "battery_optimization_request_shown";
+    private static final String PREF_WARNING_LOGGED = "battery_optimization_warning_logged";
+    private static final String PREF_DENIED = "battery_optimization_denied";
+
+    static boolean isIgnoring(Context context) {
+        if (context == null || Build.VERSION.SDK_INT < 23) {
+            return true;
+        }
+        try {
+            PowerManager powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            return powerManager != null && powerManager.isIgnoringBatteryOptimizations(context.getPackageName());
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    static void maybeRequest(Activity activity) {
+        if (activity == null || Build.VERSION.SDK_INT < 23) {
+            return;
+        }
+        SharedPreferences prefs = activity.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
+        if (!prefs.getBoolean("aggressive_realtime", true)) {
+            return;
+        }
+
+        if (isIgnoring(activity)) {
+            prefs.edit()
+                    .putBoolean(PREF_DENIED, false)
+                    .putBoolean(PREF_WARNING_LOGGED, false)
+                    .apply();
+            return;
+        }
+
+        if (!prefs.getBoolean(PREF_REQUEST_SHOWN, false)) {
+            prefs.edit().putBoolean(PREF_REQUEST_SHOWN, true).apply();
+            try {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                intent.setData(Uri.parse("package:" + activity.getPackageName()));
+                activity.startActivity(intent);
+                AppLogger.info(activity, "battery_optimization_request", "requested • aggressive realtime");
+            } catch (Throwable error) {
+                prefs.edit().putBoolean(PREF_DENIED, true).apply();
+                AppLogger.warn(activity, "battery_optimization_request", "unavailable | " + error.getClass().getSimpleName());
+            }
+            return;
+        }
+
+        // A prior request was shown and the app is still optimized: treat it as
+        // denied/revoked and use the slightly less aggressive (still <=5s) path.
+        prefs.edit().putBoolean(PREF_DENIED, true).apply();
+        if (!prefs.getBoolean(PREF_WARNING_LOGGED, false)) {
+            prefs.edit().putBoolean(PREF_WARNING_LOGGED, true).apply();
+            AppLogger.warn(activity, "battery_optimization", "not exempt • using conservative realtime background intervals");
+        }
+    }
+
+    private BatteryOptimizationHelper() {}
 }
 
 

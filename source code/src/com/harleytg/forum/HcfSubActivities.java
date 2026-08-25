@@ -2887,16 +2887,16 @@ public final class HcfSubActivities {
             card.addView(settingsInfoCard("Service-status channel",
                     "HCF Silent Alerts only carries quiet background-service status. It never carries direct messages, mentions or replies.",
                     R.drawable.fa_bell));
-            Switch silence = target(toggle("Disable HCF Silent Alerts", prefs.getBoolean("silence_background_service_notification", false)), "silence_hcf_silent_alerts");
+            Switch silence = target(toggle("Silence optional HCF status alerts", prefs.getBoolean("silence_background_service_notification", false)), "silence_hcf_silent_alerts");
             silence.setOnCheckedChangeListener((button, checked) -> {
                 prefs.edit().putBoolean("silence_background_service_notification", checked).apply();
                 NotificationHelper.refreshChannels(this);
                 NotificationSyncScheduler.apply(this);
                 AppLogger.info(this, "setting_silence_passive_notifications", Boolean.toString(checked));
-                Toast.makeText(this, checked ? "HCF Silent Alerts disabled. Real HCF Alerts stay on; background delivery may be delayed." : "HCF Silent Alerts enabled • live background delivery available.", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, checked ? "Optional silent status alerts hidden. The required live-service notification stays on." : "Optional HCF status alerts enabled.", Toast.LENGTH_LONG).show();
             });
             card.addView(silence);
-            card.addView(text("This never disables HCF Alerts. When this switch is ON, the continuous foreground sync service stops because Android requires a visible service notification; fallback background checks remain scheduled.", 10, getColor(R.color.hcf_muted)));
+            card.addView(text("This never disables real HCF Alerts. Android requires an ongoing notification for reliable foreground-service delivery, so the live sync service stays running while signed in and background sync is enabled.", 10, getColor(R.color.hcf_muted)));
             card.addView(notificationChannelRow("HCF Silent Alerts", "Silent • service status only", "hcf_silent_alerts_v1"));
             return card;
         }
