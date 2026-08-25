@@ -1,0 +1,835 @@
+name: Apply HCF Notifications v2 Final
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/apply-hcf-notifications-v2-final.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-verify-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Apply HCF Notifications v2
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/patch_hcf_notifications_v2.py <<'PY'
+          from pathlib import Path
+          import re
+          import textwrap
+
+          ENGINE = Path('source code/src/com/harleytg/forum/HcfNotificationEngine.java')
+          UI = Path('source code/src/com/harleytg/forum/HcfSubActivities.java')
+          UI_VERIFY = Path('.github/scripts/verify-hcf-alerts-ui.py')
+
+          def method_replace(source, scope_marker, signature, body):
+              scope = source.index(scope_marker)
+              sig = source.index(signature, scope)
+              line_start = source.rfind('\n', 0, sig) + 1
+              indent = source[line_start:sig]
+              brace = source.index('{', sig)
+              depth = 0
+              i = brace
+              in_string = False
+              in_char = False
+              escaped = False
+              line_comment = False
+              block_comment = False
+              while i < len(source):
+                  ch = source[i]
+                  nxt = source[i + 1] if i + 1 < len(source) else ''
+                  if line_comment:
+                      if ch == '\n': line_comment = False
+                  elif block_comment:
+                      if ch == '*' and nxt == '/':
+                          block_comment = False
+                          i += 1
+                  elif in_string:
+                      if escaped: escaped = False
+                      elif ch == '\\': escaped = True
+                      elif ch == '"': in_string = False
+                  elif in_char:
+                      if escaped: escaped = False
+                      elif ch == '\\': escaped = True
+                      elif ch == "'": in_char = False
+                  else:
+                      if ch == '/' and nxt == '/':
+                          line_comment = True
+                          i += 1
+                      elif ch == '/' and nxt == '*':
+                          block_comment = True
+                          i += 1
+                      elif ch == '"': in_string = True
+                      elif ch == "'": in_char = True
+                      elif ch == '{': depth += 1
+                      elif ch == '}':
+                          depth -= 1
+                          if depth == 0:
+                              end = i + 1
+                              break
+                  i += 1
+              else:
+                  raise RuntimeError('Unmatched method braces for ' + signature)
+              normalized = textwrap.dedent(body).strip('\n')
+              replacement = '\n'.join((indent + line if line else '') for line in normalized.splitlines())
+              return source[:line_start] + replacement + source[end:]
+
+          def replace_once(source, old, new, label):
+              if source.count(old) != 1:
+                  raise RuntimeError(f'{label}: expected one match, found {source.count(old)}')
+              return source.replace(old, new, 1)
+
+          s = ENGINE.read_text(encoding='utf-8')
+
+          service_scope = 'public static final class InstantNotificationService extends Service {'
+          s = method_replace(s, service_scope, 'static void apply(Context context) {', '''
+          static void apply(Context context) {
+              if (context == null) return;
+              SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
+              if (!NotificationHelper.silencePassiveEnabled(context)
+                      && prefs.getBoolean("background_notification_sync", true)
+                      && hasSession(context)) {
+                  start(context);
+              } else {
+                  stop(context, NotificationHelper.silencePassiveEnabled(context)
+                          ? "silent-alerts-silenced" : "not-eligible");
+              }
+          }
+          ''')
+          s = method_replace(s, service_scope, 'static void start(Context context) {', '''
+          static void start(Context context) {
+              if (context == null) return;
+              if (NotificationHelper.silencePassiveEnabled(context)) {
+                  stop(context, "silent-alerts-silenced");
+                  return;
+              }
+              if (!hasSession(context)) {
+                  stop(context, "no-session");
+                  return;
+              }
+              startWithAction(context, null);
+          }
+          ''')
+          s = method_replace(s, service_scope, 'static void requestImmediateSync(Context context) {', '''
+          static void requestImmediateSync(Context context) {
+              if (context == null || NotificationHelper.silencePassiveEnabled(context) || !hasSession(context)) return;
+              startWithAction(context, ACTION_SYNC_NOW);
+          }
+          ''')
+          s = method_replace(s, service_scope, 'private static void runOneShot(Context context) {', '''
+          private static void runOneShot(Context context) {
+              try {
+                  if (NotificationHelper.silencePassiveEnabled(context)) return;
+                  SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
+                  if (!prefs.getBoolean("background_notification_sync", true)) return;
+                  String userId = prefs.getString("session_user_id", "");
+                  if (userId == null || userId.trim().isEmpty() || !RuntimeState.networkAvailable(context)) return;
+                  String host = prefs.getString("active_host", "forum.harleytg.com");
+                  if (!ForumUrlRouter.isForumHost(host)) host = "forum.harleytg.com";
+                  ForumNotificationSync.perform(context, host, userId.trim(), "silent-one-shot");
+              } catch (ForumNotificationClient.HttpStatusException e) {
+                  if (e.statusCode == 401) {
+                      clearSessionForAuthFailure(context, "one-shot");
+                  } else {
+                      AppLogger.warn(context, "instant_notification_service", "one-shot HTTP " + e.statusCode + " • retryAfter=" + e.retryAfterMs + "ms");
+                  }
+              } catch (JSONException e) {
+                  AppLogger.info(context, "instant_notification_service", "one-shot skipped • invalid notification API payload");
+              } catch (Throwable t) {
+                  AppLogger.warn(context, "instant_notification_service", "one-shot | " + t.getClass().getSimpleName());
+              }
+          }
+          ''')
+          s = method_replace(s, service_scope, 'private static void startWithAction(Context context, String action) {', '''
+          private static void startWithAction(Context context, String action) {
+              if (context == null) return;
+              SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
+              if (NotificationHelper.silencePassiveEnabled(context)
+                      || !prefs.getBoolean("background_notification_sync", true)
+                      || !hasSession(context)) {
+                  stop(context, NotificationHelper.silencePassiveEnabled(context)
+                          ? "silent-alerts-silenced" : "not-eligible");
+                  return;
+              }
+              try {
+                  Intent intent = new Intent(context, InstantNotificationService.class);
+                  if (action != null) intent.setAction(action);
+                  if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent);
+                  else context.startService(intent);
+              } catch (Throwable t) {
+                  AppLogger.warn(context, "instant_notification_service", "start-blocked | " + t.getClass().getSimpleName());
+              }
+          }
+          ''')
+          s = method_replace(s, service_scope, 'public void onCreate() {', '''
+          public void onCreate() {
+              super.onCreate();
+              if (NotificationHelper.silencePassiveEnabled(this)) {
+                  running = false;
+                  NotificationHelper.cancelOptionalSilentAlerts(this);
+                  stopSelf();
+                  return;
+              }
+              try {
+                  NotificationHelper.createChannel(this);
+                  Notification notification = NotificationHelper.buildInstantServiceNotification(this);
+                  startForeground(SERVICE_NOTIFICATION_ID, notification);
+              } catch (Throwable t) {
+                  AppLogger.error(this, "instant_notification_foreground", t.getClass().getSimpleName() + ": " + String.valueOf(t.getMessage()));
+                  stopSelf();
+                  return;
+              }
+
+              running = true;
+              failures = 0;
+              registerNetworkCallback();
+              registerScreenOnReceiver();
+              AppLogger.info(this, "instant_notification_service", "started • adaptive v" + BuildInfo.VERSION_CODE);
+              scheduleNext(0L);
+          }
+          ''')
+          s = method_replace(s, service_scope, 'public int onStartCommand(Intent intent, int flags, int startId) {', '''
+          public int onStartCommand(Intent intent, int flags, int startId) {
+              SharedPreferences prefs = getSharedPreferences("hcf_app", 0);
+              if (NotificationHelper.silencePassiveEnabled(this)
+                      || !prefs.getBoolean("background_notification_sync", true)
+                      || !hasSession(this)) {
+                  running = false;
+                  try { stopForeground(true); } catch (Throwable ignored) {}
+                  NotificationHelper.cancelOptionalSilentAlerts(this);
+                  stopSelf();
+                  return START_NOT_STICKY;
+              }
+              running = true;
+              if (intent != null && ACTION_SYNC_NOW.equals(intent.getAction())) {
+                  immediateRequested = true;
+                  scheduleNext(0L);
+              } else if (scheduled == null) {
+                  scheduleNext(0L);
+              }
+              return START_STICKY;
+          }
+          ''')
+          s = method_replace(s, service_scope, 'private void performAdaptiveSync() {', '''
+          private void performAdaptiveSync() {
+              long nextDelay = DEFAULT_NEXT_DELAY_MS;
+              try {
+                  SharedPreferences prefs = getSharedPreferences("hcf_app", 0);
+                  if (NotificationHelper.silencePassiveEnabled(this)) {
+                      running = false;
+                      stop(this, "silent-alerts-silenced");
+                      stopSelf();
+                      return;
+                  }
+                  if (!prefs.getBoolean("background_notification_sync", true)) {
+                      running = false;
+                      stop(this, "background-sync-disabled");
+                      stopSelf();
+                      return;
+                  }
+                  String userId = prefs.getString("session_user_id", "");
+                  if (userId == null || userId.trim().isEmpty()) {
+                      running = false;
+                      stop(this, "signed-out");
+                      stopSelf();
+                      return;
+                  }
+                  if (!RuntimeState.networkAvailable(this)) {
+                      nextDelay = Math.max(DEFAULT_NEXT_DELAY_MS, PerformanceProfile.notificationPollInterval(this, prefs));
+                  } else {
+                      String host = prefs.getString("active_host", "forum.harleytg.com");
+                      if (!ForumUrlRouter.isForumHost(host)) host = "forum.harleytg.com";
+                      ForumNotificationSync.perform(this, host, userId.trim(), "adaptive");
+                      failures = 0;
+                      nextDelay = PerformanceProfile.notificationPollInterval(this, prefs);
+                  }
+              } catch (ForumNotificationClient.HttpStatusException http) {
+                  if (http.statusCode == 401) {
+                      clearSessionForAuthFailure(this, "adaptive");
+                      running = false;
+                      stopSelf();
+                      nextDelay = 0L;
+                  } else if (http.statusCode == 429 || http.statusCode == 503) {
+                      failures = Math.min(failures + 1, 8);
+                      int shift = Math.min(Math.max(failures - 1, 0), 4);
+                      long exponential = Math.min(THROTTLE_MAX_MS, THROTTLE_MIN_MS * (1L << shift));
+                      nextDelay = Math.max(exponential, Math.min(THROTTLE_MAX_MS, http.retryAfterMs));
+                      AppLogger.warn(this, "instant_notification_throttle",
+                              "HTTP " + http.statusCode + " | failures=" + failures + " | retry=" + nextDelay + "ms");
+                  } else {
+                      failures = Math.min(failures + 1, 8);
+                      int shift = Math.min(Math.max(failures - 1, 0), 3);
+                      nextDelay = Math.min(FAILURE_MAX_MS, FAILURE_MIN_MS * (1L << shift));
+                      AppLogger.warn(this, "instant_notification_http", "HTTP " + http.statusCode + " | retry=" + nextDelay + "ms");
+                  }
+              } catch (Throwable t) {
+                  failures = Math.min(failures + 1, 8);
+                  int shift = Math.min(Math.max(failures - 1, 0), 3);
+                  long retry = Math.min(FAILURE_MAX_MS, FAILURE_MIN_MS * (1L << shift));
+                  try {
+                      retry = Math.max(retry, PerformanceProfile.notificationPollInterval(this, getSharedPreferences("hcf_app", 0)));
+                  } catch (Throwable ignored) {}
+                  nextDelay = retry;
+                  if (failures == 1 || failures == 2 || failures == 4 || failures == 8) {
+                      AppLogger.warn(this, "instant_notification_poll", t.getClass().getSimpleName() + " | failures=" + failures + " | retry=" + retry + "ms");
+                  }
+              } finally {
+                  inFlight.set(false);
+                  if (running) {
+                      if (immediateRequested) {
+                          immediateRequested = false;
+                          scheduleNext(0L);
+                      } else {
+                          scheduleNext(Math.max(0L, nextDelay));
+                      }
+                  }
+              }
+          }
+          ''')
+
+          replacements = {
+              r'static final String CHANNEL_GROUP_ID = "[^"]+";': 'static final String CHANNEL_GROUP_ID = "hcf_notification_channels_v2";',
+              r'static final String CHANNEL_ID = "[^"]+";': 'static final String CHANNEL_ID = "hcf_alerts_v2";',
+              r'private static final String FORUM_GROUP_KEY = "[^"]+";': 'static final String FORUM_GROUP_KEY = "hcf_alerts_group_v2";\n    static final String SILENT_STATUS_GROUP_KEY = "hcf_silent_status_group_v2";',
+              r'private static final int FORUM_SUMMARY_ID = 41072;': 'static final int FORUM_SUMMARY_ID = 41072;',
+              r'static final String SILENT_CHANNEL_ID = "[^"]+";': 'static final String SILENT_CHANNEL_ID = "hcf_silent_alerts_v2";',
+              r'static final String TEST_CHANNEL_ID = "[^"]+";': 'static final String TEST_CHANNEL_ID = "hcf_test_alerts_v2";',
+          }
+          for pattern, replacement in replacements.items():
+              s, n = re.subn(pattern, replacement, s, count=1)
+              if n != 1: raise RuntimeError('constant replacement failed: ' + pattern)
+
+          legacy = '''private static final String[] LEGACY_CHANNEL_IDS = {
+              "hcf_alerts_v1", "hcf_silent_alerts_v1", "hcf_test_alerts_v1",
+              "forum_messages_heads_up_v2", "forum_messages", "app_updates_v1",
+              "hcf_background_v2", "instant_notification_service_v1", "hcf_passive_silent_v1",
+              "hcf_messages", "hcf_forum_activity", "hcf_live_service_v1"
+          };'''
+          s, n = re.subn(r'private static final String\[\] LEGACY_CHANNEL_IDS = \{.*?\};', legacy, s, count=1, flags=re.S)
+          if n != 1: raise RuntimeError('legacy channel list replacement failed')
+
+          helper_scope = 'final class NotificationHelper {'
+          s = method_replace(s, helper_scope, 'static void createChannel(Context context) {', '''
+          static void createChannel(Context context) {
+              if (context == null) return;
+              try {
+                  NotificationManager manager = (NotificationManager) context.getSystemService("notification");
+                  if (manager == null) return;
+
+                  boolean hadLegacySilent = false;
+                  try { hadLegacySilent = manager.getNotificationChannel("hcf_silent_alerts_v1") != null; }
+                  catch (Throwable ignored) {}
+
+                  try {
+                      manager.createNotificationChannelGroup(new NotificationChannelGroup(CHANNEL_GROUP_ID, CHANNEL_GROUP_NAME));
+                  } catch (Throwable ignored) {}
+
+                  NotificationChannel alerts = new NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH);
+                  alerts.setDescription("Audible HCF messages, mentions, replies, forum activity and important app alerts. Controlled in Android notification settings. App silent controls never affect this channel.");
+                  alerts.setGroup(CHANNEL_GROUP_ID);
+                  alerts.enableVibration(true);
+                  alerts.enableLights(true);
+                  alerts.setShowBadge(true);
+                  alerts.setLockscreenVisibility(0);
+                  try {
+                      alerts.setSound(RingtoneManager.getDefaultUri(2), new AudioAttributes.Builder().setUsage(10).setContentType(4).build());
+                  } catch (Throwable ignored) {}
+                  manager.createNotificationChannel(alerts);
+
+                  NotificationChannel silent = new NotificationChannel(SILENT_CHANNEL_ID, SILENT_CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW);
+                  silent.setDescription("Always-silent live-service and status channel. The in-app toggle can hide the ongoing live-service notification and optional status alerts. Real forum alerts use HCF Alerts.");
+                  silent.setGroup(CHANNEL_GROUP_ID);
+                  silent.setSound(null, null);
+                  silent.enableVibration(false);
+                  silent.enableLights(false);
+                  silent.setShowBadge(false);
+                  silent.setLockscreenVisibility(0);
+                  manager.createNotificationChannel(silent);
+
+                  if (BuildInfo.ENABLE_DEV_TEST_MENU) {
+                      NotificationChannel test = new NotificationChannel(TEST_CHANNEL_ID, TEST_CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT);
+                      test.setDescription("Development and Beta notification tests only. Never carries real forum alerts or the live-service notification.");
+                      test.setGroup(CHANNEL_GROUP_ID);
+                      test.enableVibration(true);
+                      test.setShowBadge(false);
+                      test.setLockscreenVisibility(0);
+                      manager.createNotificationChannel(test);
+                  } else {
+                      deleteChannelIfPresent(manager, TEST_CHANNEL_ID);
+                  }
+
+                  for (String legacyId : LEGACY_CHANNEL_IDS) deleteChannelIfPresent(manager, legacyId);
+                  try { manager.deleteNotificationChannelGroup("hcf_notifications_v1"); }
+                  catch (Throwable ignored) {}
+
+                  if (hadLegacySilent && !(context instanceof HcfNotificationEngine.InstantNotificationService)) {
+                      SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
+                      String userId = prefs.getString("session_user_id", "");
+                      boolean eligible = !silencePassiveEnabled(context)
+                              && prefs.getBoolean("background_notification_sync", true)
+                              && userId != null && !userId.trim().isEmpty();
+                      HcfNotificationEngine.InstantNotificationService.stop(context, "notification-channel-v2-migration");
+                      if (eligible) HcfNotificationEngine.InstantNotificationService.start(context);
+                  }
+
+                  AppLogger.info(context, "notification_channel",
+                          BuildInfo.ENABLE_DEV_TEST_MENU
+                                  ? "v2 channels=HCF Alerts|HCF Silent Alerts|HCF Test Alerts"
+                                  : "v2 channels=HCF Alerts|HCF Silent Alerts");
+              } catch (Throwable error) {
+                  AppLogger.error(context, "notification_channel_create",
+                          error.getClass().getSimpleName() + ": " + String.valueOf(error.getMessage()));
+              }
+          }
+          ''')
+          s = method_replace(s, helper_scope, 'static void cancelOptionalSilentAlerts(Context context) {', '''
+          static void cancelOptionalSilentAlerts(Context context) {
+              if (context == null) return;
+              try {
+                  NotificationManager manager = (NotificationManager) context.getSystemService("notification");
+                  if (manager == null) return;
+                  int cancelled = 0;
+                  android.service.notification.StatusBarNotification[] active = manager.getActiveNotifications();
+                  if (active != null) {
+                      for (android.service.notification.StatusBarNotification item : active) {
+                          if (item == null || item.getNotification() == null) continue;
+                          if (SILENT_CHANNEL_ID.equals(item.getNotification().getChannelId())) {
+                              manager.cancel(item.getTag(), item.getId());
+                              cancelled++;
+                          }
+                      }
+                  }
+                  manager.cancel(HcfNotificationEngine.InstantNotificationService.SERVICE_NOTIFICATION_ID);
+                  AppLogger.info(context, "silent_alert_suppressed", "cleared_silent=" + cancelled);
+              } catch (Throwable error) {
+                  AppLogger.warn(context, "silent_alert_suppressed", "clear_failed_" + error.getClass().getSimpleName());
+              }
+          }
+          ''')
+          s = method_replace(s, helper_scope, 'static boolean silencePassiveEnabled(Context context) {', '''
+          static boolean silencePassiveEnabled(Context context) {
+              if (context == null) return false;
+              return context.getSharedPreferences("hcf_app", 0)
+                      .getBoolean("silence_background_service_notification", false);
+          }
+          ''')
+          s = method_replace(s, helper_scope, 'static boolean canPostOnChannel(Context context, String str) {', '''
+          static boolean canPostOnChannel(Context context, String str) {
+              if (context == null || str == null || str.isEmpty()) return false;
+              return isEnabledByUser(context)
+                      && hasRuntimePermission(context)
+                      && areAppNotificationsEnabled(context)
+                      && channelImportance(context, str) != NotificationManager.IMPORTANCE_NONE;
+          }
+          ''')
+          s = method_replace(s, helper_scope, 'private static void postGroupSummary(Context context, int i, String str) {', '''
+          private static void postGroupSummary(Context context, int i, String str) {
+              if (i <= 1) return;
+              try {
+                  Uri uri = Uri.parse(ForumUrlRouter.home(str) + "notifications");
+                  Intent intent = new Intent(context, (Class<?>) HcfMainActivities.MainActivity.class);
+                  intent.setAction("com.harleytg.forum.dev.OPEN_NOTIFICATION");
+                  intent.setData(uri);
+                  intent.addFlags(603979776);
+                  PendingIntent activity = PendingIntent.getActivity(context, FORUM_SUMMARY_ID, intent, 201326592);
+                  if (!canPostOnChannel(context, CHANNEL_ID)) {
+                      AppLogger.warn(context, "notification_summary", "HCF Alerts channel unavailable");
+                      return;
+                  }
+                  Notification.Builder builder = new Notification.Builder(context, CHANNEL_ID);
+                  builder.setSmallIcon(R.drawable.ic_notification_paw)
+                          .setLargeIcon(largeIcon(context))
+                          .setContentTitle("Harley's Clan Forum")
+                          .setContentText(i + " new forum alerts")
+                          .setContentIntent(activity)
+                          .setGroup(FORUM_GROUP_KEY)
+                          .setGroupSummary(true)
+                          .setNumber(i)
+                          .setAutoCancel(true)
+                          .setCategory(Notification.CATEGORY_MESSAGE)
+                          .setVisibility(Notification.VISIBILITY_PUBLIC)
+                          .setPriority(Notification.PRIORITY_HIGH)
+                          .setOnlyAlertOnce(true);
+                  NotificationManager manager = (NotificationManager) context.getSystemService("notification");
+                  if (manager != null) manager.notify(FORUM_SUMMARY_ID, builder.build());
+              } catch (Throwable error) {
+                  AppLogger.warn(context, "notification_summary", error.getClass().getSimpleName());
+              }
+          }
+          ''')
+
+          s = replace_once(s,
+              '? "Live service active • optional status alerts silenced"\n                    : "Enabled • Silent";',
+              '? "Silenced • scheduled jobs only"\n                    : "Enabled • Silent";',
+              'silent channel status')
+          s = s.replace('optional status alert • live service preserved', 'optional silent status blocked by silence preference')
+          s = s.replace('remain on the audible HCF Alerts channel even when Silent Alerts is off.',
+                        'remain on the audible HCF Alerts channel even when HCF Silent Alerts is silenced.')
+          group_old = '''if (z) {
+                  builder.setGroup(FORUM_GROUP_KEY);
+              }'''
+          group_new = '''if (z) {
+                  builder.setGroup(FORUM_GROUP_KEY);
+              } else if (z2 && SILENT_CHANNEL_ID.equals(str3)) {
+                  builder.setGroup(SILENT_STATUS_GROUP_KEY);
+              }'''
+          s = replace_once(s, group_old, group_new, 'notification grouping')
+
+          scheduler_scope = 'final class NotificationSyncScheduler {'
+          s = method_replace(s, scheduler_scope, 'static void apply(Context context) {', '''
+          static void apply(Context context) {
+              if (context == null) return;
+              try {
+                  SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
+                  if (!prefs.getBoolean("background_notification_sync", true)) {
+                      HcfNotificationEngine.InstantNotificationService.stop(context, "background-sync-disabled");
+                      cancel(context);
+                      AppLogger.info(context, "notification_sync_mode", "disabled");
+                      return;
+                  }
+
+                  String userId = prefs.getString("session_user_id", "");
+                  boolean signedIn = userId != null && !userId.trim().isEmpty();
+                  if (NotificationHelper.silencePassiveEnabled(context)) {
+                      HcfNotificationEngine.InstantNotificationService.stop(context, "silent-alerts-silenced");
+                      NotificationHelper.cancelOptionalSilentAlerts(context);
+                      schedule(context);
+                      AppLogger.info(context, "notification_sync_mode",
+                              signedIn ? "scheduled jobs only • HCF Silent Alerts silenced" : "scheduled jobs armed • waiting for session");
+                      return;
+                  }
+
+                  if (signedIn) {
+                      HcfNotificationEngine.InstantNotificationService.start(context);
+                      AppLogger.info(context, "notification_sync_mode", "foreground live sync • signed-in");
+                  } else {
+                      HcfNotificationEngine.InstantNotificationService.stop(context, "signed-out");
+                      AppLogger.info(context, "notification_sync_mode", "waiting for signed-in session");
+                  }
+                  schedule(context);
+              } catch (Throwable error) {
+                  AppLogger.error(context, "notification_sync_apply",
+                          error.getClass().getSimpleName() + ": " + String.valueOf(error.getMessage()));
+              }
+          }
+          ''')
+          ENGINE.write_text(s, encoding='utf-8')
+
+          u = UI.read_text(encoding='utf-8')
+          u = u.replace(
+              'new SettingTarget("silence_hcf_silent_alerts", "Disable HCF Silent Alerts", "silent service status background notification", "notifications", "silent_alerts")',
+              'new SettingTarget("silence_hcf_silent_alerts", "Silence HCF Silent Alerts", "silent service status background notification scheduled jobs", "notifications", "silent_alerts")')
+          u = u.replace(
+              'settingsContent.addView(connectedSettingsPanel("HCF Test Alerts", "Dev/Beta diagnostics only", testAlertsInfoCard(), shouldExpand("test_alerts", false)));',
+              'if (BuildInfo.ENABLE_DEV_TEST_MENU) {\n                        settingsContent.addView(connectedSettingsPanel("HCF Test Alerts", "Dev/Beta diagnostics only", testAlertsInfoCard(), shouldExpand("test_alerts", false)));\n                    }')
+          old_info = 'TextView infoText = text("HCF Alerts are the real forum alerts.\\nHCF Silent Alerts is only the silent service-status channel.\\nThe required live-service notification and optional quiet status alerts both stay in HCF Silent Alerts.", 10, getColor(R.color.hcf_muted));'
+          new_info = 'TextView infoText = text("Real forum alerts (messages, mentions, replies, updates) use HCF Alerts. Controlled only in Android notification settings. App silent controls never affect this channel.", 10, getColor(R.color.hcf_muted));'
+          u = replace_once(u, old_info, new_info, 'HCF Alerts info copy')
+
+          ui_scope = 'public static final class SettingsActivity extends ThemedActivity {'
+          u = method_replace(u, ui_scope, 'private View silentAlertsCard() {', '''
+          private View silentAlertsCard() {
+              LinearLayout card = card();
+              NotificationHelper.createChannel(this);
+              card.addView(settingsInfoCard("Silent service-status channel",
+                      "When on, HCF Silent Alerts is fully quiet: optional status alerts are hidden and the ongoing live-service notification is removed. Background delivery then uses scheduled jobs only and may be delayed. Real HCF Alerts (messages, mentions, replies, updates) are never affected.",
+                      R.drawable.fa_bell));
+              Switch silence = target(toggle("Silence HCF Silent Alerts",
+                      prefs.getBoolean(AppPrefs.SILENCE_BACKGROUND_SERVICE_NOTIFICATION, false)),
+                      "silence_hcf_silent_alerts");
+              silence.setOnCheckedChangeListener((button, checked) -> {
+                  prefs.edit().putBoolean(AppPrefs.SILENCE_BACKGROUND_SERVICE_NOTIFICATION, checked).apply();
+                  NotificationHelper.refreshChannels(this);
+                  NotificationSyncScheduler.apply(this);
+                  AppLogger.info(this, "setting_silence_passive_notifications", Boolean.toString(checked));
+                  Toast.makeText(this,
+                          checked
+                                  ? "HCF Silent Alerts silenced. Live-service notification hidden; background delivery may be delayed. Real HCF Alerts stay on."
+                                  : "HCF Silent Alerts enabled. Live-service notification can run when background sync is on.",
+                          Toast.LENGTH_LONG).show();
+              });
+              card.addView(silence);
+              card.addView(text("When on, HCF Silent Alerts is fully quiet: optional status alerts are hidden and the ongoing live-service notification is removed. Background delivery then uses scheduled jobs only and may be delayed. Real HCF Alerts (messages, mentions, replies, updates) are never affected.", 10, getColor(R.color.hcf_muted)));
+              card.addView(notificationChannelRow("HCF Silent Alerts", "Silent • live service + optional status", NotificationHelper.SILENT_CHANNEL_ID));
+              return card;
+          }
+          ''')
+          u = method_replace(u, ui_scope, 'private View testAlertsInfoCard() {', '''
+          private View testAlertsInfoCard() {
+              LinearLayout card = card();
+              NotificationHelper.createChannel(this);
+              card.addView(settingsInfoCard("Developer test channel",
+                      "Use this only to test notification delivery. It never carries real forum alerts or the live-service notification.",
+                      R.drawable.fa_bug));
+              card.addView(notificationChannelRow("HCF Test Alerts", "Dev/Beta notification tests", NotificationHelper.TEST_CHANNEL_ID));
+              card.addView(target(actionButton("Open Developer Notification Tools", v -> navigateToSettingKey("notification_test_console")), "open_developer_tools"));
+              return card;
+          }
+          ''')
+          UI.write_text(u, encoding='utf-8')
+
+          v = UI_VERIFY.read_text(encoding='utf-8')
+          v = v.replace('"real-alert explanation": "HCF Alerts are the real forum alerts.",',
+                        '"real-alert explanation": "Real forum alerts (messages, mentions, replies, updates) use HCF Alerts.",')
+          v = v.replace('"silent-channel explanation": "HCF Silent Alerts is only the silent service-status channel.",',
+                        '"silent-controls independence": "App silent controls never affect this channel.",')
+          v = v.replace('    "obsolete Real forum alerts hero": \'"Real forum alerts"\',\n', '')
+          UI_VERIFY.write_text(v, encoding='utf-8')
+
+          verifier = Path('.github/scripts/verify-hcf-notifications-v2.py')
+          verifier.write_text(textwrap.dedent(r'''
+          #!/usr/bin/env python3
+          from pathlib import Path
+          import re
+          import sys
+
+          root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('source code')
+          engine = (root / 'src/com/harleytg/forum/HcfNotificationEngine.java').read_text(encoding='utf-8')
+          ui = (root / 'src/com/harleytg/forum/HcfSubActivities.java').read_text(encoding='utf-8')
+
+          required_engine = [
+              'CHANNEL_GROUP_ID = "hcf_notification_channels_v2"',
+              'CHANNEL_ID = "hcf_alerts_v2"',
+              'SILENT_CHANNEL_ID = "hcf_silent_alerts_v2"',
+              'TEST_CHANNEL_ID = "hcf_test_alerts_v2"',
+              'FORUM_GROUP_KEY = "hcf_alerts_group_v2"',
+              'SILENT_STATUS_GROUP_KEY = "hcf_silent_status_group_v2"',
+              'FORUM_SUMMARY_ID = 41072',
+              'SERVICE_NOTIFICATION_ID = 41070',
+              'private static final int JOB_ID = 41071',
+              'Audible HCF messages, mentions, replies, forum activity and important app alerts. Controlled in Android notification settings. App silent controls never affect this channel.',
+              'Always-silent live-service and status channel. The in-app toggle can hide the ongoing live-service notification and optional status alerts. Real forum alerts use HCF Alerts.',
+              'Development and Beta notification tests only. Never carries real forum alerts or the live-service notification.',
+          ]
+          for item in required_engine:
+              if item not in engine: raise SystemExit('Missing Notifications v2 fragment: ' + item)
+
+          for legacy in [
+              'hcf_alerts_v1','hcf_silent_alerts_v1','hcf_test_alerts_v1','forum_messages_heads_up_v2',
+              'forum_messages','app_updates_v1','hcf_background_v2','instant_notification_service_v1',
+              'hcf_passive_silent_v1','hcf_messages','hcf_forum_activity','hcf_live_service_v1']:
+              if legacy not in engine: raise SystemExit('Legacy cleanup missing: ' + legacy)
+
+          for stale in [
+              'live_service_preserved', 'live service preserved',
+              'required live-service notification stays on',
+              'optional quiet status notifications only; it never controls the foreground service',
+              'The toggle hides optional silent status alerts only']:
+              if stale in engine or stale in ui: raise SystemExit('Outdated silence behavior remains: ' + stale)
+
+          cancel_start = engine.index('static void cancelOptionalSilentAlerts(Context context) {')
+          cancel_end = engine.index('static boolean postNotificationServiceTest', cancel_start)
+          cancel = engine[cancel_start:cancel_end]
+          if 'SERVICE_NOTIFICATION_ID)' not in cancel: raise SystemExit('Silent cancel path does not explicitly cancel 41070')
+          if '!= HcfNotificationEngine.InstantNotificationService.SERVICE_NOTIFICATION_ID' in cancel:
+              raise SystemExit('Silent cancel path still preserves 41070')
+
+          service_start = engine.index('public static final class InstantNotificationService extends Service {')
+          service_end = engine.index('// ---- NotificationSyncJobService.java ----', service_start)
+          service = engine[service_start:service_end]
+          if service.count('NotificationHelper.silencePassiveEnabled(') < 6:
+              raise SystemExit('InstantNotificationService silence gates are incomplete')
+
+          scheduler_start = engine.index('final class NotificationSyncScheduler {')
+          scheduler_end = engine.index('// ---- HcfNotificationActions.java ----', scheduler_start)
+          scheduler = engine[scheduler_start:scheduler_end]
+          guard = scheduler.find('NotificationHelper.silencePassiveEnabled(context)')
+          start = scheduler.find('InstantNotificationService.start(context)')
+          if guard < 0 or (start >= 0 and guard > start):
+              raise SystemExit('Scheduler can restart FGS before silence guard')
+          if 'schedule(context);' not in scheduler[guard:start if start >= 0 else len(scheduler)]:
+              raise SystemExit('Silenced scheduler path does not retain JobScheduler fallback')
+
+          summary_start = engine.index('private static void postGroupSummary(')
+          summary_end = engine.index('private static void broadcastEvent(', summary_start)
+          summary = engine[summary_start:summary_end]
+          if 'new Notification.Builder(context, CHANNEL_ID)' not in summary or '.setGroup(FORUM_GROUP_KEY)' not in summary:
+              raise SystemExit('Forum summary is not on HCF Alerts/FORUM_GROUP_KEY')
+          if 'SILENT_CHANNEL_ID' in summary or 'canPostOptionalSilentAlert' in summary:
+              raise SystemExit('Forum summary is still tied to Silent Alerts')
+
+          service_notification_start = engine.index('static Notification buildInstantServiceNotification(')
+          service_notification_end = engine.index('static synchronized int recordForumNotificationCount(', service_notification_start)
+          service_notification = engine[service_notification_start:service_notification_end]
+          if 'new Notification.Builder(context, SILENT_CHANNEL_ID)' not in service_notification:
+              raise SystemExit('FGS 41070 is not built on HCF Silent Alerts')
+          if '.setGroup(' in service_notification:
+              raise SystemExit('FGS notification must be ungrouped')
+
+          main_start = ui.index('private View mainAlertsCard() {')
+          main_end = ui.index('private String hcfAlertSyncAge(', main_start)
+          main = ui[main_start:main_end]
+          if 'Silence HCF' in main or 'silence_hcf_silent_alerts' in main:
+              raise SystemExit('HCF Alerts panel contains a silence toggle')
+
+          for fragment in [
+              'toggle("Silence HCF Silent Alerts"',
+              'getBoolean(AppPrefs.SILENCE_BACKGROUND_SERVICE_NOTIFICATION, false)',
+              'HCF Silent Alerts silenced. Live-service notification hidden; background delivery may be delayed. Real HCF Alerts stay on.',
+              'HCF Silent Alerts enabled. Live-service notification can run when background sync is on.',
+              'Real HCF Alerts (messages, mentions, replies, updates) are never affected.',
+              'Real forum alerts (messages, mentions, replies, updates) use HCF Alerts. Controlled only in Android notification settings. App silent controls never affect this channel.',
+          ]:
+              if fragment not in ui: raise SystemExit('Settings UI missing: ' + fragment)
+
+          if ui.count('"silence_hcf_silent_alerts"') != 2:
+              raise SystemExit('Expected exactly one Silent toggle target plus one search entry')
+          if '"hcf_alerts_v1"' in ui or '"hcf_silent_alerts_v1"' in ui or '"hcf_test_alerts_v1"' in ui:
+              raise SystemExit('Settings UI still references v1 notification channels')
+
+          print('HCF Notifications v2 verification: PASS')
+          ''').lstrip(), encoding='utf-8')
+          verifier.chmod(0o755)
+
+          old_build = Path('.github/workflows/build-dev-v10000098.yml')
+          if old_build.exists():
+              w = old_build.read_text(encoding='utf-8').replace('10000098', '10000099')
+              w = w.replace("          python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'\n",
+                            "          python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'\n          python3 .github/scripts/verify-hcf-notifications-v2.py 'source code'\n")
+              w = w.replace("      - '.github/scripts/verify-hcf-alerts-ui.py'\n",
+                            "      - '.github/scripts/verify-hcf-alerts-ui.py'\n      - '.github/scripts/verify-hcf-notifications-v2.py'\n")
+              new_build = Path('.github/workflows/build-dev-v10000099.yml')
+              new_build.write_text(w, encoding='utf-8')
+              old_build.unlink()
+          PY
+          python3 /tmp/patch_hcf_notifications_v2.py
+
+      - name: Verify source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
+          python3 .github/scripts/verify-hcf-notifications-v2.py 'source code'
+          python3 .github/scripts/verify-release-readiness.py .
+          python3 -m json.tool configs/app-links/assetlinks.json >/dev/null
+
+      - name: Generate encrypted Discord webhook binding
+        shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          test -n "${DISCORD_WEBHOOK_URL:-}" || { echo 'DISCORD_WEBHOOK_URL secret missing'; exit 1; }
+          case "$DISCORD_WEBHOOK_URL" in
+            https://discord.com/api/webhooks/*|https://www.discord.com/api/webhooks/*|https://discordapp.com/api/webhooks/*|https://www.discordapp.com/api/webhooks/*) ;;
+            *) echo 'Unsupported Discord webhook URL'; exit 1 ;;
+          esac
+          GEN_DIR="$GITHUB_WORKSPACE/source code/src/com/harleytg/forum"
+          TMP="$RUNNER_TEMP/hcf-discord-secret"
+          mkdir -p "$TMP"
+          chmod 700 "$TMP"
+          printf '%s' "$DISCORD_WEBHOOK_URL" > "$TMP/plain.txt"
+          openssl rand 32 > "$TMP/key.bin"
+          openssl rand 16 > "$TMP/iv.bin"
+          KEY_HEX="$(xxd -p -c 256 "$TMP/key.bin")"
+          IV_HEX="$(xxd -p -c 256 "$TMP/iv.bin")"
+          openssl enc -aes-256-cbc -K "$KEY_HEX" -iv "$IV_HEX" -in "$TMP/plain.txt" -out "$TMP/cipher.bin"
+          python3 - "$TMP/key.bin" "$TMP/iv.bin" "$TMP/cipher.bin" "$GEN_DIR/HcfDiscordSecret.java" <<'PY'
+          import pathlib, sys
+          key_path, iv_path, cipher_path, out_path = map(pathlib.Path, sys.argv[1:])
+          def java_bytes(data): return ', '.join(f'(byte)0x{value:02x}' for value in data)
+          source = f'''package com.harleytg.forum.dev;
+          import java.nio.charset.StandardCharsets;
+          import javax.crypto.Cipher;
+          import javax.crypto.spec.IvParameterSpec;
+          import javax.crypto.spec.SecretKeySpec;
+          public final class HcfDiscordSecret {{
+              private static final byte[] KEY = new byte[]{{{java_bytes(key_path.read_bytes())}}};
+              private static final byte[] IV = new byte[]{{{java_bytes(iv_path.read_bytes())}}};
+              private static final byte[] DATA = new byte[]{{{java_bytes(cipher_path.read_bytes())}}};
+              private HcfDiscordSecret() {{}}
+              public static String decrypt() throws Exception {{
+                  Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+                  cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(KEY, "AES"), new IvParameterSpec(IV));
+                  return new String(cipher.doFinal(DATA), StandardCharsets.UTF_8);
+              }}
+          }}
+          '''
+          out_path.write_text(source, encoding='utf-8')
+          PY
+          rm -rf "$TMP"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Compile and package patch APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/source code"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          WORK="$RUNNER_TEMP/hcf-notifications-v2"
+          OUT="$GITHUB_WORKSPACE/out-notifications-v2"
+          mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
+          "$BT/aapt" package -f -m -J "$WORK/gen" -M "$ROOT/AndroidManifest.xml" -S "$ROOT/res" -A "$ROOT/assets" -I "$ANDROID_JAR" -F "$WORK/resources.apk"
+          mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" -name '*.java' -print)
+          javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
+          mapfile -t CLASS_FILES < <(find "$WORK/classes" -name '*.class' -print)
+          "$BT/d8" --lib "$ANDROID_JAR" --min-api 26 --release --output "$WORK/dex" "${CLASS_FILES[@]}"
+          cp "$WORK/resources.apk" "$WORK/unsigned.apk"
+          (cd "$WORK/dex" && "$BT/aapt" add "$WORK/unsigned.apk" classes.dex)
+          APK="$OUT/HCF-Beta-v10000099-HCF-Notifications-v2-Patch-aligned-unsigned.apk"
+          "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$APK"
+          "$BT/zipalign" -c -p 4 "$APK"
+          "$BT/aapt" dump badging "$APK" | head -1 | tee "$OUT/APK-BADGING.txt"
+          grep -q "name='com.harleytg.forum.dev' versionCode='10000099' versionName='1.0 (10000099)'" "$OUT/APK-BADGING.txt"
+          unzip -p "$APK" classes.dex | strings > "$OUT/DEX-STRINGS.txt"
+          for marker in hcf_notification_channels_v2 hcf_alerts_v2 hcf_silent_alerts_v2 hcf_test_alerts_v2 hcf_alerts_group_v2 hcf_silent_status_group_v2 'Silence HCF Silent Alerts' 'scheduled jobs only'; do
+            grep -Fq "$marker" "$OUT/DEX-STRINGS.txt"
+          done
+          ! grep -Fq 'live_service_preserved' "$OUT/DEX-STRINGS.txt"
+          cp "$BT/lib/apksigner.jar" "$OUT/apksigner.jar"
+          sha256sum "$APK" | tee "$OUT/SHA256SUMS.txt"
+
+      - name: Upload unsigned patch artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-Beta-v10000099-HCF-Notifications-v2-Patch-Unsigned
+          path: out-notifications-v2/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Commit verified source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f 'source code/src/com/harleytg/forum/HcfDiscordSecret.java'
+          rm -f '.github/workflows/apply-hcf-notifications-v2.yml'
+          rm -f '.github/workflows/apply-hcf-notifications-v2-retry.yml'
+          rm -f '.github/workflows/apply-hcf-notifications-v2-final.yml'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Implement HCF Notifications v2'
+          git push origin HEAD:dev
+
+      - name: Remove outdated branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          for branch in ci/apply-startup-setup-ban-fix ci/fix-silent-alert-toggle ci/stable-dev-sync-validation-20260824; do
+            git push origin --delete "$branch"
+          done
+          git ls-remote --heads origin | tee /tmp/heads.txt
+          grep -q 'refs/heads/main$' /tmp/heads.txt
+          grep -q 'refs/heads/stable$' /tmp/heads.txt
+          grep -q 'refs/heads/dev$' /tmp/heads.txt
+          test "$(wc -l < /tmp/heads.txt)" -eq 3
