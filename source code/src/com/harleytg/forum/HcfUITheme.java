@@ -96,6 +96,7 @@ public final class HcfUITheme {
         private View loaderBackdrop;
         private View loaderOverlay;
         private LinearLayout loaderPanel;
+        private LinearLayout loaderStepRow;
         private ImageView loaderLogo;
         private TextView loaderTitle;
         private TextView loaderWelcomeSubtitle;
@@ -380,19 +381,19 @@ public final class HcfUITheme {
             welcomeSubtitleLp.topMargin = dp(6);
             loaderPanel.addView(loaderWelcomeSubtitle, welcomeSubtitleLp);
 
-            LinearLayout stepRow = new LinearLayout(this);
-            stepRow.setOrientation(LinearLayout.HORIZONTAL);
-            stepRow.setGravity(Gravity.CENTER_VERTICAL);
+            loaderStepRow = new LinearLayout(this);
+            loaderStepRow.setOrientation(LinearLayout.HORIZONTAL);
+            loaderStepRow.setGravity(Gravity.CENTER_VERTICAL);
             loaderStep = text("Step 0 of " + FULL_STAGE_COUNT, 10, getColor(R.color.hcf_meta));
             loaderStep.setTypeface(null, 1);
             loaderPercent = text("0%", 10, getColor(R.color.hcf_cyan_bright));
             loaderPercent.setTypeface(null, 1);
             loaderPercent.setGravity(Gravity.END);
-            stepRow.addView(loaderStep, new LinearLayout.LayoutParams(0, -2, 1.0f));
-            stepRow.addView(loaderPercent, new LinearLayout.LayoutParams(-2, -2));
+            loaderStepRow.addView(loaderStep, new LinearLayout.LayoutParams(0, -2, 1.0f));
+            loaderStepRow.addView(loaderPercent, new LinearLayout.LayoutParams(-2, -2));
             LinearLayout.LayoutParams stepLp = new LinearLayout.LayoutParams(-1, -2);
             stepLp.topMargin = dp(16);
-            loaderPanel.addView(stepRow, stepLp);
+            loaderPanel.addView(loaderStepRow, stepLp);
 
             loaderStatus = text("Waiting for startup gate…", 13, getColor(R.color.hcf_cyan_bright));
             loaderStatus.setTypeface(null, 1);
@@ -1192,6 +1193,9 @@ public final class HcfUITheme {
             boolean verbose = prefs != null && prefs.getBoolean(PREF_STARTUP_LOADER_VERBOSE, false);
             verboseLoader = verbose;
             int visibility = verbose ? View.VISIBLE : View.GONE;
+            if (loaderStepRow != null) loaderStepRow.setVisibility(visibility);
+            if (loaderStep != null) loaderStep.setVisibility(visibility);
+            if (loaderPercent != null) loaderPercent.setVisibility(visibility);
             if (loaderDetail != null) loaderDetail.setVisibility(visibility);
             if (completedLabel != null) completedLabel.setVisibility(visibility);
             if (completedTicker != null) completedTicker.setVisibility(visibility);
@@ -1255,7 +1259,7 @@ public final class HcfUITheme {
                     stopLogoPulse();
                     if (loaderTitle != null) loaderTitle.setText(title);
                     if (loaderStatus != null) loaderStatus.setText("Startup paused");
-                    if (loaderDetail != null) loaderDetail.setVisibility(View.VISIBLE);
+                    if (loaderDetail != null) loaderDetail.setVisibility(verboseLoader ? View.VISIBLE : View.GONE);
                     if (loaderDetail != null) loaderDetail.setText(detail);
                     if (retryButton != null) retryButton.setVisibility(View.VISIBLE);
                     AppLogger.error(StartupActivity.this, "startup_blocked", title + " | " + detail);

@@ -2319,6 +2319,13 @@ public final class HcfMainActivities {
         }
 
         private void openDrawer() {
+            if (this.prefs != null && !this.prefs.getBoolean(AppPrefs.SETUP_COMPLETED, false)) {
+                try {
+                    SetupCenter.installDrawerEntry(this);
+                } catch (Throwable error) {
+                    AppLogger.warn(this, "app_setup_drawer", "open_restore_" + error.getClass().getSimpleName());
+                }
+            }
             if (this.drawerPanel.getVisibility() == 0) {
                 return;
             }
@@ -6445,18 +6452,23 @@ final class SetupCenter {
     }
 
     static void installDrawerEntry(final HcfMainActivities.MainActivity activity) {
-        if (activity == null || activity.isFinishing()) return;
-        try {
-            View settingsView = activity.findViewById(R.id.drawerSettings);
-            if (!(settingsView instanceof Button)) return;
-            ViewParentResult parentResult = findLinearParent(settingsView);
-            if (parentResult == null) return;
-            LinearLayout parent = parentResult.parent;
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+        SharedPreferences prefs = activity.getSharedPreferences(AppPrefs.FILE, 0);
+        if (prefs.getBoolean(AppPrefs.SETUP_COMPLETED, false)) return;
 
-            for (int i = 0; i < parent.getChildCount(); i++) {
-                View child = parent.getChildAt(i);
-                if (DRAWER_TAG.equals(child.getTag())) return;
+        try {
+            View drawerRoot = activity.findViewById(R.id.drawerPanel);
+            if (containsSetupEntry(drawerRoot)) return;
+
+            View anchor = activity.findViewById(R.id.drawerSettings);
+            if (anchor == null) anchor = activity.findViewById(R.id.drawerSupport);
+            if (anchor == null) anchor = activity.findViewById(R.id.drawerLogs);
+
+            DrawerPlacement placement = placementBefore(anchor);
+            if (placement == null && drawerRoot instanceof ViewGroup) {
+                placement = placementAfterAppHeader((ViewGroup) drawerRoot);
             }
+            if (placement == null || containsSetupEntry(placement.parent)) return;
 
             Button setup = new Button(activity);
             setup.setTag(DRAWER_TAG);
@@ -6491,21 +6503,63 @@ final class SetupCenter {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     activity.getResources().getDimensionPixelSize(R.dimen.drawer_item_height));
             lp.bottomMargin = dp(activity, 5);
-            int index = parent.indexOfChild(settingsView);
-            parent.addView(setup, Math.max(0, index), lp);
+            int index = Math.max(0, Math.min(placement.index, placement.parent.getChildCount()));
+            placement.parent.addView(setup, index, lp);
+            AppLogger.info(activity, "app_setup_drawer", "installed | index=" + index);
         } catch (Throwable error) {
             AppLogger.warn(activity, "app_setup_drawer", error.getClass().getSimpleName());
         }
     }
 
-    private static final class ViewParentResult {
+    private static final class DrawerPlacement {
         final LinearLayout parent;
-        ViewParentResult(LinearLayout parent) { this.parent = parent; }
+        final int index;
+
+        DrawerPlacement(LinearLayout parent, int index) {
+            this.parent = parent;
+            this.index = index;
+        }
     }
 
-    private static ViewParentResult findLinearParent(View view) {
-        if (view == null || !(view.getParent() instanceof LinearLayout)) return null;
-        return new ViewParentResult((LinearLayout) view.getParent());
+    private static DrawerPlacement placementBefore(View anchor) {
+        if (anchor == null || !(anchor.getParent() instanceof LinearLayout)) return null;
+        LinearLayout parent = (LinearLayout) anchor.getParent();
+        return new DrawerPlacement(parent, Math.max(0, parent.indexOfChild(anchor)));
+    }
+
+    private static DrawerPlacement placementAfterAppHeader(ViewGroup root) {
+        if (root == null) return null;
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View child = root.getChildAt(i);
+            if (child instanceof TextView && !(child instanceof Button)) {
+                CharSequence label = ((TextView) child).getText();
+                if (label != null && "App".equalsIgnoreCase(label.toString().trim())
+                        && root instanceof LinearLayout) {
+                    return new DrawerPlacement((LinearLayout) root, i + 1);
+                }
+            }
+            if (child instanceof ViewGroup) {
+                DrawerPlacement nested = placementAfterAppHeader((ViewGroup) child);
+                if (nested != null) return nested;
+            }
+        }
+        return null;
+    }
+
+    private static boolean containsSetupEntry(View view) {
+        if (view == null) return false;
+        if (DRAWER_TAG.equals(view.getTag())) return true;
+        if (view instanceof TextView) {
+            CharSequence label = ((TextView) view).getText();
+            if (label != null && "App Setup".equalsIgnoreCase(label.toString().trim())) return true;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                if (containsSetupEntry(group.getChildAt(i))) return true;
+            }
+        }
+        return false;
     }
 
     static ForumLinksState forumLinksState(Context context) {

@@ -79,6 +79,11 @@ public final class HcfSetupCompletionGuard {
                 syncDrawer(activity);
             }
         }, 600L);
+        root.postDelayed(new Runnable() {
+            @Override public void run() {
+                syncDrawer(activity);
+            }
+        }, 1500L);
     }
 
     private static void syncDrawer(HcfMainActivities.MainActivity activity) {
