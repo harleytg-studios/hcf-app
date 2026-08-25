@@ -1,0 +1,51 @@
+name: Discover notification runtime
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/discover-notification-runtime.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+      - name: Inspect notification implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT='source code/src/com/harleytg/forum'
+          echo '=== ForumNotificationSync locations ==='
+          grep -R -n -E 'class ForumNotificationSync|deliverObservedCountAsync|static .*perform\(' "$ROOT" || true
+          echo '=== Notification sync class body ==='
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('source code/src/com/harleytg/forum')
+          for p in root.glob('*.java'):
+              text = p.read_text(encoding='utf-8')
+              marker = 'class ForumNotificationSync'
+              if marker not in text:
+                  marker = 'final class ForumNotificationSync'
+              i = text.find(marker)
+              if i >= 0:
+                  print('FILE:', p)
+                  start = text.rfind('\n', 0, i)
+                  snippet = text[start+1:start+22000]
+                  print(snippet)
+          PY
+          echo '=== Battery optimization references ==='
+          grep -R -n -E 'REQUEST_IGNORE_BATTERY_OPTIMIZATIONS|isIgnoringBatteryOptimizations|ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS' "$ROOT" || true
+          echo '=== Service lifecycle references ==='
+          grep -R -n -E 'InstantNotificationService\.(apply|start|stop|requestImmediateSync)|NotificationSyncScheduler\.apply' "$ROOT" || true
+          echo '=== Suspicious client secrets scan (names only) ==='
+          if grep -R -n -E 'PUSHER_APP_SECRET|pusherAppSecret|APP_SECRET|password\s*=|discord\.com/api/webhooks/' "$ROOT"; then
+            echo 'POTENTIAL_SECRET_PATTERN_FOUND'
+          else
+            echo 'NO_PLAINTEXT_SECRET_PATTERN_FOUND'
+          fi
