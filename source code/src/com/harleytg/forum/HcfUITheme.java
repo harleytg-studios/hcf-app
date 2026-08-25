@@ -118,7 +118,7 @@ public final class HcfUITheme {
         private boolean destroyed;
         private boolean resumed;
         private boolean quickPath;
-        private boolean verboseLoader = true;
+        private boolean verboseLoader = false;
         private int runGeneration;
         private int completedWeight;
         private int totalWeight;
@@ -1156,7 +1156,7 @@ public final class HcfUITheme {
         }
 
         private void applyLoaderVerbosity() {
-            boolean verbose = prefs == null || prefs.getBoolean(PREF_STARTUP_LOADER_VERBOSE, true);
+            boolean verbose = prefs != null && prefs.getBoolean(PREF_STARTUP_LOADER_VERBOSE, false);
             verboseLoader = verbose;
             int visibility = verbose ? View.VISIBLE : View.GONE;
             if (loaderDetail != null) loaderDetail.setVisibility(visibility);

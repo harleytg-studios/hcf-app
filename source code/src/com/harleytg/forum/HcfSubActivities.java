@@ -3005,7 +3005,7 @@ public final class HcfSubActivities {
             Switch startup = target(toggle("Show startup connection screen", prefs.getBoolean("show_startup_screen", true)), "show_startup_screen");
             startup.setOnCheckedChangeListener((button, checked) -> prefs.edit().putBoolean("show_startup_screen", checked).apply());
             card.addView(startup);
-            Switch verboseStartup = target(toggle("Verbose startup loader", prefs.getBoolean("startup_loader_verbose", true)), "verbose_startup_loader");
+            Switch verboseStartup = target(toggle("Verbose startup loader", prefs.getBoolean("startup_loader_verbose", false)), "verbose_startup_loader");
             verboseStartup.setOnCheckedChangeListener((button, checked) -> {
                 prefs.edit().putBoolean("startup_loader_verbose", checked).apply();
                 AppLogger.info(this, "setting_startup_loader_verbose", Boolean.toString(checked));
