@@ -44,6 +44,7 @@ notification_helper = text(source / "src/com/harleytg/forum/HcfNotificationEngin
 main_activity = text(source / "src/com/harleytg/forum/HcfMainActivities.java")
 hcf_application = text(source / "src/com/harleytg/forum/HcfApplication.java")
 setup_center = text(source / "src/com/harleytg/forum/HcfMainActivities.java")
+setup_completion_guard = text(source / "src/com/harleytg/forum/HcfSetupCompletionGuard.java")
 ban_system = text(source / "src/com/harleytg/forum/HcfBanSystem.java")
 discord_observation = text(source / "src/com/harleytg/forum/HcfDiscordObservation.java")
 session_persistence = text(source / "src/com/harleytg/forum/HcfSessionPersistence.java")
@@ -85,6 +86,7 @@ expected_java_files = {
     "HcfBanSystem.java",
     "HcfDiscordObservation.java",
     "HcfSessionPersistence.java",
+    "HcfSetupCompletionGuard.java",
     "HcfNativeRoutes.java",
     "HcfSecurityAndPrefs.java",
     "HcfSettingsTransfer.java",
@@ -116,6 +118,10 @@ require("KaiOS source must not be bundled", "kaios" not in all_runtime_text.lowe
 require("SetupActivity missing from manifest", f'{EXPECTED_PACKAGE}.HcfMainActivities$SetupActivity' in manifest)
 require("Setup Center lifecycle launch missing", "SetupCenter.maybeLaunchForMainActivity" in hcf_application)
 require("Setup Center drawer entry missing", 'setup.setText("App Setup")' in setup_center)
+require("Setup completion guard provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfSetupCompletionGuard$BootstrapProvider' in manifest)
+require("Setup completion guard does not check completion state", "AppPrefs.SETUP_COMPLETED" in setup_completion_guard)
+require("Setup completion guard does not remove drawer entry", "hidden_after_completion" in setup_completion_guard and "removeViewAt" in setup_completion_guard)
+require("Setup completion guard cannot restore entry after reset", "SetupCenter.installDrawerEntry(activity)" in setup_completion_guard)
 require("legacy permission onboarding guard missing", "PERMISSION_ONBOARDING_DONE" in hcf_application)
 require("settings transfer provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfSettingsImportUi$BootstrapProvider' in manifest)
 require("settings transfer activity missing from manifest", f'{EXPECTED_PACKAGE}.HcfSettingsImportUi$TransferActivity' in manifest)
@@ -174,5 +180,5 @@ for path in workflows:
 
 print(
     "Release readiness verification: PASS "
-    f"({EXPECTED_PACKAGE} v{version_code}, internal {EXPECTED_INTERNAL_BUILD}, SHA-256 updater + ban gate + session persistence + native settings URL + settings transfer enabled)"
+    f"({EXPECTED_PACKAGE} v{version_code}, internal {EXPECTED_INTERNAL_BUILD}, SHA-256 updater + ban gate + session persistence + native settings URL + settings transfer + setup completion guard enabled)"
 )
