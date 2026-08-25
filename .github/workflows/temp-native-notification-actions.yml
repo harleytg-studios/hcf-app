@@ -24,6 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 .github/patches/apply-native-notification-actions.py
+          python3 .github/patches/repair-native-notification-source-set.py
           python3 - <<'PY'
           from pathlib import Path
           import re
@@ -49,7 +50,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git rm .github/patches/apply-native-notification-actions.py .github/workflows/temp-native-notification-actions.yml
+          git rm .github/patches/apply-native-notification-actions.py .github/patches/repair-native-notification-source-set.py .github/workflows/temp-native-notification-actions.yml
           git add 'source code' README.md
           git diff --cached --check
           git commit -m 'Add native notification reply and read actions'
