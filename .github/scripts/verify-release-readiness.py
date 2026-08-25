@@ -48,6 +48,8 @@ ban_system = text(source / "src/com/harleytg/forum/HcfBanSystem.java")
 discord_observation = text(source / "src/com/harleytg/forum/HcfDiscordObservation.java")
 session_persistence = text(source / "src/com/harleytg/forum/HcfSessionPersistence.java")
 native_routes = text(source / "src/com/harleytg/forum/HcfNativeRoutes.java")
+settings_transfer = text(source / "src/com/harleytg/forum/HcfSettingsTransfer.java")
+settings_transfer_ui = text(source / "src/com/harleytg/forum/HcfSettingsImportUi.java")
 assetlinks = text(root / "configs/app-links/assetlinks.json")
 app_links_readme = text(root / "configs/app-links/README.md")
 workflows = list((root / ".github/workflows").glob("*.yml"))
@@ -85,6 +87,8 @@ expected_java_files = {
     "HcfSessionPersistence.java",
     "HcfNativeRoutes.java",
     "HcfSecurityAndPrefs.java",
+    "HcfSettingsTransfer.java",
+    "HcfSettingsImportUi.java",
     "HcfUpdateEngine.java",
     "HcfNotificationEngine.java",
     "HcfForumEngine.java",
@@ -113,6 +117,11 @@ require("SetupActivity missing from manifest", f'{EXPECTED_PACKAGE}.HcfMainActiv
 require("Setup Center lifecycle launch missing", "SetupCenter.maybeLaunchForMainActivity" in hcf_application)
 require("Setup Center drawer entry missing", 'setup.setText("App Setup")' in setup_center)
 require("legacy permission onboarding guard missing", "PERMISSION_ONBOARDING_DONE" in hcf_application)
+require("settings transfer provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfSettingsImportUi$BootstrapProvider' in manifest)
+require("settings transfer activity missing from manifest", f'{EXPECTED_PACKAGE}.HcfSettingsImportUi$TransferActivity' in manifest)
+require("settings import setup control missing", "Import Settings" in settings_transfer_ui)
+require("settings backup format missing", 'FORMAT = "hcf-settings"' in settings_transfer)
+require("settings transfer must protect update channel", "UPDATE_CHANNEL" not in settings_transfer)
 
 require("native ban gate missing from manifest", f'{EXPECTED_PACKAGE}.HcfBanSystem$GateActivity' in manifest)
 require("Discord observation provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfDiscordObservation$BootstrapProvider' in manifest)
@@ -165,5 +174,5 @@ for path in workflows:
 
 print(
     "Release readiness verification: PASS "
-    f"({EXPECTED_PACKAGE} v{version_code}, internal {EXPECTED_INTERNAL_BUILD}, SHA-256 updater + ban gate + session persistence + native settings URL enabled)"
+    f"({EXPECTED_PACKAGE} v{version_code}, internal {EXPECTED_INTERNAL_BUILD}, SHA-256 updater + ban gate + session persistence + native settings URL + settings transfer enabled)"
 )
