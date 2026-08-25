@@ -1,0 +1,34 @@
+name: Run Permissions Patch v10000099
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/run-permissions-patch-v10000099.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+      - name: Apply patch
+        run: python3 .github/scripts/patch-permissions-v10000099.py
+      - name: Verify and commit
+        run: |
+          set -euo pipefail
+          FILE='source code/src/com/harleytg/forum/HcfSubActivities.java'
+          grep -Fq 'Background battery access' "$FILE"
+          grep -Fq 'isIgnoringBatteryOptimizations' "$FILE"
+          grep -Fq 'Live foreground service is eligible' "$FILE"
+          grep -Fq 'Turning on Silence HCF Silent Alerts still stops the live foreground service' "$FILE"
+          git config user.name github-actions-bot
+          git config user.email github-actions-bot@users.noreply.github.com
+          git add "$FILE"
+          git commit -m 'Update Android permissions subsettings'
+          git push origin HEAD:dev
