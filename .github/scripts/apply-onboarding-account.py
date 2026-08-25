@@ -120,24 +120,35 @@ def patch_main(path: Path) -> None:
 
             forumAccountStatus = statusBadge();
             forumAccountDetail = detailText();
-            forumSignInAction = actionButton("Sign In to Forum   ›");
-            forumSignInAction.setOnClickListener(v -> handleForumAccountPrimaryAction());
 
+            // Keep the identity panel informational only. integrationBlock normally embeds
+            // an action button, which caused the Forum Sign In button to sit inside a nested
+            // outline while the other account actions sat outside it. A hidden placeholder
+            // preserves the shared integration-block structure without drawing an action.
+            Button forumIdentityPlaceholder = actionButton("");
+            forumIdentityPlaceholder.setVisibility(View.GONE);
+            forumIdentityPlaceholder.setEnabled(false);
             card.addView(integrationBlock(
                     "Forum Identity",
                     R.drawable.fa_user,
                     forumAccountStatus,
                     forumAccountDetail,
-                    forumSignInAction
+                    forumIdentityPlaceholder
             ));
+
+            // Account actions use the same full-width HCF action-button treatment and
+            // spacing as the rest of App Setup instead of mixing nested and outer buttons.
+            forumSignInAction = actionButton("Sign In to Forum   ›");
+            forumSignInAction.setOnClickListener(v -> handleForumAccountPrimaryAction());
+            card.addView(withTopMargin(forumSignInAction, 0, 44));
 
             forumSignUpAction = actionButton("Create Forum Account   ›");
             forumSignUpAction.setOnClickListener(v -> openForumAccountRoute("/signup", "sign_up"));
-            card.addView(withTopMargin(forumSignUpAction, 0, 44));
+            card.addView(withTopMargin(forumSignUpAction, 8, 44));
 
             forumGuestAction = actionButton("Continue as Guest   ›");
             forumGuestAction.setOnClickListener(v -> continueAsGuest());
-            card.addView(withTopMargin(forumGuestAction, 0, 44));
+            card.addView(withTopMargin(forumGuestAction, 8, 44));
 
             TextView privacy = text(
                     "Sign-in and sign-up happen on the Harley's Clan Forum page inside HCF. App Setup does not store or re-submit your forum password. Guest mode does not require an account.",
@@ -145,7 +156,7 @@ def patch_main(path: Path) -> None:
                     getColor(R.color.hcf_hint)
             );
             privacy.setLineSpacing(0.0f, 1.08f);
-            privacy.setPadding(0, dp(8), 0, dp(2));
+            privacy.setPadding(0, dp(10), 0, dp(2));
             card.addView(privacy);
 
             refreshForumAccountStatus();
@@ -176,6 +187,7 @@ def patch_main(path: Path) -> None:
                         "Signed in as " + account + ". Your forum session is connected to this app and can be used for your profile, notifications and account features."
                 );
                 forumSignInAction.setText("Open My Forum Profile   ›");
+                forumSignInAction.setVisibility(View.VISIBLE);
                 forumSignUpAction.setVisibility(View.GONE);
                 forumGuestAction.setVisibility(View.GONE);
             } else if (guestSelected) {
