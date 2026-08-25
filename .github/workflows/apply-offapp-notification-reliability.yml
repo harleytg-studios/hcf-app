@@ -1,0 +1,80 @@
+name: Apply off-app notification reliability
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/apply-offapp-notification-reliability.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Apply app-only notification patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/apply-offapp-notification-reliability.py
+
+      - name: Validate requested app-only guarantees
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP='source code/src/com/harleytg/forum/HcfApplication.java'
+          FORUM='source code/src/com/harleytg/forum/HcfForumEngine.java'
+          NOTIFY='source code/src/com/harleytg/forum/HcfNotificationEngine.java'
+          MANIFEST='source code/AndroidManifest.xml'
+
+          grep -Fq 'aggressive_realtime' "$APP"
+          grep -Fq 'BatteryOptimizationHelper' "$APP"
+          grep -Fq 'FIRST_POLL_MS = 100L' "$FORUM"
+          grep -Fq 'IDLE_ROUTE_POLL_MS = 1500L' "$FORUM"
+          grep -Fq 'RECONNECT_MIN_MS = 300L' "$FORUM"
+          grep -Fq 'RECONNECT_MAX_MS = 8000L' "$FORUM"
+          grep -Fq 'HttpStatusException' "$FORUM"
+          grep -Fq 'HTTP 401' "$NOTIFY"
+          grep -Fq 'THROTTLE_MIN_MS = 5000L' "$NOTIFY"
+          grep -Fq 'onPushMessageReceived' "$NOTIFY"
+          grep -Fq 'REQUEST_IGNORE_BATTERY_OPTIMIZATIONS' "$MANIFEST"
+          grep -Fq 'android:exported="false" android:stopWithTask="false" android:foregroundServiceType="specialUse"' "$MANIFEST"
+
+          # No Pusher App Secret is allowed in the client.
+          ! grep -R -n -E 'PUSHER_APP_SECRET|pusherAppSecret|Pusher App Secret' 'source code/src/com/harleytg/forum'
+
+          # A validator may contain the webhook URL prefix, but never an actual webhook credential.
+          ! grep -R -n -E 'https://(www\.)?(discord(app)?\.com)/api/webhooks/[0-9]+/[A-Za-z0-9._-]{20,}' 'source code/src/com/harleytg/forum'
+
+          git diff --check
+
+      - name: Remove temporary patch machinery
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f .github/workflows/apply-offapp-notification-reliability.yml
+          git rm -f .github/workflows/discover-notification-runtime.yml
+          git rm -f .github/scripts/apply-offapp-notification-reliability.py
+
+      - name: Commit app changes to dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'source code/AndroidManifest.xml' \
+                  'source code/src/com/harleytg/forum/HcfApplication.java' \
+                  'source code/src/com/harleytg/forum/HcfForumEngine.java' \
+                  'source code/src/com/harleytg/forum/HcfNotificationEngine.java' \
+                  'source code/src/com/harleytg/forum/HcfSubActivities.java'
+          git add -u .github
+          git diff --cached --check
+          git commit -m 'fix(dev): harden off-app forum notifications'
+          git push origin HEAD:dev
