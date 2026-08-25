@@ -183,7 +183,7 @@ require("same-version installer cleanup is not hash-aware", "expectedSha256.equa
 require("signer rollback protection missing", "candidateHistory.containsAll(installedCurrent)" in app_security)
 
 require("real alert fallback is still tied to Silent Alerts", "generic notification summary" not in notification_helper)
-require("real alert fallback is not on HCF Alerts", "FORUM_SUMMARY_ID, true, false" in notification_helper)
+require("real alert fallback is not on HCF Alerts", "new Notification.Builder(context, CHANNEL_ID)" in notification_helper and ".setGroup(FORUM_GROUP_KEY)" in notification_helper)
 require("What's New does not wait for window focus", "hasWindowFocus() && ReleaseNotes.shouldNotify" in main_activity)
 require("What's New is not rescheduled after Setup", "scheduleWhatsNew(true);" in main_activity)
 
