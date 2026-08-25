@@ -43,8 +43,8 @@ required_fragments = {
     "permission status row": 'hcfAlertAccessRow(R.drawable.fa_shield, "Permission"',
     "channel status row": 'hcfAlertAccessRow(R.drawable.fa_bell, "Notification channel"',
     "Android settings action": 'hcfAlertsActionRow("Open Android settings"',
-    "real-alert explanation": "HCF Alerts are the real forum alerts.",
-    "silent-channel explanation": "HCF Silent Alerts is only the silent service-status channel.",
+    "real-alert explanation": "Real forum alerts (messages, mentions, replies, updates) use HCF Alerts.",
+    "silent-controls independence": "App silent controls never affect this channel.",
 }
 
 for label, fragment in required_fragments.items():
@@ -60,7 +60,6 @@ if block.count("hcfAlertsActionRow(") != 1:
     fail("dashboard must contain exactly one outlined Android-settings action")
 
 forbidden_fragments = {
-    "obsolete Real forum alerts hero": '"Real forum alerts"',
     "obsolete CHECK chip": '"CHECK"',
     "obsolete permission action card": '"Allow Notification Permission"',
     "obsolete required-channel card": "notificationChannelStatusRow(",

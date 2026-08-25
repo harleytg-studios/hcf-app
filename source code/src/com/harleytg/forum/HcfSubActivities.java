@@ -2199,7 +2199,7 @@ public final class HcfSubActivities {
                 new SettingTarget("open_account_security", "Open Account Security", "password email two factor 2fa sessions security", "account_security", "account_controls"),
                 new SettingTarget("allow_android_notification_permission", "Allow Android Notification Permission", "notification alerts permission android", "notifications", "hcf_alerts"),
                 new SettingTarget("background_notification_sync", "Background notification sync", "notification sync background HCF Alerts real forum alerts outside app closed app", "notifications", "hcf_alerts"),
-                new SettingTarget("silence_hcf_silent_alerts", "Disable HCF Silent Alerts", "silent service status background notification", "notifications", "silent_alerts"),
+                new SettingTarget("silence_hcf_silent_alerts", "Silence HCF Silent Alerts", "silent service status background notification scheduled jobs", "notifications", "silent_alerts"),
                 new SettingTarget("open_developer_tools", "Open Developer Tools", "notification test developer", "notifications", "test_alerts"),
                 new SettingTarget("theme", "Theme", "forum auto phone auto dark light appearance", "appearance", "appearance_performance"),
                 new SettingTarget("performance_profile", "Performance Profile", "performance balanced quality animation motion", "appearance", "appearance_performance"),
@@ -2342,7 +2342,9 @@ public final class HcfSubActivities {
                 case "notifications":
                     settingsContent.addView(connectedSettingsPanel("HCF Alerts", "Real forum notifications • background delivery", mainAlertsCard(), shouldExpand("hcf_alerts", true)));
                     settingsContent.addView(connectedSettingsPanel("HCF Silent Alerts", "Silent service-status channel only", silentAlertsCard(), shouldExpand("silent_alerts", false)));
-                    settingsContent.addView(connectedSettingsPanel("HCF Test Alerts", "Dev/Beta diagnostics only", testAlertsInfoCard(), shouldExpand("test_alerts", false)));
+                    if (BuildInfo.ENABLE_DEV_TEST_MENU) {
+                        settingsContent.addView(connectedSettingsPanel("HCF Test Alerts", "Dev/Beta diagnostics only", testAlertsInfoCard(), shouldExpand("test_alerts", false)));
+                    }
                     break;
                 case "appearance":
                     settingsContent.addView(connectedSettingsPanel("Appearance & Performance", "Theme, interface and rendering preferences", interfaceCard(), shouldExpand("appearance_performance", true)));
@@ -2756,7 +2758,7 @@ public final class HcfSubActivities {
             LinearLayout.LayoutParams infoIconLp = new LinearLayout.LayoutParams(dp(22), dp(22));
             infoIconLp.rightMargin = dp(10);
             info.addView(infoIcon, infoIconLp);
-            TextView infoText = text("HCF Alerts are the real forum alerts.\nHCF Silent Alerts is only the silent service-status channel.\nThe required live-service notification and optional quiet status alerts both stay in HCF Silent Alerts.", 10, getColor(R.color.hcf_muted));
+            TextView infoText = text("Real forum alerts (messages, mentions, replies, updates) use HCF Alerts. Controlled only in Android notification settings. App silent controls never affect this channel.", 10, getColor(R.color.hcf_muted));
             infoText.setLineSpacing(0.0f, 1.07f);
             info.addView(infoText, new LinearLayout.LayoutParams(0, -2, 1.0f));
 
@@ -2896,19 +2898,25 @@ public final class HcfSubActivities {
             LinearLayout card = card();
             NotificationHelper.createChannel(this);
             card.addView(settingsInfoCard("Silent service-status channel",
-                    "HCF Silent Alerts carries the required live-service status plus optional quiet reconnect notices, passive summaries and status alerts. It never carries direct messages, mentions or replies.",
+                    "When on, HCF Silent Alerts is fully quiet: optional status alerts are hidden and the ongoing live-service notification is removed. Background delivery then uses scheduled jobs only and may be delayed. Real HCF Alerts (messages, mentions, replies, updates) are never affected.",
                     R.drawable.fa_bell));
-            Switch silence = target(toggle("Silence optional HCF status alerts", prefs.getBoolean("silence_background_service_notification", false)), "silence_hcf_silent_alerts");
+            Switch silence = target(toggle("Silence HCF Silent Alerts",
+                    prefs.getBoolean(AppPrefs.SILENCE_BACKGROUND_SERVICE_NOTIFICATION, false)),
+                    "silence_hcf_silent_alerts");
             silence.setOnCheckedChangeListener((button, checked) -> {
-                prefs.edit().putBoolean("silence_background_service_notification", checked).apply();
+                prefs.edit().putBoolean(AppPrefs.SILENCE_BACKGROUND_SERVICE_NOTIFICATION, checked).apply();
                 NotificationHelper.refreshChannels(this);
                 NotificationSyncScheduler.apply(this);
                 AppLogger.info(this, "setting_silence_passive_notifications", Boolean.toString(checked));
-                Toast.makeText(this, checked ? "Optional silent status alerts hidden. The required live-service notification stays on." : "Optional HCF status alerts enabled.", Toast.LENGTH_LONG).show();
+                Toast.makeText(this,
+                        checked
+                                ? "HCF Silent Alerts silenced. Live-service notification hidden; background delivery may be delayed. Real HCF Alerts stay on."
+                                : "HCF Silent Alerts enabled. Live-service notification can run when background sync is on.",
+                        Toast.LENGTH_LONG).show();
             });
             card.addView(silence);
-            card.addView(text("This never disables real HCF Alerts. The toggle hides optional silent status alerts only. Android requires the ongoing live-service notification while background sync is enabled, and that notification remains inside HCF Silent Alerts.", 10, getColor(R.color.hcf_muted)));
-            card.addView(notificationChannelRow("HCF Silent Alerts", "Silent • live service + optional status", "hcf_silent_alerts_v1"));
+            card.addView(text("When on, HCF Silent Alerts is fully quiet: optional status alerts are hidden and the ongoing live-service notification is removed. Background delivery then uses scheduled jobs only and may be delayed. Real HCF Alerts (messages, mentions, replies, updates) are never affected.", 10, getColor(R.color.hcf_muted)));
+            card.addView(notificationChannelRow("HCF Silent Alerts", "Silent • live service + optional status", NotificationHelper.SILENT_CHANNEL_ID));
             return card;
         }
 
@@ -2916,9 +2924,9 @@ public final class HcfSubActivities {
             LinearLayout card = card();
             NotificationHelper.createChannel(this);
             card.addView(settingsInfoCard("Developer test channel",
-                    "Use this only to test notification delivery. It never carries real forum alerts or background-service status.",
+                    "Use this only to test notification delivery. It never carries real forum alerts or the live-service notification.",
                     R.drawable.fa_bug));
-            card.addView(notificationChannelRow("HCF Test Alerts", "Dev/Beta notification tests", "hcf_test_alerts_v1"));
+            card.addView(notificationChannelRow("HCF Test Alerts", "Dev/Beta notification tests", NotificationHelper.TEST_CHANNEL_ID));
             card.addView(target(actionButton("Open Developer Notification Tools", v -> navigateToSettingKey("notification_test_console")), "open_developer_tools"));
             return card;
         }

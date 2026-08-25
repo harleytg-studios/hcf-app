@@ -1,0 +1,1 @@
+package: name='com.harleytg.forum.dev' versionCode='10000099' versionName='1.0 (10000099)' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
