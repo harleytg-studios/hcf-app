@@ -299,7 +299,7 @@ final class AppExecutors {
 /** Build identity for the Dev/Beta Harley's Clan Forum Android app. */
 final class BuildInfo {
     static final boolean ALLOW_UPDATE_CHANNEL_SWITCH = false;
-    static final String APK_FILE_NAME = "HCF-Beta-v10000098.apk";
+    static final String APK_FILE_NAME = "HCF-Beta-v10000099.apk";
     static final String BRAND = "Harley's Studios";
     static final String CHANNEL = "Dev";
     static final String DEFAULT_UPDATE_CHANNEL = "dev";
@@ -313,9 +313,9 @@ final class BuildInfo {
     static final String UPDATE_DEV_BRANCH = "dev";
     static final String UPDATE_REPOSITORY = "markhitchk/hcf-app";
     static final String UPDATE_STABLE_BRANCH = "stable";
-    static final String USER_AGENT_MARKER = "HarleysClanForumApp/1.0 Build/10000098";
+    static final String USER_AGENT_MARKER = "HarleysClanForumApp/1.0 Build/10000099";
     static final String VERSION = "1.0";
-    static final int VERSION_CODE = 10000098;
+    static final int VERSION_CODE = 10000099;
     static final String VERSION_BUILD_LINE = VERSION + " • Development / Beta • Build " + VERSION_CODE;
     static final String VERSION_CODE_SCHEME = "major-release-v1";
     static final String VERSION_TAG = "v1.0";
