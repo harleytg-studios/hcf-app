@@ -67,6 +67,7 @@ public final class HcfUITheme {
 
         private static final String PREF_STARTUP_LAST_GOOD_AT = "startup_last_good_at";
         private static final String PREF_STARTUP_LAST_GOOD_HOST = "startup_last_good_host";
+        private static final String PREF_STARTUP_LOADER_VERBOSE = "startup_loader_verbose";
 
         private static final int W_ACCESS = 110;
         private static final int W_PREFS = 55;
@@ -101,6 +102,7 @@ public final class HcfUITheme {
         private TextView loaderStatus;
         private TextView loaderDetail;
         private TextView loaderPercent;
+        private TextView completedLabel;
         private TextView completedTicker;
         private ProgressBar loaderProgress;
         private Button retryButton;
@@ -116,6 +118,7 @@ public final class HcfUITheme {
         private boolean destroyed;
         private boolean resumed;
         private boolean quickPath;
+        private boolean verboseLoader = true;
         private int runGeneration;
         private int completedWeight;
         private int totalWeight;
@@ -406,7 +409,7 @@ public final class HcfUITheme {
             progressLp.topMargin = dp(16);
             loaderPanel.addView(loaderProgress, progressLp);
 
-            TextView completedLabel = text("COMPLETED CHECKS", 9, getColor(R.color.hcf_meta));
+            completedLabel = text("COMPLETED CHECKS", 9, getColor(R.color.hcf_meta));
             completedLabel.setTypeface(null, 1);
             LinearLayout.LayoutParams completedLabelLp = new LinearLayout.LayoutParams(-1, -2);
             completedLabelLp.topMargin = dp(12);
@@ -461,12 +464,14 @@ public final class HcfUITheme {
             totalWeight = quickPath ? QUICK_WEIGHT_TOTAL : FULL_WEIGHT_TOTAL;
             totalStages = quickPath ? QUICK_STAGE_COUNT : FULL_STAGE_COUNT;
             completedWeight = 0;
+            verboseLoader = prefs == null || prefs.getBoolean(PREF_STARTUP_LOADER_VERBOSE, true);
             loaderStarted = true;
             handoffPending = false;
             loaderVisibleAt = android.os.SystemClock.elapsedRealtime();
             final int token = ++runGeneration;
 
             resetLoaderVisuals();
+            applyLoaderVerbosity();
             animateLogoEntrance();
 
             if (loaderTitle != null) loaderTitle.setText(quickPath ? "Welcome back" : "Starting Harley's Clan Forum");
@@ -1150,6 +1155,20 @@ public final class HcfUITheme {
             if (urlBar != null) urlBar.animate().cancel();
         }
 
+        private void applyLoaderVerbosity() {
+            boolean verbose = prefs == null || prefs.getBoolean(PREF_STARTUP_LOADER_VERBOSE, true);
+            verboseLoader = verbose;
+            int visibility = verbose ? View.VISIBLE : View.GONE;
+            if (loaderDetail != null) loaderDetail.setVisibility(visibility);
+            if (completedLabel != null) completedLabel.setVisibility(visibility);
+            if (completedTicker != null) completedTicker.setVisibility(visibility);
+            if (loaderStatus != null) {
+                loaderStatus.setContentDescription(verbose
+                        ? "Startup check status with detailed diagnostics"
+                        : "Startup check status");
+            }
+        }
+
         private void resetLoaderVisuals() {
             stopLoaderAnimations();
             completedSteps.clear();
@@ -1171,6 +1190,7 @@ public final class HcfUITheme {
             if (loaderProgress != null) loaderProgress.setProgress(0);
             if (loaderPercent != null) loaderPercent.setText("0%");
             if (completedTicker != null) completedTicker.setText("Waiting for completed checks…");
+            applyLoaderVerbosity();
             if (retryButton != null) retryButton.setVisibility(View.GONE);
         }
 
@@ -1198,6 +1218,7 @@ public final class HcfUITheme {
                     stopLogoPulse();
                     if (loaderTitle != null) loaderTitle.setText(title);
                     if (loaderStatus != null) loaderStatus.setText("Startup paused");
+                    if (loaderDetail != null) loaderDetail.setVisibility(View.VISIBLE);
                     if (loaderDetail != null) loaderDetail.setText(detail);
                     if (retryButton != null) retryButton.setVisibility(View.VISIBLE);
                     AppLogger.error(StartupActivity.this, "startup_blocked", title + " | " + detail);

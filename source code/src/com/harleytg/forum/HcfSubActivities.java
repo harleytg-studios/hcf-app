@@ -2196,6 +2196,7 @@ public final class HcfSubActivities {
                 new SettingTarget("live_forum_updates", "Live forum updates", "live forum update refresh", "appearance", "appearance_performance"),
                 new SettingTarget("show_secure_url_bar", "Show secure URL bar", "url address security header", "appearance", "appearance_performance"),
                 new SettingTarget("show_startup_screen", "Show startup connection screen", "startup launch connection screen", "appearance", "appearance_performance"),
+                new SettingTarget("verbose_startup_loader", "Verbose startup loader", "startup loading detailed checks progress completed verbose compact", "appearance", "appearance_performance"),
                 new SettingTarget("auto_failover", "Automatically use backup if primary fails", "server backup failover routing", "forum_data", "connection_routing"),
                 new SettingTarget("external_links", "Allow external links to open in browser/apps", "links browser external apps", "forum_data", "connection_routing"),
                 new SettingTarget("retry_primary", "Retry Primary Forum on Next Open", "primary server retry routing", "forum_data", "connection_routing"),
@@ -3004,6 +3005,14 @@ public final class HcfSubActivities {
             Switch startup = target(toggle("Show startup connection screen", prefs.getBoolean("show_startup_screen", true)), "show_startup_screen");
             startup.setOnCheckedChangeListener((button, checked) -> prefs.edit().putBoolean("show_startup_screen", checked).apply());
             card.addView(startup);
+            Switch verboseStartup = target(toggle("Verbose startup loader", prefs.getBoolean("startup_loader_verbose", true)), "verbose_startup_loader");
+            verboseStartup.setOnCheckedChangeListener((button, checked) -> {
+                prefs.edit().putBoolean("startup_loader_verbose", checked).apply();
+                AppLogger.info(this, "setting_startup_loader_verbose", Boolean.toString(checked));
+                Toast.makeText(this, checked ? "Detailed startup checks enabled." : "Startup loader will use the compact view.", Toast.LENGTH_SHORT).show();
+            });
+            card.addView(verboseStartup);
+            card.addView(text("When off, every startup safety and system check still runs; only the detailed descriptions and completed-check list are hidden.", 10, getColor(R.color.hcf_muted)));
             card.addView(text("Header: Classic compact • bottom app bar removed", 11, getColor(R.color.hcf_cyan)));
             return card;
         }
