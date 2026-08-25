@@ -1,0 +1,62 @@
+name: Temporary Dev v10000099 BuildInfo Bump
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+      - name: Update Dev BuildInfo
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('source code/src/com/harleytg/forum/HcfApplication.java')
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+              'HCF-Beta-v10000098.apk': 'HCF-Beta-v10000099.apk',
+              'HarleysClanForumApp/1.0 Build/10000098': 'HarleysClanForumApp/1.0 Build/10000099',
+              'static final int VERSION_CODE = 10000098;': 'static final int VERSION_CODE = 10000099;',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'Missing expected BuildInfo value: {old}')
+              text = text.replace(old, new)
+          path.write_text(text, encoding='utf-8')
+
+          manifest = Path('source code/AndroidManifest.xml').read_text(encoding='utf-8')
+          required = [
+              'android:versionCode="10000099"',
+              'android:versionName="1.0 (10000099)"',
+              'android:name="com.harleytg.APP_VERSION" android:value="1.0 (10000099)"',
+              'android:name="com.harleytg.APP_VERSION_CODE" android:value="10000099"',
+          ]
+          missing = [item for item in required if item not in manifest]
+          if missing:
+              raise SystemExit('Manifest v10000099 verification failed: ' + ', '.join(missing))
+          PY
+      - name: Verify version consistency
+        run: |
+          grep -F 'static final int VERSION_CODE = 10000099;' 'source code/src/com/harleytg/forum/HcfApplication.java'
+          grep -F 'HCF-Beta-v10000099.apk' 'source code/src/com/harleytg/forum/HcfApplication.java'
+          grep -F 'HarleysClanForumApp/1.0 Build/10000099' 'source code/src/com/harleytg/forum/HcfApplication.java'
+          grep -F 'android:versionCode="10000099"' 'source code/AndroidManifest.xml'
+      - name: Commit BuildInfo bump
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'source code/src/com/harleytg/forum/HcfApplication.java'
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Complete Dev versionCode 10000099 bump'
+          git push origin HEAD:dev
