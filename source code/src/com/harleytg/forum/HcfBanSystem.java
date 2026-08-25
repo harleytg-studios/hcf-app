@@ -411,7 +411,11 @@ public final class HcfBanSystem {
             Button retry = button("Check Again", true);
             retry.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View view) {
-                    startActivity(new Intent(BanActivity.this, HcfUITheme.StartupActivity.class));
+                    Intent retryIntent = new Intent(BanActivity.this, HcfUITheme.StartupActivity.class);
+                    retryIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                            | Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    startActivity(retryIntent);
                     finish();
                 }
             });

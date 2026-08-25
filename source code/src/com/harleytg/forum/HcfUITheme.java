@@ -98,6 +98,7 @@ public final class HcfUITheme {
         private LinearLayout loaderPanel;
         private ImageView loaderLogo;
         private TextView loaderTitle;
+        private TextView loaderWelcomeSubtitle;
         private TextView loaderStep;
         private TextView loaderStatus;
         private TextView loaderDetail;
@@ -371,6 +372,14 @@ public final class HcfUITheme {
             titleLp.topMargin = dp(5);
             loaderPanel.addView(loaderTitle, titleLp);
 
+            loaderWelcomeSubtitle = text("", 12, getColor(R.color.hcf_muted));
+            loaderWelcomeSubtitle.setGravity(Gravity.CENTER);
+            loaderWelcomeSubtitle.setLineSpacing(0.0f, 1.08f);
+            loaderWelcomeSubtitle.setVisibility(View.GONE);
+            LinearLayout.LayoutParams welcomeSubtitleLp = new LinearLayout.LayoutParams(-1, -2);
+            welcomeSubtitleLp.topMargin = dp(6);
+            loaderPanel.addView(loaderWelcomeSubtitle, welcomeSubtitleLp);
+
             LinearLayout stepRow = new LinearLayout(this);
             stepRow.setOrientation(LinearLayout.HORIZONTAL);
             stepRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -464,7 +473,7 @@ public final class HcfUITheme {
             totalWeight = quickPath ? QUICK_WEIGHT_TOTAL : FULL_WEIGHT_TOTAL;
             totalStages = quickPath ? QUICK_STAGE_COUNT : FULL_STAGE_COUNT;
             completedWeight = 0;
-            verboseLoader = prefs == null || prefs.getBoolean(PREF_STARTUP_LOADER_VERBOSE, true);
+            verboseLoader = prefs != null && prefs.getBoolean(PREF_STARTUP_LOADER_VERBOSE, false);
             loaderStarted = true;
             handoffPending = false;
             loaderVisibleAt = android.os.SystemClock.elapsedRealtime();
@@ -474,7 +483,8 @@ public final class HcfUITheme {
             applyLoaderVerbosity();
             animateLogoEntrance();
 
-            if (loaderTitle != null) loaderTitle.setText(quickPath ? "Welcome back" : "Starting Harley's Clan Forum");
+            if (loaderTitle != null) loaderTitle.setText("Starting Harley's Clan Forum");
+            updateLoaderWelcomeSubtitle();
             if (loaderStep != null) loaderStep.setText("Step 0 of " + totalStages);
             if (loaderStatus != null) loaderStatus.setText(quickPath ? "Quick system check" : "Starting native systems");
             if (loaderDetail != null) {
@@ -503,6 +513,29 @@ public final class HcfUITheme {
                     worker.start();
                 }
             }, LOADER_FIRST_FRAME_HOLD_MS);
+        }
+
+        private void updateLoaderWelcomeSubtitle() {
+            if (loaderWelcomeSubtitle == null) return;
+            if (!quickPath) {
+                loaderWelcomeSubtitle.setText("");
+                loaderWelcomeSubtitle.setVisibility(View.GONE);
+                return;
+            }
+
+            String value = "Welcome back";
+            try {
+                ForumIdentity.Snapshot identity = ForumIdentity.load(this);
+                if (identity != null && identity.loggedIn && !TextUtils.isEmpty(identity.username)) {
+                    String username = identity.username.trim();
+                    while (username.startsWith("@")) username = username.substring(1);
+                    if (!TextUtils.isEmpty(username)) value += "\n@" + username;
+                }
+            } catch (Throwable error) {
+                AppLogger.warn(this, "startup_welcome_back", error.getClass().getSimpleName());
+            }
+            loaderWelcomeSubtitle.setText(value);
+            loaderWelcomeSubtitle.setVisibility(View.VISIBLE);
         }
 
         private void runSystemChecks(int token) {
@@ -1186,6 +1219,10 @@ public final class HcfUITheme {
                 loaderPanel.setScaleX(1.0f);
                 loaderPanel.setScaleY(1.0f);
                 loaderPanel.setVisibility(View.VISIBLE);
+            }
+            if (loaderWelcomeSubtitle != null) {
+                loaderWelcomeSubtitle.setText("");
+                loaderWelcomeSubtitle.setVisibility(View.GONE);
             }
             if (loaderProgress != null) loaderProgress.setProgress(0);
             if (loaderPercent != null) loaderPercent.setText("0%");

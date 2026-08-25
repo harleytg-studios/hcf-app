@@ -5120,9 +5120,7 @@ public final class HcfMainActivities {
         private void startAppSetup() {
             SetupCenter.markWelcomeSeen(this);
             AppLogger.info(this, "app_welcome", "start_setup_v" + SetupCenter.CURRENT_WELCOME_VERSION);
-            Intent intent = new Intent(this, HcfMainActivities.SetupActivity.class);
-            intent.putExtra(SetupCenter.EXTRA_AUTO_LAUNCHED, true);
-            startActivity(intent);
+            setResult(RESULT_OK);
             finish();
         }
 
@@ -5137,6 +5135,7 @@ public final class HcfMainActivities {
 
             AppLogger.info(this, "app_welcome", "continue_without_setup_" + source
                     + "_v" + SetupCenter.CURRENT_WELCOME_VERSION);
+            setResult(RESULT_OK);
             finish();
         }
 
