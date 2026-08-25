@@ -483,11 +483,9 @@ final class NotificationHelper {
     static final String EXTRA_EVENT_URL = "event_url";
     private static final String FORUM_GROUP_KEY = "hcf_forum_alerts";
     private static final int FORUM_SUMMARY_ID = 41072;
-    private static final String[] LEGACY_CHANNEL_IDS = {"forum_messages_heads_up_v2", "forum_messages", "app_updates_v1", "hcf_background_v2", "instant_notification_service_v1", "hcf_passive_silent_v1", "hcf_messages", "hcf_forum_activity"};
+    private static final String[] LEGACY_CHANNEL_IDS = {"forum_messages_heads_up_v2", "forum_messages", "app_updates_v1", "hcf_background_v2", "instant_notification_service_v1", "hcf_passive_silent_v1", "hcf_messages", "hcf_forum_activity", "hcf_live_service_v1"};
     static final String SILENT_CHANNEL_ID = "hcf_silent_alerts_v1";
     static final String SILENT_CHANNEL_NAME = "HCF Silent Alerts";
-    static final String SERVICE_CHANNEL_ID = "hcf_live_service_v1";
-    static final String SERVICE_CHANNEL_NAME = "HCF Live Service";
     static final String TEST_CHANNEL_ID = "hcf_test_alerts_v1";
     static final String TEST_CHANNEL_NAME = "HCF Test Alerts";
     private static volatile Bitmap cachedLargeIcon;
@@ -522,7 +520,7 @@ final class NotificationHelper {
                 }
                 notificationManager.createNotificationChannel(notificationChannel);
                 NotificationChannel notificationChannel2 = new NotificationChannel(SILENT_CHANNEL_ID, SILENT_CHANNEL_NAME, 2);
-                notificationChannel2.setDescription("Optional always-silent HCF reconnect notices, passive summaries and status alerts");
+                notificationChannel2.setDescription("Always-silent HCF live-service status, reconnect notices and passive alerts");
                 notificationChannel2.setGroup(CHANNEL_GROUP_ID);
                 notificationChannel2.setSound(null, null);
                 notificationChannel2.enableVibration(false);
@@ -530,16 +528,6 @@ final class NotificationHelper {
                 notificationChannel2.setShowBadge(false);
                 notificationChannel2.setLockscreenVisibility(0);
                 notificationManager.createNotificationChannel(notificationChannel2);
-
-                NotificationChannel serviceChannel = new NotificationChannel(SERVICE_CHANNEL_ID, SERVICE_CHANNEL_NAME, 2);
-                serviceChannel.setDescription("Required silent foreground-service status while real-time HCF alert polling is active");
-                serviceChannel.setGroup(CHANNEL_GROUP_ID);
-                serviceChannel.setSound(null, null);
-                serviceChannel.enableVibration(false);
-                serviceChannel.enableLights(false);
-                serviceChannel.setShowBadge(false);
-                serviceChannel.setLockscreenVisibility(0);
-                notificationManager.createNotificationChannel(serviceChannel);
                 if (BuildInfo.ENABLE_DEV_TEST_MENU) {
                     NotificationChannel notificationChannel3 = new NotificationChannel(TEST_CHANNEL_ID, TEST_CHANNEL_NAME, 3);
                     notificationChannel3.setDescription("Development and Beta notification tests only");
@@ -554,7 +542,7 @@ final class NotificationHelper {
                 for (String str : LEGACY_CHANNEL_IDS) {
                     deleteChannelIfPresent(notificationManager, str);
                 }
-                AppLogger.info(context, "notification_channel", BuildInfo.ENABLE_DEV_TEST_MENU ? "channels=HCF Alerts|HCF Silent Alerts|HCF Live Service|HCF Test Alerts" : "channels=HCF Alerts|HCF Silent Alerts|HCF Live Service");
+                AppLogger.info(context, "notification_channel", BuildInfo.ENABLE_DEV_TEST_MENU ? "channels=HCF Alerts|HCF Silent Alerts|HCF Test Alerts" : "channels=HCF Alerts|HCF Silent Alerts");
             } catch (Throwable th) {
                 AppLogger.error(context, "notification_channel_create", th.getClass().getSimpleName() + ": " + String.valueOf(th.getMessage()));
             }
@@ -588,14 +576,14 @@ final class NotificationHelper {
             if (active != null) {
                 for (android.service.notification.StatusBarNotification item : active) {
                     if (item == null || item.getNotification() == null) continue;
-                    if (SILENT_CHANNEL_ID.equals(item.getNotification().getChannelId())) {
+                    if (SILENT_CHANNEL_ID.equals(item.getNotification().getChannelId())
+                            && item.getId() != HcfNotificationEngine.InstantNotificationService.SERVICE_NOTIFICATION_ID) {
                         manager.cancel(item.getTag(), item.getId());
                         cancelled++;
                     }
                 }
             }
-            manager.cancel(FORUM_SUMMARY_ID);
-            AppLogger.info(context, "silent_alert_suppressed", "cleared_active=" + cancelled);
+            AppLogger.info(context, "silent_alert_suppressed", "cleared_optional=" + cancelled + " • live_service_preserved");
         } catch (Throwable error) {
             AppLogger.warn(context, "silent_alert_suppressed", "clear_failed_" + error.getClass().getSimpleName());
         }
@@ -914,7 +902,7 @@ final class NotificationHelper {
     static Notification buildInstantServiceNotification(Context context) {
         Intent intent = new Intent(context, (Class<?>) HcfMainActivities.MainActivity.class);
         intent.addFlags(603979776);
-        return new Notification.Builder(context, SERVICE_CHANNEL_ID).setSmallIcon(R.drawable.ic_notification_paw).setContentTitle("Harley's Clan Forum").setContentText("Live alerts active • checking in real time").setContentIntent(PendingIntent.getActivity(context, 41070, intent, 201326592)).setOngoing(true).setOnlyAlertOnce(true).setShowWhen(false).setCategory("service").setVisibility(0).setPriority(-2).build();
+        return new Notification.Builder(context, SILENT_CHANNEL_ID).setSmallIcon(R.drawable.ic_notification_paw).setContentTitle("Harley's Clan Forum").setContentText("Live alerts active • checking in real time").setContentIntent(PendingIntent.getActivity(context, 41070, intent, 201326592)).setOngoing(true).setOnlyAlertOnce(true).setShowWhen(false).setCategory("service").setVisibility(0).setPriority(-2).build();
     }
 
     static synchronized int recordForumNotificationCount(Context context, int newCount, String host, String source) {

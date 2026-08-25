@@ -2341,7 +2341,7 @@ public final class HcfSubActivities {
                     break;
                 case "notifications":
                     settingsContent.addView(connectedSettingsPanel("HCF Alerts", "Real forum notifications • background delivery", mainAlertsCard(), shouldExpand("hcf_alerts", true)));
-                    settingsContent.addView(connectedSettingsPanel("HCF Silent Alerts", "Optional silent passive alerts", silentAlertsCard(), shouldExpand("silent_alerts", false)));
+                    settingsContent.addView(connectedSettingsPanel("HCF Silent Alerts", "Silent service-status channel only", silentAlertsCard(), shouldExpand("silent_alerts", false)));
                     settingsContent.addView(connectedSettingsPanel("HCF Test Alerts", "Dev/Beta diagnostics only", testAlertsInfoCard(), shouldExpand("test_alerts", false)));
                     break;
                 case "appearance":
@@ -2756,7 +2756,7 @@ public final class HcfSubActivities {
             LinearLayout.LayoutParams infoIconLp = new LinearLayout.LayoutParams(dp(22), dp(22));
             infoIconLp.rightMargin = dp(10);
             info.addView(infoIcon, infoIconLp);
-            TextView infoText = text("HCF Alerts are the real forum alerts.\nHCF Silent Alerts is only the silent service-status channel.\nOptional passive status uses it; HCF Live Service is the required silent foreground status for instant sync.", 10, getColor(R.color.hcf_muted));
+            TextView infoText = text("HCF Alerts are the real forum alerts.\nHCF Silent Alerts is only the silent service-status channel.\nThe required live-service notification and optional quiet status alerts both stay in HCF Silent Alerts.", 10, getColor(R.color.hcf_muted));
             infoText.setLineSpacing(0.0f, 1.07f);
             info.addView(infoText, new LinearLayout.LayoutParams(0, -2, 1.0f));
 
@@ -2895,8 +2895,8 @@ public final class HcfSubActivities {
         private View silentAlertsCard() {
             LinearLayout card = card();
             NotificationHelper.createChannel(this);
-            card.addView(settingsInfoCard("Optional passive alerts",
-                    "HCF Silent Alerts carries only optional quiet reconnect notices, passive summaries and status alerts. It never carries direct messages, mentions or replies.",
+            card.addView(settingsInfoCard("Silent service-status channel",
+                    "HCF Silent Alerts carries the required live-service status plus optional quiet reconnect notices, passive summaries and status alerts. It never carries direct messages, mentions or replies.",
                     R.drawable.fa_bell));
             Switch silence = target(toggle("Silence optional HCF status alerts", prefs.getBoolean("silence_background_service_notification", false)), "silence_hcf_silent_alerts");
             silence.setOnCheckedChangeListener((button, checked) -> {
@@ -2907,9 +2907,8 @@ public final class HcfSubActivities {
                 Toast.makeText(this, checked ? "Optional silent status alerts hidden. The required live-service notification stays on." : "Optional HCF status alerts enabled.", Toast.LENGTH_LONG).show();
             });
             card.addView(silence);
-            card.addView(text("This never disables real HCF Alerts. Android requires an ongoing foreground-service notification for reliable instant delivery, so HCF Live Service stays visible while signed in and background sync is enabled.", 10, getColor(R.color.hcf_muted)));
-            card.addView(notificationChannelRow("HCF Silent Alerts", "Optional • silent passive alerts", "hcf_silent_alerts_v1"));
-            card.addView(notificationChannelRow("HCF Live Service", "Required • silent foreground service", "hcf_live_service_v1"));
+            card.addView(text("This never disables real HCF Alerts. The toggle hides optional silent status alerts only. Android requires the ongoing live-service notification while background sync is enabled, and that notification remains inside HCF Silent Alerts.", 10, getColor(R.color.hcf_muted)));
+            card.addView(notificationChannelRow("HCF Silent Alerts", "Silent • live service + optional status", "hcf_silent_alerts_v1"));
             return card;
         }
 
