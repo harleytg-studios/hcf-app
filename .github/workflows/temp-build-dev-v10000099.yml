@@ -7,7 +7,7 @@ on:
       - '.github/workflows/temp-build-dev-v10000099.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -17,6 +17,33 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: dev
+          fetch-depth: 0
+
+      - name: Fix unsupported Notification.Builder call
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('source code/src/com/harleytg/forum/HcfNotificationEngine.java')
+          text = path.read_text(encoding='utf-8')
+          old = '                .setPriority(Notification.PRIORITY_LOW)\n                .setSilent(true)\n                .build();'
+          new = '                .setPriority(Notification.PRIORITY_LOW)\n                .build();'
+          if old in text:
+              if text.count(old) != 1:
+                  raise SystemExit('Unexpected number of setSilent build anchors')
+              text = text.replace(old, new, 1)
+              path.write_text(text, encoding='utf-8')
+          elif '.setSilent(true)' in text:
+              raise SystemExit('Unexpected setSilent(true) location')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'source code/src/com/harleytg/forum/HcfNotificationEngine.java'
+          if ! git diff --cached --quiet; then
+            git commit -m 'Remove unsupported Notification.Builder setSilent call'
+            git push origin HEAD:dev
+          fi
 
       - name: Verify v10000099 source identity
         shell: bash
@@ -26,6 +53,7 @@ jobs:
           grep -Fq 'android:versionName="1.0 (10000099)"' 'source code/AndroidManifest.xml'
           grep -Fq 'static final int VERSION_CODE = 10000099;' 'source code/src/com/harleytg/forum/HcfApplication.java'
           grep -Fq 'HCF-Beta-v10000099.apk' 'source code/src/com/harleytg/forum/HcfApplication.java'
+          ! grep -Fq '.setSilent(true)' 'source code/src/com/harleytg/forum/HcfNotificationEngine.java'
           python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
 
       - name: Apply build-time onboarding patches
