@@ -8,6 +8,7 @@ on:
       - 'configs/app-links/**'
       - 'README.md'
       - '.github/scripts/apply-onboarding-account.py'
+      - '.github/scripts/apply-onboarding-live-session.py'
       - '.github/scripts/verify-hcf-alerts-ui.py'
       - '.github/scripts/verify-release-readiness.py'
       - '.github/workflows/build-dev-v10000098.yml'
@@ -38,8 +39,11 @@ jobs:
           python3 .github/scripts/apply-onboarding-account.py \
             'source code/src/com/harleytg/forum/HcfMainActivities.java' \
             'source code/src/com/harleytg/forum/HcfApplication.java'
+          python3 .github/scripts/apply-onboarding-live-session.py \
+            'source code/src/com/harleytg/forum/HcfMainActivities.java'
           grep -Fq 'HCF_ONBOARDING_FORUM_ACCOUNT_V1' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
           grep -Fq 'HCF_ONBOARDING_ACCOUNT_FLOW_GUARD_V1' 'source code/src/com/harleytg/forum/HcfApplication.java'
+          grep -Fq 'HCF_SETUP_LIVE_SESSION_PROBE_V1' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
 
       - name: Verify live sanitized ban configuration
         shell: bash
@@ -197,6 +201,8 @@ jobs:
           grep -Fq 'Sign In to Forum' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'Create Forum Account' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'hcf_setup_account_flow' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'setup_forum_identity_probe' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Checking the existing Harley' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'HCF Alerts are the real forum alerts.' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'HcfDiscordSecret' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'configs/ban-list.json' "$OUT/DEX-STRINGS.txt"
