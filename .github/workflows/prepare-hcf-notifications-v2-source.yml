@@ -2,9 +2,10 @@ name: Prepare HCF Notifications v2 Source
 
 on:
   push:
-    branches: [dev]
+    branches:
+      - dev
     paths:
-      - '.github/workflows/prepare-hcf-notifications-v2-source.yml'
+      - .github/workflows/prepare-hcf-notifications-v2-source.yml
 
 permissions:
   contents: write
@@ -13,30 +14,19 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout dev
+        uses: actions/checkout@v4
         with:
           ref: dev
           fetch-depth: 0
-      - name: Normalize one patch target
+      - name: Normalize patch target
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('source code/src/com/harleytg/forum/HcfNotificationEngine.java')
-          s = p.read_text(encoding='utf-8')
-          old = '''            if (z) {
-                builder.setGroup(FORUM_GROUP_KEY);
-            }'''
-          new = '''if (z) {
-        builder.setGroup(FORUM_GROUP_KEY);
-    }'''
-          if s.count(old) != 1:
-              raise SystemExit(f'Expected one forum grouping block, found {s.count(old)}')
-          p.write_text(s.replace(old, new, 1), encoding='utf-8')
-          PY
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add 'source code/src/com/harleytg/forum/HcfNotificationEngine.java'
+          FILE='source code/src/com/harleytg/forum/HcfNotificationEngine.java'
+          python3 -c "from pathlib import Path; p=Path('$FILE'); s=p.read_text(encoding='utf-8'); old='            if (z) {\\n                builder.setGroup(FORUM_GROUP_KEY);\\n            }'; new='if (z) {\\n        builder.setGroup(FORUM_GROUP_KEY);\\n    }'; assert s.count(old)==1, s.count(old); p.write_text(s.replace(old,new,1),encoding='utf-8')"
+          git config user.name github-actions-bot
+          git config user.email github-actions-bot@users.noreply.github.com
+          git add "$FILE"
           git commit -m 'ci: normalize Notifications v2 patch target'
           git push origin HEAD:dev
