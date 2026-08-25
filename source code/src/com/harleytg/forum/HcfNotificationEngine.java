@@ -74,7 +74,7 @@ public final class HcfNotificationEngine {
 
         static void start(Context context) {
             if (context == null) return;
-            if (!hasSession(context) || NotificationHelper.silencePassiveEnabled(context)) {
+            if (!hasSession(context)) {
                 stop(context);
                 return;
             }
@@ -83,8 +83,7 @@ public final class HcfNotificationEngine {
 
         static void requestImmediateSync(Context context) {
             if (context == null || !hasSession(context)) return;
-            if (NotificationHelper.silencePassiveEnabled(context)) requestOneShotSync(context);
-            else startWithAction(context, ACTION_SYNC_NOW);
+            startWithAction(context, ACTION_SYNC_NOW);
         }
 
         private static void requestOneShotSync(Context context) {
@@ -119,11 +118,6 @@ public final class HcfNotificationEngine {
             SharedPreferences prefs = context.getSharedPreferences("hcf_app", 0);
             if (!prefs.getBoolean("background_notification_sync", true) || !hasSession(context)) {
                 stop(context);
-                return;
-            }
-            if (NotificationHelper.silencePassiveEnabled(context)) {
-                if (ACTION_SYNC_NOW.equals(action)) requestOneShotSync(context);
-                else stop(context);
                 return;
             }
             try {
@@ -387,7 +381,7 @@ final class NotificationHelper {
                     notificationManager.createNotificationChannelGroup(new NotificationChannelGroup(CHANNEL_GROUP_ID, CHANNEL_GROUP_NAME));
                 } catch (Throwable unused) {
                 }
-                NotificationChannel notificationChannel = new NotificationChannel(CHANNEL_ID, CHANNEL_NAME, 4);
+                NotificationChannel notificationChannel = new NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH);
                 notificationChannel.setDescription("Audible HCF messages, mentions, replies, forum activity and important app alerts. App silence controls never affect this channel.");
                 notificationChannel.setGroup(CHANNEL_GROUP_ID);
                 notificationChannel.enableVibration(true);
@@ -399,7 +393,7 @@ final class NotificationHelper {
                 } catch (Throwable unused2) {
                 }
                 notificationManager.createNotificationChannel(notificationChannel);
-                NotificationChannel notificationChannel2 = new NotificationChannel(SILENT_CHANNEL_ID, SILENT_CHANNEL_NAME, 2);
+                NotificationChannel notificationChannel2 = new NotificationChannel(SILENT_CHANNEL_ID, SILENT_CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW);
                 notificationChannel2.setDescription("Always-silent HCF background sync, service status, reconnect notices and passive alerts");
                 notificationChannel2.setGroup(CHANNEL_GROUP_ID);
                 notificationChannel2.setSound(null, null);
@@ -409,7 +403,7 @@ final class NotificationHelper {
                 notificationChannel2.setLockscreenVisibility(0);
                 notificationManager.createNotificationChannel(notificationChannel2);
                 if (BuildInfo.ENABLE_DEV_TEST_MENU) {
-                    NotificationChannel notificationChannel3 = new NotificationChannel(TEST_CHANNEL_ID, TEST_CHANNEL_NAME, 3);
+                    NotificationChannel notificationChannel3 = new NotificationChannel(TEST_CHANNEL_ID, TEST_CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT);
                     notificationChannel3.setDescription("Development and Beta notification tests only");
                     notificationChannel3.setGroup(CHANNEL_GROUP_ID);
                     notificationChannel3.enableVibration(true);
@@ -443,6 +437,31 @@ final class NotificationHelper {
 
     static void refreshChannels(Context context) {
         createChannel(context);
+        if (silencePassiveEnabled(context)) cancelOptionalSilentAlerts(context);
+    }
+
+    static void cancelOptionalSilentAlerts(Context context) {
+        if (context == null) return;
+        try {
+            NotificationManager manager = (NotificationManager) context.getSystemService("notification");
+            if (manager == null) return;
+            android.service.notification.StatusBarNotification[] active = manager.getActiveNotifications();
+            if (active == null) return;
+            int cancelled = 0;
+            for (android.service.notification.StatusBarNotification item : active) {
+                if (item == null || item.getNotification() == null) continue;
+                if (SILENT_CHANNEL_ID.equals(item.getNotification().getChannelId())
+                        && item.getId() != HcfNotificationEngine.InstantNotificationService.SERVICE_NOTIFICATION_ID) {
+                    manager.cancel(item.getTag(), item.getId());
+                    cancelled++;
+                }
+            }
+            AppLogger.info(context, "silent_alert_suppressed",
+                    "cleared_optional=" + cancelled + " • live_service_preserved");
+        } catch (Throwable error) {
+            AppLogger.warn(context, "silent_alert_suppressed",
+                    "clear_failed_" + error.getClass().getSimpleName());
+        }
     }
 
     static boolean postNotificationServiceTest(Context context) {
@@ -475,6 +494,8 @@ final class NotificationHelper {
         if (context == null) {
             return false;
         }
+        // Legacy preference key retained for existing installs. This controls only
+        // optional quiet status notifications, never the required foreground service.
         return context.getSharedPreferences("hcf_app", 0).getBoolean("silence_background_service_notification", false);
     }
 
@@ -501,17 +522,19 @@ final class NotificationHelper {
     }
 
     static String channelStatus(Context context, String str) {
-        int channelImportance = channelImportance(context, str);
-        if (channelImportance == 0) {
+        int importance = channelImportance(context, str);
+        if (importance == NotificationManager.IMPORTANCE_NONE) {
             return "Off";
         }
         if (SILENT_CHANNEL_ID.equals(str)) {
-            return silencePassiveEnabled(context) ? "Disabled by app setting" : "Enabled • Silent";
+            return silencePassiveEnabled(context)
+                    ? "Live service active • optional status alerts silenced"
+                    : "Enabled • Silent";
         }
-        if (channelImportance >= 4) {
+        if (importance >= NotificationManager.IMPORTANCE_HIGH) {
             return "On • High priority";
         }
-        if (channelImportance >= 3) {
+        if (importance >= NotificationManager.IMPORTANCE_DEFAULT) {
             return "On • Normal";
         }
         return "On • Low priority";
@@ -526,8 +549,15 @@ final class NotificationHelper {
     }
 
     static boolean canPostOnChannel(Context context, String str) {
-        if (SILENT_CHANNEL_ID.equals(str) && silencePassiveEnabled(context)) return false;
-        return isEnabledByUser(context) && hasRuntimePermission(context) && areAppNotificationsEnabled(context) && channelImportance(context, str) != 0;
+        if (context == null || str == null || str.isEmpty()) return false;
+        return isEnabledByUser(context)
+                && hasRuntimePermission(context)
+                && areAppNotificationsEnabled(context)
+                && channelImportance(context, str) != NotificationManager.IMPORTANCE_NONE;
+    }
+
+    static boolean canPostOptionalSilentAlert(Context context) {
+        return !silencePassiveEnabled(context) && canPostOnChannel(context, SILENT_CHANNEL_ID);
     }
 
     static String status(Context context) {
@@ -604,6 +634,11 @@ final class NotificationHelper {
             if (str3 == null) {
                 str3 = z2 ? SILENT_CHANNEL_ID : CHANNEL_ID;
             }
+            if (SILENT_CHANNEL_ID.equals(str3) && silencePassiveEnabled(context)) {
+                AppLogger.info(context, "silent_alert_suppressed",
+                        "optional status alert • live service preserved");
+                return;
+            }
             if (!canPostOnChannel(context, str3)) {
                 AppLogger.warn(context, "notification_blocked", status(context) + " | channel=" + str3);
                 return;
@@ -627,9 +662,24 @@ final class NotificationHelper {
     }
 
     static Notification buildInstantServiceNotification(Context context) {
+        createChannel(context);
         Intent intent = new Intent(context, (Class<?>) HcfMainActivities.MainActivity.class);
         intent.addFlags(603979776);
-        return new Notification.Builder(context, SILENT_CHANNEL_ID).setSmallIcon(R.drawable.ic_notification_paw).setContentTitle("Harley's Clan Forum").setContentText("Live alerts active • checking in real time").setContentIntent(PendingIntent.getActivity(context, 41070, intent, 201326592)).setOngoing(true).setOnlyAlertOnce(true).setShowWhen(false).setCategory("service").setVisibility(0).setPriority(-2).build();
+        return new Notification.Builder(context, SILENT_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_notification_paw)
+                .setContentTitle("Harley's Clan Forum")
+                .setContentText("Live alerts active • checking in real time…")
+                .setContentIntent(PendingIntent.getActivity(context,
+                        HcfNotificationEngine.InstantNotificationService.SERVICE_NOTIFICATION_ID,
+                        intent, 201326592))
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setShowWhen(false)
+                .setCategory(Notification.CATEGORY_SERVICE)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setPriority(Notification.PRIORITY_LOW)
+                .setSilent(true)
+                .build();
     }
 
     static synchronized int recordForumNotificationCount(Context context, int newCount, String host, String source) {
@@ -778,17 +828,28 @@ final class NotificationHelper {
             intent.setData(parse);
             intent.addFlags(603979776);
             PendingIntent activity = PendingIntent.getActivity(context, FORUM_SUMMARY_ID, intent, 201326592);
-            if (silencePassiveEnabled(context)) {
-                AppLogger.info(context, "silent_alert_suppressed", "group notification summary");
+            if (!canPostOptionalSilentAlert(context)) {
+                AppLogger.info(context, "silent_alert_suppressed",
+                        "group notification summary • live service preserved");
                 return;
             }
-            if (canPostOnChannel(context, SILENT_CHANNEL_ID)) {
-                Notification.Builder builder = new Notification.Builder(context, SILENT_CHANNEL_ID);
-                builder.setSmallIcon(R.drawable.ic_notification_paw).setLargeIcon(largeIcon(context)).setContentTitle("Harley's Clan Forum").setContentText(i + " new forum alerts").setContentIntent(activity).setGroup(FORUM_GROUP_KEY).setGroupSummary(true).setNumber(i).setAutoCancel(true).setCategory("status").setVisibility(0).setPriority(-1);
-                NotificationManager notificationManager = (NotificationManager) context.getSystemService("notification");
-                if (notificationManager != null) {
-                    notificationManager.notify(FORUM_SUMMARY_ID, builder.build());
-                }
+            Notification.Builder builder = new Notification.Builder(context, SILENT_CHANNEL_ID);
+            builder.setSmallIcon(R.drawable.ic_notification_paw)
+                    .setLargeIcon(largeIcon(context))
+                    .setContentTitle("Harley's Clan Forum")
+                    .setContentText(i + " new forum alerts")
+                    .setContentIntent(activity)
+                    .setGroup(FORUM_GROUP_KEY)
+                    .setGroupSummary(true)
+                    .setNumber(i)
+                    .setAutoCancel(true)
+                    .setCategory(Notification.CATEGORY_STATUS)
+                    .setVisibility(Notification.VISIBILITY_PUBLIC)
+                    .setPriority(Notification.PRIORITY_LOW)
+                    .setOnlyAlertOnce(true);
+            NotificationManager notificationManager = (NotificationManager) context.getSystemService("notification");
+            if (notificationManager != null) {
+                notificationManager.notify(FORUM_SUMMARY_ID, builder.build());
             }
         } catch (Throwable th) {
             AppLogger.warn(context, "notification_summary", th.getClass().getSimpleName());
@@ -918,20 +979,12 @@ final class NotificationSyncScheduler {
             }
 
             String userId = prefs.getString("session_user_id", "");
-            boolean silenceForegroundStatus = prefs.getBoolean("silence_background_service_notification", false);
 
             if (userId != null && !userId.trim().isEmpty()) {
-                if (silenceForegroundStatus) {
-                    // Android requires a visible notification for a foreground service.
-                    // Honor the user's silence switch by stopping that foreground service.
-                    // Foreground WebSocket events can still request silent one-shot syncs,
-                    // while JobScheduler remains the background fallback.
-                    HcfNotificationEngine.InstantNotificationService.stop(context);
-                    AppLogger.info(context, "notification_sync_mode", "silent fallback • foreground service stopped");
-                } else {
-                    HcfNotificationEngine.InstantNotificationService.start(context);
-                    AppLogger.info(context, "notification_sync_mode", "foreground live sync");
-                }
+                // Signed-in + background sync enabled always keeps the legal foreground
+                // service active. The optional-silence toggle only suppresses extra status posts.
+                HcfNotificationEngine.InstantNotificationService.start(context);
+                AppLogger.info(context, "notification_sync_mode", "foreground live sync • signed-in");
             } else {
                 HcfNotificationEngine.InstantNotificationService.stop(context);
                 AppLogger.info(context, "notification_sync_mode", "waiting for signed-in session");
