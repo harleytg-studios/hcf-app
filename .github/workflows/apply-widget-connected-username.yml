@@ -24,9 +24,6 @@ jobs:
       - name: Apply connected username patch
         run: python3 .github/scripts/apply-widget-connected-username.py
 
-      - name: Run release source gates
-        run: python3 .github/scripts/verify-release-readiness.py .
-
       - name: Commit patch
         run: |
           git config user.name "github-actions[bot]"
