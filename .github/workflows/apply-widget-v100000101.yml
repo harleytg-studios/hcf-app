@@ -24,8 +24,15 @@ jobs:
         run: |
           set -euo pipefail
           python3 .github/scripts/apply-widget-v100000101.py
+
+          # The Actions token can update normal source files but is intentionally
+          # not allowed to create/rename workflow files. Keep those changes out of
+          # this commit; the connected GitHub account applies them separately.
+          git checkout HEAD -- .github/scripts/verify-release-readiness.py
+          git checkout HEAD -- .github/workflows/build-dev-v10000099.yml
+          rm -f .github/workflows/build-dev-v100000101.yml
           rm -f .github/scripts/apply-widget-v100000101.py
-          rm -f .github/workflows/apply-widget-v100000101.yml
+
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
