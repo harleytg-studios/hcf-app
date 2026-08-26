@@ -135,6 +135,7 @@ public final class HcfMainActivities {
         private static final int NOTIFICATION_PERMISSION_REQUEST = 1408;
         private static final int UPDATE_INSTALL_PERMISSION_REQUEST = 1409;
         private String activeHost;
+        private HcfBrandedLoader brandedLoader;
         private Button alternateButton;
         private ImageView appHeaderLogo;
         private TextView appHeaderSubtitle;
@@ -283,6 +284,11 @@ public final class HcfMainActivities {
             try {
                 setContentView(R.layout.activity_main);
                 bindViews();
+                View brandedLoaderRoot = findViewById(R.id.rootFrame);
+                if (brandedLoaderRoot instanceof FrameLayout) {
+                    this.brandedLoader = new HcfBrandedLoader(this);
+                    this.brandedLoader.attach((FrameLayout) brandedLoaderRoot);
+                }
                 applySolidIconSystem();
                 applyAmoledSurfaces();
                 validateCriticalViews();
@@ -1974,8 +1980,22 @@ public final class HcfMainActivities {
                     MainActivity.this.liveUpdater.poke();
                 }
                 if ("OFFLINE".equals(str)) {
+                    boolean legacyReconnectVisible = MainActivity.this.statusOverlay != null
+                            && MainActivity.this.statusOverlay.getVisibility() == 0;
+                    String reconnectHost = MainActivity.this.activeHost == null
+                            ? MainActivity.this.chooseInitialHost() : MainActivity.this.activeHost;
+                    if (MainActivity.this.brandedLoader != null) {
+                        MainActivity.this.brandedLoader.showReconnecting(reconnectHost);
+                        if (MainActivity.this.statusOverlay != null) {
+                            MainActivity.this.statusOverlay.setVisibility(8);
+                        }
+                        if (MainActivity.this.startupStateContainer != null) {
+                            MainActivity.this.startupStateContainer.setVisibility(8);
+                        }
+                    }
                     MainActivity.this.showTransientBanner("Connection restored • syncing forum…");
-                    if (MainActivity.this.statusOverlay == null || MainActivity.this.statusOverlay.getVisibility() != 0 || MainActivity.this.webView == null) {
+                    if (MainActivity.this.webView == null
+                            || (MainActivity.this.brandedLoader == null && !legacyReconnectVisible)) {
                         return;
                     }
                     WebView webView = MainActivity.this.webView;
@@ -3007,7 +3027,19 @@ public final class HcfMainActivities {
             if (sharedPreferences != null && !sharedPreferences.getBoolean("show_startup_screen", true)) {
                 z = false;
             }
-            this.statusOverlay.setVisibility(z ? 0 : 8);
+            if (this.brandedLoader != null) {
+                if (z) {
+                    this.brandedLoader.showConnecting(str);
+                } else {
+                    this.brandedLoader.hide(false);
+                }
+                this.statusOverlay.setVisibility(8);
+                if (this.startupStateContainer != null) {
+                    this.startupStateContainer.setVisibility(8);
+                }
+            } else {
+                this.statusOverlay.setVisibility(z ? 0 : 8);
+            }
             ImageButton imageButton = this.reloadButton;
             if (imageButton != null) {
                 imageButton.setEnabled(false);
@@ -3039,6 +3071,11 @@ public final class HcfMainActivities {
             if (i == this.connectionUiGeneration && this.startupProgress.getVisibility() == 0) {
                 this.statusTitle.setText("Securing connection…");
                 this.statusSubtitle.setText("Verifying " + str);
+                if (this.brandedLoader != null && this.brandedLoader.isVisible()) {
+                    this.brandedLoader.setTitle("Securing connection…");
+                    this.brandedLoader.setStatus("Securing connection…");
+                    this.brandedLoader.setDetail("Verifying " + str);
+                }
             }
         }
 
@@ -3047,6 +3084,11 @@ public final class HcfMainActivities {
             if (i == this.connectionUiGeneration && this.startupProgress.getVisibility() == 0) {
                 this.statusTitle.setText("Loading forum…");
                 this.statusSubtitle.setText(str);
+                if (this.brandedLoader != null && this.brandedLoader.isVisible()) {
+                    this.brandedLoader.setTitle("Loading forum…");
+                    this.brandedLoader.setStatus("Secure connection ready");
+                    this.brandedLoader.setDetail(str);
+                }
             }
         }
 
@@ -3092,6 +3134,9 @@ public final class HcfMainActivities {
         /* JADX INFO: Access modifiers changed from: private */
         public void showUnavailable(ErrorSystem.AppError appError, Uri uri) {
             this.connectionUiGeneration++;
+            if (this.brandedLoader != null) {
+                this.brandedLoader.hide(false);
+            }
             this.switchingHosts = false;
             this.mainFrameLoadFailed = true;
             ImageButton imageButton = this.reloadButton;
@@ -3329,6 +3374,9 @@ public final class HcfMainActivities {
 
         private void hideStatus() {
             this.connectionUiGeneration++;
+            if (this.brandedLoader != null) {
+                this.brandedLoader.hide(true);
+            }
             this.switchingHosts = false;
             this.mainFrameLoadFailed = false;
             this.lastAppError = null;

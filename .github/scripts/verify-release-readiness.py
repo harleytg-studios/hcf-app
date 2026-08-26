@@ -84,6 +84,7 @@ require("obsolete brand spelling remains", "Harley's Studio's" not in build_info
 expected_java_files = {
     "HcfAppLinksConfig.java",
     "HcfApplication.java",
+    "HcfBrandedLoader.java",
     "HcfBanSystem.java",
     "HcfDesktopMode.java",
     "HcfDiscordObservation.java",
