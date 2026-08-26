@@ -1,0 +1,67 @@
+name: Restore Settings Back Patch Scope
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/restore-settings-back-comments.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  restore-comments:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Restore untouched notification comments
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('source code/src/com/harleytg/forum/HcfSubActivities.java')
+          text = path.read_text(encoding='utf-8')
+
+          replacements = [
+              (
+                  '\n            LinearLayout statusShell = new LinearLayout(this);',
+                  '\n            // Newer reference: one grouped container with three equal status tiles.\n            LinearLayout statusShell = new LinearLayout(this);',
+              ),
+              (
+                  '\n            root.addView(hcfAlertsSectionHeader("Background delivery", R.drawable.fa_bell));',
+                  '\n            // Background delivery.\n            root.addView(hcfAlertsSectionHeader("Background delivery", R.drawable.fa_bell));',
+              ),
+              (
+                  '\n            root.addView(hcfAlertsSectionHeader("Android access", R.drawable.fa_shield));',
+                  '\n            // Android access compact status panel.\n            root.addView(hcfAlertsSectionHeader("Android access", R.drawable.fa_shield));',
+              ),
+              (
+                  '\n            LinearLayout info = new LinearLayout(this);',
+                  '\n            // Informational footer above HCF Silent Alerts.\n            LinearLayout info = new LinearLayout(this);',
+              ),
+          ]
+
+          for needle, replacement in replacements:
+              if needle not in text:
+                  raise SystemExit(f'Expected source anchor missing: {needle!r}')
+              text = text.replace(needle, replacement, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'source code/src/com/harleytg/forum/HcfSubActivities.java'
+          git diff --cached --exit-code && exit 0 || true
+          git commit -m 'Restore notification comments after Settings back patch'
+          git push origin HEAD:dev
