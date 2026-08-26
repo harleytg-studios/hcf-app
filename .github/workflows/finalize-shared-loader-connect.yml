@@ -26,32 +26,14 @@ jobs:
           from pathlib import Path
           path = Path('source code/src/com/harleytg/forum/HcfMainActivities.java')
           text = path.read_text(encoding='utf-8')
-          old = """            if (this.brandedLoader != null) {
-              if (z) {
-                  this.brandedLoader.showConnecting(str);
-              } else {
-                  this.brandedLoader.hide(false);
-              }
-              this.statusOverlay.setVisibility(8);
-              if (this.startupStateContainer != null) {
-                  this.startupStateContainer.setVisibility(8);
-              }
-          } else {
-              this.statusOverlay.setVisibility(z ? 0 : 8);
-          }
-          """
-          new = """            if (this.brandedLoader != null) {
-              this.brandedLoader.showConnecting(str);
-              this.statusOverlay.setVisibility(8);
-              if (this.startupStateContainer != null) {
-                  this.startupStateContainer.setVisibility(8);
-              }
-          } else {
-              this.statusOverlay.setVisibility(z ? 0 : 8);
-          }
-          """
+          old = """if (z) {
+                    this.brandedLoader.showConnecting(str);
+                } else {
+                    this.brandedLoader.hide(false);
+                }"""
+          new = """this.brandedLoader.showConnecting(str);"""
           if text.count(old) != 1:
-              raise SystemExit('showChecking shared-loader anchor mismatch')
+              raise SystemExit(f'showChecking shared-loader inner anchor mismatch: {text.count(old)}')
           path.write_text(text.replace(old, new, 1), encoding='utf-8')
           Path('.github/workflows/finalize-shared-loader-connect.yml').unlink()
           PY
@@ -66,6 +48,7 @@ jobs:
           grep -Fq 'this.brandedLoader.showConnecting(str);' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
           grep -Fq 'MainActivity.this.brandedLoader.showReconnecting(reconnectHost);' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
           grep -Fq 'this.brandedLoader.hide(true);' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+          ! grep -Fq 'this.brandedLoader.hide(false);' 'source code/src/com/harleytg/forum/HcfMainActivities.java' || grep -Fq 'public void showUnavailable' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
