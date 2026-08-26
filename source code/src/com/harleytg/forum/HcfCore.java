@@ -2093,6 +2093,7 @@ final class AppPrefs {
     static final String TELEMETRY_PENDING_CRASH_ID = "telemetry_pending_crash_id";
     static final String TELEMETRY_REPORT_HISTORY = "telemetry_report_history";
     static final String UI_REVAMP_VERSION = "ui_revamp_version";
+    static final String WIDGET_FOLLOW_APP_THEME = "widget_follow_app_theme";
     static final String UPDATE_AUTO_CHECK = "update_auto_check";
     static final String UPDATE_AUTO_DOWNLOAD = "update_auto_download";
     static final String UPDATE_AUTO_INSTALL = "update_auto_install";
@@ -2141,7 +2142,7 @@ final class UiPreferences {
         try {
             Map<String, ?> all = sharedPreferences.getAll();
             SharedPreferences.Editor edit = sharedPreferences.edit();
-            String[] strArr = {"notifications_enabled", "background_notification_sync", "auto_failover", "external_links", "show_url_bar", "compact_header", "show_bottom_nav", "show_startup_screen", "live_forum_updates", "performance_mode", "notification_permission_asked", "permission_onboarding_done", "install_permission_prompted", "app_has_launched", "update_auto_check", "update_auto_download", "update_install_pending", "update_resume_after_permission", "telemetry_enabled", "telemetry_auto_crash_reports", "telemetry_ask_before_crash_report", "telemetry_auto_error_reports", "telemetry_include_identity", "telemetry_include_email", "telemetry_include_device_model", "telemetry_include_route", "identity_logged_in", "identity_email_confirmed", "identity_admin", "identity_security_seen", "identity_security_password_controls", "identity_security_email_controls", "identity_security_two_factor_controls"};
+            String[] strArr = {"notifications_enabled", "background_notification_sync", "auto_failover", "external_links", "show_url_bar", "compact_header", "show_bottom_nav", "show_startup_screen", "widget_follow_app_theme", "live_forum_updates", "performance_mode", "notification_permission_asked", "permission_onboarding_done", "install_permission_prompted", "app_has_launched", "update_auto_check", "update_auto_download", "update_install_pending", "update_resume_after_permission", "telemetry_enabled", "telemetry_auto_crash_reports", "telemetry_ask_before_crash_report", "telemetry_auto_error_reports", "telemetry_include_identity", "telemetry_include_email", "telemetry_include_device_model", "telemetry_include_route", "identity_logged_in", "identity_email_confirmed", "identity_admin", "identity_security_seen", "identity_security_password_controls", "identity_security_email_controls", "identity_security_two_factor_controls"};
             boolean z = false;
             for (int i = 0; i < strArr.length; i++) {
                 z |= removeIfWrongType(all, edit, strArr[i], Boolean.class);
@@ -2830,6 +2831,7 @@ final class HcfSettingsTransfer {
             AppPrefs.PERFORMANCE_MODE,
             AppPrefs.SHOW_BOTTOM_NAV,
             AppPrefs.SHOW_STARTUP_SCREEN,
+            AppPrefs.WIDGET_FOLLOW_APP_THEME,
             AppPrefs.SHOW_URL_BAR,
             AppPrefs.SILENCE_BACKGROUND_SERVICE_NOTIFICATION,
             AppPrefs.TELEMETRY_ASK_BEFORE_CRASH_REPORT,

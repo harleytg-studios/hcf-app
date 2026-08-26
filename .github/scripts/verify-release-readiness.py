@@ -40,6 +40,7 @@ ui_source = text(java_source / "HcfUI.java")
 notifications_source = text(java_source / "HcfNotifications.java")
 updates_source = text(java_source / "HcfUpdates.java")
 platform_source = text(java_source / "HcfPlatform.java")
+widget_source = text(java_source / "HcfWidget.java")
 build_info = core_source
 readme = text(root / "README.md")
 build_script = text(source / "build-release.sh")
@@ -106,6 +107,13 @@ for java_file in expected_java_files:
         f"public final class {class_name}" in text(java_source / java_file),
     )
 require("URL-bar back button missing", 'android:id="@+id/urlBackButton"' in text(source / "res/layout/activity_main.xml"))
+require("widget app-theme preference missing", 'WIDGET_FOLLOW_APP_THEME = "widget_follow_app_theme"' in app_prefs)
+require("widget root settings category missing", '"Home-screen Widget"' in ui_source and '"Follow HCF app theme"' in ui_source)
+require("widget app-theme renderer missing", 'ThemeManager.webColorScheme(context)' in widget_source and 'systemPhoneDark()' in widget_source)
+require("widget theme changes do not refresh widget", 'AppPrefs.APP_THEME.equals(key)' in widget_source and 'AppPrefs.WIDGET_FOLLOW_APP_THEME.equals(key)' in widget_source)
+for palette in ("light", "dark", "amoled"):
+    require(f"widget {palette} background missing", (source / f"res/drawable/widget_hcf_background_{palette}.xml").is_file())
+    require(f"widget {palette} action background missing", (source / f"res/drawable/widget_hcf_action_background_{palette}.xml").is_file())
 
 production_files = list((source / "src").rglob("*.java"))
 for path in production_files:

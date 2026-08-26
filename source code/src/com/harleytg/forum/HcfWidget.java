@@ -115,7 +115,10 @@ public final class HcfWidget {
             @Override
             public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
                 if (AppPrefs.LAST_NOTIFICATION_COUNT.equals(key)
-                        || AppPrefs.SESSION_USER_ID.equals(key)) {
+                        || AppPrefs.SESSION_USER_ID.equals(key)
+                        || AppPrefs.WIDGET_FOLLOW_APP_THEME.equals(key)
+                        || AppPrefs.APP_THEME.equals(key)
+                        || AppPrefs.FORUM_AUTO_THEME.equals(key)) {
                     refreshAll(refreshContext);
                 }
             }
@@ -158,6 +161,7 @@ public final class HcfWidget {
         );
         views.setTextViewText(R.id.widget_hcf_title, context.getString(R.string.widget_hcf_title));
         views.setTextViewText(R.id.widget_hcf_status, status);
+        applyWidgetTheme(context, prefs, views);
 
         views.setOnClickPendingIntent(
                 R.id.widget_hcf_body,
@@ -174,6 +178,53 @@ public final class HcfWidget {
         views.setOnClickPendingIntent(R.id.widget_hcf_reload, reloadPendingIntent(context));
         views.setOnClickPendingIntent(R.id.widget_hcf_settings, settingsPendingIntent(context));
         manager.updateAppWidget(appWidgetId, views);
+    }
+
+    private static void applyWidgetTheme(Context context, SharedPreferences prefs, RemoteViews views) {
+        if (context == null || prefs == null || views == null) return;
+
+        boolean followAppTheme = prefs.getBoolean(AppPrefs.WIDGET_FOLLOW_APP_THEME, true);
+        boolean amoled = followAppTheme && ThemeManager.isAmoled(context);
+        boolean dark = followAppTheme
+                ? "dark".equals(ThemeManager.webColorScheme(context))
+                : systemPhoneDark();
+
+        int rootBackground = amoled
+                ? R.drawable.widget_hcf_background_amoled
+                : dark ? R.drawable.widget_hcf_background_dark
+                : R.drawable.widget_hcf_background_light;
+        int actionBackground = amoled
+                ? R.drawable.widget_hcf_action_background_amoled
+                : dark ? R.drawable.widget_hcf_action_background_dark
+                : R.drawable.widget_hcf_action_background_light;
+        int titleColor = (amoled || dark) ? 0xFFE8F8FF : 0xFF10232B;
+        int mutedColor = (amoled || dark) ? 0xFFAEBBC2 : 0xFF53666F;
+        int accentColor = 0xFF00B8F0;
+
+        views.setInt(R.id.widget_hcf_root, "setBackgroundResource", rootBackground);
+        views.setTextColor(R.id.widget_hcf_title, titleColor);
+        views.setTextColor(R.id.widget_hcf_status, mutedColor);
+
+        int[] actions = {
+                R.id.widget_hcf_forum,
+                R.id.widget_hcf_notifications,
+                R.id.widget_hcf_reload,
+                R.id.widget_hcf_settings
+        };
+        for (int action : actions) {
+            views.setInt(action, "setBackgroundResource", actionBackground);
+            views.setTextColor(action, accentColor);
+        }
+    }
+
+    private static boolean systemPhoneDark() {
+        try {
+            int uiMode = android.content.res.Resources.getSystem().getConfiguration().uiMode;
+            return (uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)
+                    == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private static PendingIntent startupPendingIntent(Context context, int requestCode, String target) {

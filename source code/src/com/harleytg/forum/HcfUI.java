@@ -4588,6 +4588,7 @@ final class HcfSubActivities {
             addSettingsCategory(list, "Account & Security", "Forum identity, profile and account controls", "account_security");
             addSettingsCategory(list, "Notifications", "Required alerts, silent background alerts and notification tools", "notifications");
             addSettingsCategory(list, "Appearance & Performance", "Theme, interface density and performance", "appearance");
+            addSettingsCategory(list, "Home-screen Widget", "Theme source and widget appearance", "widget");
             addSettingsCategory(list, "Forum & Site Data", "Server routing, links, cookies and local site data", "forum_data");
             addSettingsCategory(list, "Advanced & About", "App permissions, updates, recovery, telemetry, developer tools and build information", "advanced");
         }
@@ -4640,6 +4641,8 @@ final class HcfSubActivities {
                 new SettingTarget("show_secure_url_bar", "Show secure URL bar", "url address security header", "appearance", "appearance_performance"),
                 new SettingTarget("show_startup_screen", "Show startup connection screen", "startup launch connection screen", "appearance", "appearance_performance"),
                 new SettingTarget("verbose_startup_loader", "Verbose startup loader", "startup loading detailed checks progress completed verbose compact", "appearance", "appearance_performance"),
+                new SettingTarget("widget_follow_app_theme", "Follow HCF app theme", "widget home screen theme app phone system light dark amoled", "widget", "widget_appearance"),
+                new SettingTarget("refresh_widget_now", "Refresh Home-screen Widget", "widget refresh reload home screen", "widget", "widget_appearance"),
                 new SettingTarget("auto_failover", "Automatically use backup if primary fails", "server backup failover routing", "forum_data", "connection_routing"),
                 new SettingTarget("external_links", "Allow external links to open in browser/apps", "links browser external apps", "forum_data", "connection_routing"),
                 new SettingTarget("retry_primary", "Retry Primary Forum on Next Open", "primary server retry routing", "forum_data", "connection_routing"),
@@ -4783,6 +4786,9 @@ final class HcfSubActivities {
                 case "appearance":
                     settingsContent.addView(connectedSettingsPanel("Appearance & Performance", "Theme, interface and rendering preferences", interfaceCard(), shouldExpand("appearance_performance", true)));
                     break;
+                case "widget":
+                    settingsContent.addView(connectedSettingsPanel("Widget Appearance", "Theme source and home-screen widget controls", widgetCard(), shouldExpand("widget_appearance", true)));
+                    break;
                 case "forum_data":
                     settingsContent.addView(connectedSettingsPanel("Connection & Routing", "Primary/backup forum routing and link handling", connectionCard(), shouldExpand("connection_routing", true)));
                     settingsContent.addView(connectedSettingsPanel("Cookies & Site Data", "Forum data stored locally on this device", privacyCard(), shouldExpand("cookies_site_data", false)));
@@ -4858,6 +4864,7 @@ final class HcfSubActivities {
             if ("account_security".equals(key)) return "Account & Security";
             if ("notifications".equals(key)) return "Notifications";
             if ("appearance".equals(key)) return "Appearance & Performance";
+            if ("widget".equals(key)) return "Home-screen Widget";
             if ("forum_data".equals(key)) return "Forum & Site Data";
             if ("advanced".equals(key)) return "Advanced & About";
             return "App Settings";
@@ -4874,6 +4881,7 @@ final class HcfSubActivities {
             if ("silent_alerts".equals(key)) return "HCF Silent Alerts";
             if ("test_alerts".equals(key)) return "HCF Test Alerts";
             if ("appearance_performance".equals(key)) return "Appearance & Performance";
+            if ("widget_appearance".equals(key)) return "Widget Appearance";
             if ("connection_routing".equals(key)) return "Connection & Routing";
             if ("cookies_site_data".equals(key)) return "Cookies & Site Data";
             if ("permissions_security".equals(key)) return "Permissions & Security";
@@ -5427,6 +5435,44 @@ final class HcfSubActivities {
                 recreate();
             });
             return button;
+        }
+
+        private View widgetCard() {
+            LinearLayout card = card();
+            final boolean followAppTheme = prefs.getBoolean(AppPrefs.WIDGET_FOLLOW_APP_THEME, true);
+            final String themeState = followAppTheme
+                    ? "Following HCF app theme • " + ThemeManager.autoSourceLabel(this)
+                    : "Following Android phone theme";
+
+            card.addView(settingsInfoCard(
+                    "Widget theme source",
+                    themeState,
+                    R.drawable.fa_gear));
+
+            Switch follow = target(toggle("Follow HCF app theme", followAppTheme), "widget_follow_app_theme");
+            follow.setOnCheckedChangeListener((button, checked) -> {
+                prefs.edit().putBoolean(AppPrefs.WIDGET_FOLLOW_APP_THEME, checked).apply();
+                HcfWidget.refreshAll(this);
+                AppLogger.info(this, "setting_widget_theme_source", checked ? "app" : "phone");
+                Toast.makeText(this,
+                        checked
+                                ? "Home-screen widget now follows the HCF app theme."
+                                : "Home-screen widget now follows the Android phone theme.",
+                        Toast.LENGTH_SHORT).show();
+                showSettingsSection("widget");
+            });
+            card.addView(follow);
+
+            card.addView(text(
+                    "When on, the widget uses HCF's selected Light, Dark, AMOLED, or resolved Auto theme even when the phone/launcher uses the opposite theme. Turn it off only if you want the widget to follow Android's phone theme instead.",
+                    10, getColor(R.color.hcf_muted)));
+
+            card.addView(target(actionButton("Refresh Home-screen Widget", v -> {
+                HcfWidget.refreshAll(this);
+                AppLogger.info(this, "widget_refresh", "settings");
+                Toast.makeText(this, "Home-screen widget refreshed.", Toast.LENGTH_SHORT).show();
+            }), "refresh_widget_now"));
+            return card;
         }
 
         private View interfaceCard() {
@@ -6499,6 +6545,7 @@ final class HcfSubActivities {
             if ("account_security".equals(key)) return R.drawable.fa_shield;
             if ("notifications".equals(key)) return R.drawable.fa_bell;
             if ("appearance".equals(key)) return R.drawable.fa_gear;
+            if ("widget".equals(key)) return R.drawable.fa_gear;
             if ("forum_data".equals(key)) return R.drawable.fa_globe;
             return R.drawable.fa_circle_info;
         }
@@ -6508,7 +6555,7 @@ final class HcfSubActivities {
             if (lower.contains("account") || lower.contains("identity")) return R.drawable.fa_user;
             if (lower.contains("permission") || lower.contains("security")) return R.drawable.fa_shield;
             if (lower.contains("notification") || lower.contains("alert")) return R.drawable.fa_bell;
-            if (lower.contains("appearance") || lower.contains("performance") || lower.contains("runtime")) return R.drawable.fa_gear;
+            if (lower.contains("appearance") || lower.contains("performance") || lower.contains("runtime") || lower.contains("widget")) return R.drawable.fa_gear;
             if (lower.contains("connection") || lower.contains("routing") || lower.contains("endpoint")) return R.drawable.fa_globe;
             if (lower.contains("cookie") || lower.contains("site data")) return R.drawable.fa_lock;
             if (lower.contains("update")) return R.drawable.fa_download;
@@ -7506,6 +7553,7 @@ final class HcfSettingsImportUi {
                 AppPrefs.PERFORMANCE_MODE,
                 AppPrefs.SHOW_BOTTOM_NAV,
                 AppPrefs.SHOW_STARTUP_SCREEN,
+                AppPrefs.WIDGET_FOLLOW_APP_THEME,
                 AppPrefs.SHOW_URL_BAR,
                 AppPrefs.SILENCE_BACKGROUND_SERVICE_NOTIFICATION,
                 AppPrefs.TELEMETRY_ASK_BEFORE_CRASH_REPORT,
