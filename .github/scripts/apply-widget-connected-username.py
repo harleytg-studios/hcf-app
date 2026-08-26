@@ -4,7 +4,6 @@ from pathlib import Path
 ROOT = Path('.')
 UI = ROOT / 'source code/src/com/harleytg/forum/HcfUI.java'
 WIDGET = ROOT / 'source code/src/com/harleytg/forum/HcfWidget.java'
-README = ROOT / 'README.md'
 
 
 def read(path):
@@ -116,14 +115,5 @@ ui = replace_once(
     'settings backup widget username key'
 )
 write(UI, ui)
-
-readme = read(README)
-readme = replace_once(
-    readme,
-    'It also has a root App Settings category for widget controls: **Follow HCF app theme** is enabled by default, and **Refresh Home-screen Widget** forces an immediate cached-state redraw.',
-    'It also has a root App Settings category for widget controls: **Follow HCF app theme** and **Show connected @username** are enabled by default, and **Refresh Home-screen Widget** forces an immediate cached-state redraw. When signed in and identity data is available, the widget can show `@username` beside the cached unread state.',
-    'README widget settings description'
-)
-write(README, readme)
 
 print('Connected @username widget patch applied.')
