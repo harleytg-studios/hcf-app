@@ -2070,6 +2070,21 @@ public final class HcfSubActivities {
             return root;
         }
 
+        private boolean handleSettingsBack() {
+            if (currentSettingsSection != null && !currentSettingsSection.isEmpty()) {
+                showSettingsHome();
+                return true; // stayed inside Settings
+            }
+            return false; // caller should leave Settings
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public void onBackPressed() {
+            if (handleSettingsBack()) return;
+            super.onBackPressed();
+        }
+
         private View buildHeader() {
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
@@ -2080,8 +2095,7 @@ public final class HcfSubActivities {
             headerBackButton = chromeButton("Back");
             headerBackButton.setContentDescription("Back");
             headerBackButton.setOnClickListener(v -> {
-                if (currentSettingsSection == null || currentSettingsSection.isEmpty()) finish();
-                else showSettingsHome();
+                if (!handleSettingsBack()) finish();
             });
             row.addView(headerBackButton, new LinearLayout.LayoutParams(dp(compact() ? 38 : 44), dp(compact() ? 38 : 44)));
             ImageView logo = new ImageView(this);
@@ -2621,7 +2635,6 @@ public final class HcfSubActivities {
                 syncColor = yellow;
             }
 
-            // Newer reference: one grouped container with three equal status tiles.
             LinearLayout statusShell = new LinearLayout(this);
             statusShell.setOrientation(LinearLayout.HORIZONTAL);
             statusShell.setGravity(17);
@@ -2637,7 +2650,6 @@ public final class HcfSubActivities {
             statusShell.addView(hcfAlertStatusTile(backgroundState, "Background", "", backgroundColor), tileLp);
             statusShell.addView(hcfAlertStatusTile(syncState, "Last sync", syncDetail, syncColor), tileLp);
 
-            // Background delivery.
             root.addView(hcfAlertsSectionHeader("Background delivery", R.drawable.fa_bell));
 
             LinearLayout deliveryCard = new LinearLayout(this);
@@ -2699,7 +2711,6 @@ public final class HcfSubActivities {
                 showSettingsSection("notifications");
             });
 
-            // Android access compact status panel.
             root.addView(hcfAlertsSectionHeader("Android access", R.drawable.fa_shield));
 
             LinearLayout accessCard = new LinearLayout(this);
@@ -2746,7 +2757,6 @@ public final class HcfSubActivities {
             openLp.topMargin = dp(9);
             accessCard.addView(openSettings, openLp);
 
-            // Informational footer above HCF Silent Alerts.
             LinearLayout info = new LinearLayout(this);
             info.setOrientation(LinearLayout.HORIZONTAL);
             info.setGravity(16);
