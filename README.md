@@ -18,7 +18,7 @@ Development/Beta branch for the Harley's Clan Forum Android app.
 
 - Key alias: `hcf-beta-v2`
 - Expected signer SHA-256: `93:D4:9B:F9:A8:77:C7:CF:B1:B3:7F:90:64:BD:95:5C:D6:7B:D7:DD:8D:B7:3A:9E:3F:76:6B:59:C4:BC:CE:63`
-- APK signing: v1 + v2 + v3
+- APK signing: v1 + v2 + v3 + v4 (`.idsig` sidecar)
 
 `build-release.sh` rejects a different signing certificate to protect in-place Beta/Dev updates. The updater verifies the exact APK SHA-256 as well as package name, versionCode, and signing-certificate lineage. If a release intentionally replaces an APK without changing versionCode, a changed SHA-256 identifies it as a same-version revision; an identical hash is treated as already installed.
 

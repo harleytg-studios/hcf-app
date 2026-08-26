@@ -3028,7 +3028,11 @@ public final class HcfMainActivities {
                 z = false;
             }
             if (this.brandedLoader != null) {
-                this.brandedLoader.showConnecting(str);
+                if (z) {
+                    this.brandedLoader.showConnecting(str);
+                } else {
+                    this.brandedLoader.hide(false);
+                }
                 this.statusOverlay.setVisibility(8);
                 if (this.startupStateContainer != null) {
                     this.startupStateContainer.setVisibility(8);
@@ -3589,7 +3593,7 @@ public final class HcfMainActivities {
                 return;
             }
             Set<String> stringSet = this.prefs.getStringSet("safe_links_seen_domains", Collections.emptySet());
-            HashSet hashSet = new HashSet();
+            HashSet<String> hashSet = new HashSet<>();
             if (stringSet != null) {
                 hashSet.addAll(stringSet);
             }
@@ -3641,7 +3645,20 @@ public final class HcfMainActivities {
                 installPerformanceCss();
                 installWebThemeBridge();
                 installNativeMediaAndAccentHooks();
+                installExternalLinkHook();
                 AppLogger.info(this, "web_bridge_installed", AppLogger.safeUrl(this.webView.getUrl()));
+            }
+        }
+
+
+        private void installExternalLinkHook() {
+            if (this.webView == null || !isTrustedForumPage()) {
+                return;
+            }
+            try {
+                this.webView.evaluateJavascript("(function(){try{if(window.__HCF_NATIVE_EXTERNAL_LINKS__)return;window.__HCF_NATIVE_EXTERNAL_LINKS__=true;document.addEventListener('click',function(ev){try{var t=ev.target;if(!t||!t.closest)return;var a=t.closest('a[href]');if(!a)return;var raw=String(a.getAttribute('href')||'').trim();if(!raw||raw.charAt(0)==='#'||/^javascript:/i.test(raw))return;var u=new URL(a.href,location.href),s=String(u.protocol||'').toLowerCase(),h=String(u.hostname||'').toLowerCase();if((s==='http:'||s==='https:')&&(h==='forum.harleytg.com'||h==='harleysclan.freeflarum.com'))return;if(s!=='http:'&&s!=='https:'&&s!=='mailto:'&&s!=='tel:')return;ev.preventDefault();ev.stopPropagation();HCFNative.openExternalLink(String(u.href));}catch(e){}},true);}catch(e){}})();", null);
+            } catch (Throwable th) {
+                AppLogger.warn(this, "external_link_hook", th.getClass().getSimpleName());
             }
         }
 
@@ -4526,6 +4543,31 @@ public final class HcfMainActivities {
                 });
             }
 
+
+            @JavascriptInterface
+            public void openExternalLink(final String str) {
+                MainActivity.this.runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        if (!MainActivity.this.isTrustedForumPage()) {
+                            AppLogger.warn(MainActivity.this, "bridge_external_link_blocked", "untrusted-main-frame");
+                            return;
+                        }
+                        try {
+                            Uri uri = Uri.parse(str == null ? "" : str.trim());
+                            String scheme = uri.getScheme();
+                            if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)
+                                    || "mailto".equalsIgnoreCase(scheme) || "tel".equalsIgnoreCase(scheme)) {
+                                MainActivity.this.openExternal(uri);
+                            } else {
+                                AppLogger.warn(MainActivity.this, "bridge_external_link_blocked", "unsupported-scheme");
+                            }
+                        } catch (Throwable th) {
+                            AppLogger.warn(MainActivity.this, "bridge_external_link_failed", th.getClass().getSimpleName());
+                        }
+                    }
+                });
+            }
+
             /* renamed from: lambda$openMedia$7$com-harleytg-forum-dev-MainActivity$AppMessageBridge, reason: not valid java name */
             /* synthetic */ void m116x40f24ef4(String str, String str2) {
                 String trim;
@@ -4743,7 +4785,19 @@ public final class HcfMainActivities {
 
             @Override // android.webkit.WebViewClient
             public boolean shouldOverrideUrlLoading(WebView webView, WebResourceRequest webResourceRequest) {
-                Uri url = webResourceRequest.getUrl();
+                return handleNavigation(webView, webResourceRequest == null ? null : webResourceRequest.getUrl());
+            }
+
+            @Override // android.webkit.WebViewClient
+            public boolean shouldOverrideUrlLoading(WebView webView, String url) {
+                return handleNavigation(webView, url == null ? null : Uri.parse(url));
+            }
+
+            private boolean handleNavigation(WebView webView, Uri url) {
+                if (url == null) {
+                    AppLogger.warn(MainActivity.this, "webview_navigation_blocked", "missing-url");
+                    return true;
+                }
                 if (MainActivity.this.isNativeInstallRoute(url)) {
                     MainActivity.this.startNativeUpdateFlow();
                     return true;
@@ -4776,8 +4830,8 @@ public final class HcfMainActivities {
                     return true;
                 }
                 if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
-                    MainActivity.this.showUnavailable(ErrorSystem.externalBlocked(url.toString()), url);
-                    AppLogger.warn(MainActivity.this, "webview_external_blocked", AppLogger.safeUrl(url.toString()));
+                    MainActivity.this.openExternal(url);
+                    AppLogger.info(MainActivity.this, "webview_external_routed", AppLogger.safeUrl(url.toString()));
                     return true;
                 }
                 MainActivity.this.showUnavailable(ErrorSystem.externalBlocked(url.toString()), url);

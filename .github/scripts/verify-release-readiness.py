@@ -187,11 +187,17 @@ require("real alert fallback is still tied to Silent Alerts", "generic notificat
 require("real alert fallback is not on HCF Alerts", "new Notification.Builder(context, CHANNEL_ID)" in notification_helper and ".setGroup(FORUM_GROUP_KEY)" in notification_helper)
 require("What's New does not wait for window focus", "hasWindowFocus() && ReleaseNotes.shouldNotify" in main_activity)
 require("What's New is not rescheduled after Setup", "scheduleWhatsNew(true);" in main_activity)
+require("startup-screen preference is not applied to branded loader", 'if (z) {\n                    this.brandedLoader.showConnecting(str);' in main_activity)
+require("normal external links do not use Safe Links routing", '"webview_external_routed"' in main_activity and "MainActivity.this.openExternal(url);" in main_activity)
+require("target=_blank external-link bridge missing", "HCFNative.openExternalLink" in main_activity and "public void openExternalLink" in main_activity)
 
 require("v1 signing compatibility floor missing", "--min-sdk-version 23" in build_script)
 require("v4 signature sidecar check missing", "Missing APK Signature Scheme v4 sidecar" in build_script)
 require("release gate is not called by build", "verify-release-readiness.py" in build_script)
 require("canonical v10000099 workflow missing", any(path.name == "build-dev-v10000099.yml" for path in workflows))
+alerts_workflow = text(root / ".github/workflows/verify-hcf-alerts-ui.yml")
+require("HCF Alerts workflow watches obsolete SettingsActivity.java path", "SettingsActivity.java" not in alerts_workflow)
+require("HCF Alerts workflow does not watch HcfSubActivities.java", "HcfSubActivities.java" in alerts_workflow)
 for path in workflows:
     require(f"release workflow must not write repository contents: {path.name}", "contents: write" not in text(path))
 

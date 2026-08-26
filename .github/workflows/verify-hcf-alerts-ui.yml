@@ -4,7 +4,7 @@ on:
   push:
     branches: [dev]
     paths:
-      - 'source code/src/com/harleytg/forum/SettingsActivity.java'
+      - 'source code/src/com/harleytg/forum/HcfSubActivities.java'
       - 'source code/build-release.sh'
       - '.github/scripts/verify-hcf-alerts-ui.py'
       - '.github/workflows/verify-hcf-alerts-ui.yml'
