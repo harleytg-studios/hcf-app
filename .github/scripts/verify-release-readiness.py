@@ -196,7 +196,7 @@ require("target=_blank external-link bridge missing", "HCFNative.openExternalLin
 require("v1 signing compatibility floor missing", "--min-sdk-version 23" in build_script)
 require("v4 signature sidecar check missing", "Missing APK Signature Scheme v4 sidecar" in build_script)
 require("release gate is not called by build", "verify-release-readiness.py" in build_script)
-require("canonical v10000099 workflow missing", any(path.name == "build-dev-v10000099.yml" for path in workflows))
+require("canonical v100000101 workflow missing", any(path.name == "build-dev-v100000101.yml" for path in workflows))
 alerts_workflow = text(root / ".github/workflows/verify-hcf-alerts-ui.yml")
 require("HCF Alerts workflow watches obsolete split UI path", "HcfSubActivities.java" not in alerts_workflow)
 require("HCF Alerts workflow does not watch HcfUI.java", "HcfUI.java" in alerts_workflow)
