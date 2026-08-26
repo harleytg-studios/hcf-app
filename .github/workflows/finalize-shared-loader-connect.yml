@@ -26,37 +26,37 @@ jobs:
           from pathlib import Path
           path = Path('source code/src/com/harleytg/forum/HcfMainActivities.java')
           text = path.read_text(encoding='utf-8')
-          old = '''            if (this.brandedLoader != null) {
-                if (z) {
-                    this.brandedLoader.showConnecting(str);
-                } else {
-                    this.brandedLoader.hide(false);
-                }
-                this.statusOverlay.setVisibility(8);
-                if (this.startupStateContainer != null) {
-                    this.startupStateContainer.setVisibility(8);
-                }
-            } else {
-                this.statusOverlay.setVisibility(z ? 0 : 8);
-            }
-'''
-          new = '''            if (this.brandedLoader != null) {
-                this.brandedLoader.showConnecting(str);
-                this.statusOverlay.setVisibility(8);
-                if (this.startupStateContainer != null) {
-                    this.startupStateContainer.setVisibility(8);
-                }
-            } else {
-                this.statusOverlay.setVisibility(z ? 0 : 8);
-            }
-'''
+          old = """            if (this.brandedLoader != null) {
+              if (z) {
+                  this.brandedLoader.showConnecting(str);
+              } else {
+                  this.brandedLoader.hide(false);
+              }
+              this.statusOverlay.setVisibility(8);
+              if (this.startupStateContainer != null) {
+                  this.startupStateContainer.setVisibility(8);
+              }
+          } else {
+              this.statusOverlay.setVisibility(z ? 0 : 8);
+          }
+          """
+          new = """            if (this.brandedLoader != null) {
+              this.brandedLoader.showConnecting(str);
+              this.statusOverlay.setVisibility(8);
+              if (this.startupStateContainer != null) {
+                  this.startupStateContainer.setVisibility(8);
+              }
+          } else {
+              this.statusOverlay.setVisibility(z ? 0 : 8);
+          }
+          """
           if text.count(old) != 1:
-              raise SystemExit(f'Expected showChecking loader block exactly once, found {text.count(old)}')
+              raise SystemExit('showChecking shared-loader anchor mismatch')
           path.write_text(text.replace(old, new, 1), encoding='utf-8')
           Path('.github/workflows/finalize-shared-loader-connect.yml').unlink()
           PY
 
-      - name: Run unchanged source gates
+      - name: Verify source gates
         shell: bash
         run: |
           set -euo pipefail
@@ -81,20 +81,8 @@ jobs:
           ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
           WORK="$RUNNER_TEMP/hcf-shared-loader-compile"
           mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/secret-src/com/harleytg/forum"
-          "$BT/aapt" package -f -m \
-            -J "$WORK/gen" \
-            -M "$ROOT/AndroidManifest.xml" \
-            -S "$ROOT/res" \
-            -A "$ROOT/assets" \
-            -I "$ANDROID_JAR" \
-            -F "$WORK/resources.apk"
-          cat > "$WORK/secret-src/com/harleytg/forum/HcfDiscordSecret.java" <<'JAVA'
-          package com.harleytg.forum.dev;
-          public final class HcfDiscordSecret {
-              private HcfDiscordSecret() {}
-              public static String decrypt() { return ""; }
-          }
-          JAVA
+          "$BT/aapt" package -f -m -J "$WORK/gen" -M "$ROOT/AndroidManifest.xml" -S "$ROOT/res" -A "$ROOT/assets" -I "$ANDROID_JAR" -F "$WORK/resources.apk"
+          printf '%s\n' 'package com.harleytg.forum.dev;' 'public final class HcfDiscordSecret {' '  private HcfDiscordSecret() {}' '  public static String decrypt() { return ""; }' '}' > "$WORK/secret-src/com/harleytg/forum/HcfDiscordSecret.java"
           mapfile -t JAVA_FILES < <(find "$WORK/gen" "$ROOT/src" "$WORK/secret-src" -name '*.java' -print)
           javac --release 8 -classpath "$ANDROID_JAR" -d "$WORK/classes" "${JAVA_FILES[@]}"
           test -f "$WORK/classes/com/harleytg/forum/dev/HcfBrandedLoader.class"
