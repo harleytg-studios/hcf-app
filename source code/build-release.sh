@@ -6,14 +6,14 @@ sdk_root="${ANDROID_SDK_ROOT:?Set ANDROID_SDK_ROOT}"
 build_tools="$sdk_root/build-tools/${BUILD_TOOLS_VERSION:-35.0.0}"
 android_jar="$sdk_root/platforms/android-${ANDROID_PLATFORM_VERSION:-35}/android.jar"
 manifest="$project_dir/AndroidManifest.xml"
-build_info="$project_dir/src/com/harleytg/forum/HcfApplication.java"
+build_info="$project_dir/src/com/harleytg/forum/HcfCore.java"
 ui_verifier="$project_dir/../.github/scripts/verify-hcf-alerts-ui.py"
 release_verifier="$project_dir/../.github/scripts/verify-release-readiness.py"
 onboarding_patcher="$project_dir/../.github/scripts/apply-onboarding-account.py"
 session_patcher="$project_dir/../.github/scripts/apply-onboarding-live-session.py"
 
 [[ -f "$manifest" ]] || { echo "Missing AndroidManifest.xml" >&2; exit 2; }
-[[ -f "$build_info" ]] || { echo "Missing HcfApplication.java" >&2; exit 2; }
+[[ -f "$build_info" ]] || { echo "Missing HcfCore.java" >&2; exit 2; }
 [[ -f "$ui_verifier" ]] || { echo "Missing HCF Alerts UI verifier" >&2; exit 24; }
 [[ -f "$release_verifier" ]] || { echo "Missing release-readiness verifier" >&2; exit 25; }
 [[ -f "$onboarding_patcher" ]] || { echo "Missing onboarding account patcher" >&2; exit 35; }
@@ -77,12 +77,12 @@ fi
 mkdir -p "$work/gen" "$work/classes" "$work/dex" "$work/src" "$work/secret-src/com/harleytg/forum" "$output_dir"
 cp -R "$project_dir/src/." "$work/src/"
 python3 "$onboarding_patcher" \
-  "$work/src/com/harleytg/forum/HcfMainActivities.java" \
-  "$work/src/com/harleytg/forum/HcfApplication.java"
+  "$work/src/com/harleytg/forum/HcfForum.java" \
+  "$work/src/com/harleytg/forum/HcfCore.java"
 python3 "$session_patcher" \
-  "$work/src/com/harleytg/forum/HcfMainActivities.java"
+  "$work/src/com/harleytg/forum/HcfForum.java"
 grep -Fq 'HCF_SETUP_LIVE_SESSION_PROBE_V1' \
-  "$work/src/com/harleytg/forum/HcfMainActivities.java"
+  "$work/src/com/harleytg/forum/HcfForum.java"
 
 # The observation webhook is required for a release build but must never be committed.
 # It is encrypted into a generated Java class stored only in this temporary build directory.

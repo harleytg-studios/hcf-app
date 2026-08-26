@@ -4,8 +4,8 @@ import re
 import sys
 
 root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('source code')
-engine = (root / 'src/com/harleytg/forum/HcfNotificationEngine.java').read_text(encoding='utf-8')
-ui = (root / 'src/com/harleytg/forum/HcfSubActivities.java').read_text(encoding='utf-8')
+engine = (root / 'src/com/harleytg/forum/HcfNotifications.java').read_text(encoding='utf-8')
+ui = (root / 'src/com/harleytg/forum/HcfUI.java').read_text(encoding='utf-8')
 
 required_engine = [
     'CHANNEL_GROUP_ID = "hcf_notification_channels_v2"',
@@ -41,7 +41,7 @@ cancel_start = engine.index('static void cancelOptionalSilentAlerts(Context cont
 cancel_end = engine.index('static boolean postNotificationServiceTest', cancel_start)
 cancel = engine[cancel_start:cancel_end]
 if 'SERVICE_NOTIFICATION_ID)' not in cancel: raise SystemExit('Silent cancel path does not explicitly cancel 41070')
-if '!= HcfNotificationEngine.InstantNotificationService.SERVICE_NOTIFICATION_ID' in cancel:
+if '!= HcfNotifications.InstantNotificationService.SERVICE_NOTIFICATION_ID' in cancel:
     raise SystemExit('Silent cancel path still preserves 41070')
 
 service_start = engine.index('public static final class InstantNotificationService extends Service {')

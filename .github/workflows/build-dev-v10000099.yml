@@ -39,13 +39,13 @@ jobs:
         run: |
           set -euo pipefail
           python3 .github/scripts/apply-onboarding-account.py \
-            'source code/src/com/harleytg/forum/HcfMainActivities.java' \
-            'source code/src/com/harleytg/forum/HcfApplication.java'
+            'source code/src/com/harleytg/forum/HcfForum.java' \
+            'source code/src/com/harleytg/forum/HcfCore.java'
           python3 .github/scripts/apply-onboarding-live-session.py \
-            'source code/src/com/harleytg/forum/HcfMainActivities.java'
-          grep -Fq 'HCF_ONBOARDING_FORUM_ACCOUNT_V1' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
-          grep -Fq 'HCF_ONBOARDING_ACCOUNT_FLOW_GUARD_V1' 'source code/src/com/harleytg/forum/HcfApplication.java'
-          grep -Fq 'HCF_SETUP_LIVE_SESSION_PROBE_V1' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
+            'source code/src/com/harleytg/forum/HcfForum.java'
+          grep -Fq 'HCF_ONBOARDING_FORUM_ACCOUNT_V1' 'source code/src/com/harleytg/forum/HcfForum.java'
+          grep -Fq 'HCF_ONBOARDING_ACCOUNT_FLOW_GUARD_V1' 'source code/src/com/harleytg/forum/HcfCore.java'
+          grep -Fq 'HCF_SETUP_LIVE_SESSION_PROBE_V1' 'source code/src/com/harleytg/forum/HcfForum.java'
 
       - name: Verify live sanitized ban configuration
         shell: bash

@@ -29,7 +29,8 @@ This branch is Android-only and intentionally minimal.
 `source code/` contains only active Android build/runtime inputs:
 
 - `AndroidManifest.xml` — package, version, permissions, components, and App Link declarations.
-- `src/` — Java source.
+- `src/` — six consolidated Java subsystem sources: `HcfCore`, `HcfForum`, `HcfUI`,
+  `HcfNotifications`, `HcfUpdates`, and `HcfPlatform`.
 - `res/` — Android resources and launcher assets.
 - `assets/` — bundled runtime assets.
 - `build-release.sh` — local compile, package, align, and signing script.

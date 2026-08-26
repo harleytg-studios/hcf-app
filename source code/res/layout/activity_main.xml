@@ -697,7 +697,7 @@
                 android:layout_width="@dimen/identity_avatar_size"
                 android:layout_height="@dimen/identity_avatar_size">
                 <view
-                    class="com.harleytg.forum.dev.HcfMainActivities$IdentityAvatarView"
+                    class="com.harleytg.forum.dev.HcfForum$IdentityAvatarView"
                     android:id="@+id/drawerIdentityAvatar"
                     android:layout_gravity="center"
                     android:layout_width="match_parent"

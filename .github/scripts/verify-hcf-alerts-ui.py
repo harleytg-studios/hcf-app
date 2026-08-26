@@ -18,7 +18,7 @@ if len(sys.argv) > 2:
     fail("usage: verify-hcf-alerts-ui.py [source-code-root]")
 
 source_root = Path(sys.argv[1]) if len(sys.argv) == 2 else Path("source code")
-settings_path = source_root / "src/com/harleytg/forum/HcfSubActivities.java"
+settings_path = source_root / "src/com/harleytg/forum/HcfUI.java"
 if not settings_path.is_file():
     fail(f"missing {settings_path}")
 

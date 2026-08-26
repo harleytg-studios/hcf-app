@@ -33,25 +33,32 @@ if len(sys.argv) > 2:
 root = Path(sys.argv[1]).resolve() if len(sys.argv) == 2 else Path.cwd().resolve()
 source = root / "source code"
 manifest = text(source / "AndroidManifest.xml")
-build_info = text(source / "src/com/harleytg/forum/HcfApplication.java")
+java_source = source / "src/com/harleytg/forum"
+core_source = text(java_source / "HcfCore.java")
+forum_source = text(java_source / "HcfForum.java")
+ui_source = text(java_source / "HcfUI.java")
+notifications_source = text(java_source / "HcfNotifications.java")
+updates_source = text(java_source / "HcfUpdates.java")
+platform_source = text(java_source / "HcfPlatform.java")
+build_info = core_source
 readme = text(root / "README.md")
 build_script = text(source / "build-release.sh")
-app_prefs = text(source / "src/com/harleytg/forum/HcfSecurityAndPrefs.java")
-app_security = text(source / "src/com/harleytg/forum/HcfSecurityAndPrefs.java")
-downloader = text(source / "src/com/harleytg/forum/HcfUpdateEngine.java")
-update_checker = text(source / "src/com/harleytg/forum/HcfUpdateEngine.java")
-notification_helper = text(source / "src/com/harleytg/forum/HcfNotificationEngine.java")
-main_activity = text(source / "src/com/harleytg/forum/HcfMainActivities.java")
-hcf_application = text(source / "src/com/harleytg/forum/HcfApplication.java")
-setup_center = text(source / "src/com/harleytg/forum/HcfMainActivities.java")
-setup_completion_guard = text(source / "src/com/harleytg/forum/HcfSetupCompletionGuard.java")
-desktop_mode = text(source / "src/com/harleytg/forum/HcfDesktopMode.java")
-ban_system = text(source / "src/com/harleytg/forum/HcfBanSystem.java")
-discord_observation = text(source / "src/com/harleytg/forum/HcfDiscordObservation.java")
-session_persistence = text(source / "src/com/harleytg/forum/HcfSessionPersistence.java")
-native_routes = text(source / "src/com/harleytg/forum/HcfNativeRoutes.java")
-settings_transfer = text(source / "src/com/harleytg/forum/HcfSettingsTransfer.java")
-settings_transfer_ui = text(source / "src/com/harleytg/forum/HcfSettingsImportUi.java")
+app_prefs = core_source
+app_security = core_source
+downloader = updates_source
+update_checker = updates_source
+notification_helper = notifications_source
+main_activity = forum_source
+hcf_application = core_source
+setup_center = forum_source
+setup_completion_guard = core_source
+desktop_mode = platform_source
+ban_system = platform_source
+discord_observation = notifications_source
+session_persistence = forum_source
+native_routes = platform_source
+settings_transfer = core_source
+settings_transfer_ui = ui_source
 assetlinks = text(root / "configs/app-links/assetlinks.json")
 app_links_readme = text(root / "configs/app-links/README.md")
 workflows = list((root / ".github/workflows").glob("*.yml"))
@@ -82,27 +89,21 @@ require("brand spelling regression", "Harley's Studios" in build_info and "Harle
 require("obsolete brand spelling remains", "Harley's Studio's" not in build_info and "Studio&apos;s" not in manifest)
 
 expected_java_files = {
-    "HcfAppLinksConfig.java",
-    "HcfApplication.java",
-    "HcfBrandedLoader.java",
-    "HcfBanSystem.java",
-    "HcfDesktopMode.java",
-    "HcfDiscordObservation.java",
-    "HcfSessionPersistence.java",
-    "HcfSetupCompletionGuard.java",
-    "HcfNativeRoutes.java",
-    "HcfSecurityAndPrefs.java",
-    "HcfSettingsTransfer.java",
-    "HcfSettingsImportUi.java",
-    "HcfUpdateEngine.java",
-    "HcfNotificationEngine.java",
-    "HcfForumEngine.java",
-    "HcfMainActivities.java",
-    "HcfSubActivities.java",
-    "HcfUITheme.java",
+    "HcfCore.java",
+    "HcfPlatform.java",
+    "HcfUpdates.java",
+    "HcfNotifications.java",
+    "HcfForum.java",
+    "HcfUI.java",
 }
 actual_java_files = {p.name for p in (source / "src/com/harleytg/forum").glob("*.java")}
 require("Java runtime source set mismatch", actual_java_files == expected_java_files)
+for java_file in expected_java_files:
+    class_name = java_file.removesuffix(".java")
+    require(
+        f"public consolidated source host missing: {class_name}",
+        f"public final class {class_name}" in text(java_source / java_file),
+    )
 require("URL-bar back button missing", 'android:id="@+id/urlBackButton"' in text(source / "res/layout/activity_main.xml"))
 
 production_files = list((source / "src").rglob("*.java"))
@@ -118,7 +119,7 @@ require("primary forum host missing", "forum.harleytg.com" in all_runtime_text)
 require("backup forum host missing", "harleysclan.freeflarum.com" in all_runtime_text)
 require("KaiOS source must not be bundled", "kaios" not in all_runtime_text.lower())
 
-require("SetupActivity missing from manifest", f'{EXPECTED_PACKAGE}.HcfMainActivities$SetupActivity' in manifest)
+require("SetupActivity missing from manifest", f'{EXPECTED_PACKAGE}.HcfForum$SetupActivity' in manifest)
 require("Setup Center lifecycle launch missing", "SetupCenter.maybeLaunchForMainActivity" in hcf_application)
 require("Setup Center drawer entry missing", 'setup.setText("App Setup")' in setup_center)
 require("Setup completion guard provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfSetupCompletionGuard$BootstrapProvider' in manifest)
@@ -126,7 +127,7 @@ require("Setup completion guard does not check completion state", "AppPrefs.SETU
 require("Setup completion guard does not remove drawer entry", "hidden_after_completion" in setup_completion_guard and "removeViewAt" in setup_completion_guard)
 require("Setup completion guard cannot restore entry after reset", "SetupCenter.installDrawerEntry(activity)" in setup_completion_guard)
 
-require("Desktop mode provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfDesktopMode$BootstrapProvider' in manifest)
+require("Desktop mode provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfPlatform$BootstrapProvider' in manifest)
 require("application is not explicitly resizable", 'android:resizeableActivity="true"' in manifest)
 require("desktop resize configChanges missing", 'screenSize|smallestScreenSize|orientation|screenLayout|keyboardHidden|keyboard|uiMode' in manifest)
 require("desktop phone breakpoint missing", "TABLET_MIN_DP = 600" in desktop_mode)
@@ -196,8 +197,8 @@ require("v4 signature sidecar check missing", "Missing APK Signature Scheme v4 s
 require("release gate is not called by build", "verify-release-readiness.py" in build_script)
 require("canonical v10000099 workflow missing", any(path.name == "build-dev-v10000099.yml" for path in workflows))
 alerts_workflow = text(root / ".github/workflows/verify-hcf-alerts-ui.yml")
-require("HCF Alerts workflow watches obsolete SettingsActivity.java path", "SettingsActivity.java" not in alerts_workflow)
-require("HCF Alerts workflow does not watch HcfSubActivities.java", "HcfSubActivities.java" in alerts_workflow)
+require("HCF Alerts workflow watches obsolete split UI path", "HcfSubActivities.java" not in alerts_workflow)
+require("HCF Alerts workflow does not watch HcfUI.java", "HcfUI.java" in alerts_workflow)
 for path in workflows:
     require(f"release workflow must not write repository contents: {path.name}", "contents: write" not in text(path))
 

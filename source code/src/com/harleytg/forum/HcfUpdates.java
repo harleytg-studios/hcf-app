@@ -52,8 +52,10 @@ import java.util.Locale;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-public final class HcfUpdateEngine {
-    private HcfUpdateEngine() {}
+
+// ---- Consolidated from HcfUpdateEngine.java ----
+public final class HcfUpdates {
+    private HcfUpdates() {}
 
     // ---- UpdateCheckJobService.java ----
     /* loaded from: classes.dex */
@@ -682,7 +684,7 @@ final class AppUpdateDownloader {
             File file = (externalFilesDir == null || string == null || string.trim().isEmpty()) ? null : new File(externalFilesDir, string);
             if (file != null && file.isFile()) {
                 try {
-                    Uri uriForFile = HcfUpdateEngine.UpdateFileProvider.uriForFile(context, file);
+                    Uri uriForFile = HcfUpdates.UpdateFileProvider.uriForFile(context, file);
                     if (launchInstaller(context, installerIntent(uriForFile), uriForFile)) {
                         sharedPreferences.edit().putBoolean("update_install_pending", true).remove("update_resume_after_permission").apply();
                         AppLogger.info(context, "update_install", "app-provider | " + uriForFile.getAuthority());
@@ -958,7 +960,7 @@ final class UpdateScheduler {
             if (jobScheduler == null) {
                 return;
             }
-            AppLogger.info(context, "update_schedule", jobScheduler.schedule(new JobInfo.Builder(JOB_ID, new ComponentName(context, (Class<?>) HcfUpdateEngine.UpdateCheckJobService.class)).setRequiredNetworkType(1).setPeriodic(PERIOD_MS).setPersisted(true).build()) == 1 ? "scheduled_6h" : "failed");
+            AppLogger.info(context, "update_schedule", jobScheduler.schedule(new JobInfo.Builder(JOB_ID, new ComponentName(context, (Class<?>) HcfUpdates.UpdateCheckJobService.class)).setRequiredNetworkType(1).setPeriodic(PERIOD_MS).setPersisted(true).build()) == 1 ? "scheduled_6h" : "failed");
         } catch (Throwable th) {
             AppLogger.error(context, "update_schedule", th.getClass().getSimpleName() + ": " + String.valueOf(th.getMessage()));
         }

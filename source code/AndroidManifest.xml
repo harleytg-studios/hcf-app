@@ -29,7 +29,7 @@
         android:theme="@style/Theme.HCF"
         android:label="@string/app_name"
         android:icon="@drawable/htg_app_logo"
-        android:name="com.harleytg.forum.dev.HcfApplication$App"
+        android:name="com.harleytg.forum.dev.HcfCore$App"
         android:allowBackup="false"
         android:logo="@drawable/htg_app_logo"
         android:supportsRtl="true"
@@ -45,25 +45,25 @@
         <meta-data android:name="com.harleytg.APP_TYPE" android:value="Native Android Application"/>
         <meta-data android:name="com.harleytg.SESSION_CLIENT" android:value="Harley&apos;s Clan Forum App"/>
         <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="true"/>
-        <provider android:name="com.harleytg.forum.dev.HcfUpdateEngine$UpdateFileProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.updatefiles" android:grantUriPermissions="true"/>
+        <provider android:name="com.harleytg.forum.dev.HcfUpdates$UpdateFileProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.updatefiles" android:grantUriPermissions="true"/>
         <provider android:name="com.harleytg.forum.dev.HcfNativeRoutes$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.nativeroutes" android:initOrder="120"/>
         <provider android:name="com.harleytg.forum.dev.HcfSetupCompletionGuard$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.setupcompletion" android:initOrder="115"/>
-        <provider android:name="com.harleytg.forum.dev.HcfDesktopMode$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.desktopmode" android:initOrder="114"/>
+        <provider android:name="com.harleytg.forum.dev.HcfPlatform$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.desktopmode" android:initOrder="114"/>
         <provider android:name="com.harleytg.forum.dev.HcfSessionPersistence$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.sessionpersistence" android:initOrder="110"/>
         <provider android:name="com.harleytg.forum.dev.HcfAppLinksConfig$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.applinksconfig" android:initOrder="100"/>
         <provider android:name="com.harleytg.forum.dev.HcfDiscordObservation$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.discordobservation" android:initOrder="90"/>
         <provider android:name="com.harleytg.forum.dev.HcfSettingsImportUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.settingstransfer" android:initOrder="85"/>
-        <activity android:name="com.harleytg.forum.dev.HcfMainActivities$WelcomeActivity" android:exported="false"/>
-        <activity android:name="com.harleytg.forum.dev.HcfMainActivities$SetupActivity" android:exported="false"/>
+        <activity android:name="com.harleytg.forum.dev.HcfForum$WelcomeActivity" android:exported="false"/>
+        <activity android:name="com.harleytg.forum.dev.HcfForum$SetupActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSettingsImportUi$TransferActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$SettingsActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$LogsActivity" android:exported="false"/>
-        <activity android:name="com.harleytg.forum.dev.HcfMainActivities$CookieManagerActivity" android:exported="false"/>
+        <activity android:name="com.harleytg.forum.dev.HcfForum$CookieManagerActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$IdentityActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$SupportContactActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$MediaViewerActivity" android:exported="false" android:screenOrientation="unspecified"/>
-        <activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupMainActivity" android:exported="false" android:launchMode="singleTop"/>
-        <activity android:name="com.harleytg.forum.dev.HcfUITheme$StartupActivity" android:exported="true" android:launchMode="singleTop">
+        <activity android:name="com.harleytg.forum.dev.HcfUI$StartupMainActivity" android:exported="false" android:launchMode="singleTop"/>
+        <activity android:name="com.harleytg.forum.dev.HcfUI$StartupActivity" android:exported="true" android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -83,16 +83,16 @@
         </activity>
         <activity android:name="com.harleytg.forum.dev.HcfBanSystem$BanActivity" android:exported="false" android:launchMode="singleTop"/>
         <activity android:name="com.harleytg.forum.dev.HcfBanSystem$GateActivity" android:exported="false" android:launchMode="singleTop"/>
-        <service android:name="com.harleytg.forum.dev.HcfNotificationEngine$InstantNotificationService" android:enabled="true" android:exported="false" android:stopWithTask="false" android:foregroundServiceType="specialUse">
+        <service android:name="com.harleytg.forum.dev.HcfNotifications$InstantNotificationService" android:enabled="true" android:exported="false" android:stopWithTask="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Continuously checks the authenticated Harley&apos;s Clan Forum account for time-sensitive user-visible forum notifications while the app is foregrounded or backgrounded."/>
         </service>
-        <service android:name="com.harleytg.forum.dev.HcfNotificationEngine$NotificationSyncJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
-        <service android:name="com.harleytg.forum.dev.HcfUpdateEngine$UpdateCheckJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
-        <receiver android:name="com.harleytg.forum.dev.HcfUpdateEngine$UpdateDownloadReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.DOWNLOAD_COMPLETE"/></intent-filter></receiver>
-        <receiver android:name="com.harleytg.forum.dev.HcfNotificationEngine$BootReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.MY_PACKAGE_REPLACED"/></intent-filter></receiver>
-        <receiver android:name="com.harleytg.forum.dev.HcfNotificationEngine$NotificationActionReceiver" android:enabled="true" android:exported="false"/>
+        <service android:name="com.harleytg.forum.dev.HcfNotifications$NotificationSyncJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <service android:name="com.harleytg.forum.dev.HcfUpdates$UpdateCheckJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <receiver android:name="com.harleytg.forum.dev.HcfUpdates$UpdateDownloadReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.DOWNLOAD_COMPLETE"/></intent-filter></receiver>
+        <receiver android:name="com.harleytg.forum.dev.HcfNotifications$BootReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.MY_PACKAGE_REPLACED"/></intent-filter></receiver>
+        <receiver android:name="com.harleytg.forum.dev.HcfNotifications$NotificationActionReceiver" android:enabled="true" android:exported="false"/>
         <activity
-            android:name="com.harleytg.forum.dev.HcfMainActivities$MainActivity"
+            android:name="com.harleytg.forum.dev.HcfForum$MainActivity"
             android:exported="false"
             android:launchMode="singleTop"
             android:resizeableActivity="true"

@@ -368,11 +368,11 @@ def patch_main(path: Path) -> None:
 
 def main() -> None:
     if len(sys.argv) != 2:
-        raise SystemExit("Usage: apply-onboarding-live-session.py <HcfMainActivities.java>")
+        raise SystemExit("Usage: apply-onboarding-live-session.py <HcfForum.java>")
 
     path = Path(sys.argv[1])
     if not path.is_file():
-        raise SystemExit("HcfMainActivities.java is missing")
+        raise SystemExit("HcfForum.java is missing")
     patch_main(path)
 
 

@@ -244,7 +244,7 @@ def patch_main(path: Path) -> None:
         private void openForumAccountRoute(String path, String source) {
             String safePath = path == null || !path.startsWith("/") ? "/" : path;
             Uri target = Uri.parse("https://" + setupForumHost() + safePath);
-            Intent intent = new Intent(this, HcfMainActivities.MainActivity.class);
+            Intent intent = new Intent(this, HcfForum.MainActivity.class);
             intent.setData(target);
             intent.putExtra("hcf_setup_account_flow", true);
             startActivity(intent);
@@ -304,7 +304,7 @@ def patch_application(path: Path) -> None:
     text = replace_once(
         text,
         '''                        try {
-                            SetupCenter.maybeLaunchForMainActivity((HcfMainActivities.MainActivity) activity, state);
+                            SetupCenter.maybeLaunchForMainActivity((HcfForum.MainActivity) activity, state);
                         } catch (Throwable error) {''',
         '''                        try {
                             // HCF_ONBOARDING_ACCOUNT_FLOW_GUARD_V1
@@ -314,7 +314,7 @@ def patch_application(path: Path) -> None:
                             if (setupAccountFlow) {
                                 AppLogger.info(App.this, "app_setup_account_flow", "skip_auto_setup_gate");
                             } else {
-                                SetupCenter.maybeLaunchForMainActivity((HcfMainActivities.MainActivity) activity, state);
+                                SetupCenter.maybeLaunchForMainActivity((HcfForum.MainActivity) activity, state);
                             }
                         } catch (Throwable error) {''',
         "setup-flow-auto-gate",
@@ -326,7 +326,7 @@ def patch_application(path: Path) -> None:
 
 def main() -> None:
     if len(sys.argv) != 3:
-        raise SystemExit("Usage: apply-onboarding-account.py <HcfMainActivities.java> <HcfApplication.java>")
+        raise SystemExit("Usage: apply-onboarding-account.py <HcfForum.java> <HcfCore.java>")
 
     main_path = Path(sys.argv[1])
     app_path = Path(sys.argv[2])
