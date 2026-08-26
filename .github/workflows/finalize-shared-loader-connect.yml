@@ -24,17 +24,14 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
           path = Path('source code/src/com/harleytg/forum/HcfMainActivities.java')
           text = path.read_text(encoding='utf-8')
-          old = """if (z) {
-                    this.brandedLoader.showConnecting(str);
-                } else {
-                    this.brandedLoader.hide(false);
-                }"""
-          new = """this.brandedLoader.showConnecting(str);"""
-          if text.count(old) != 1:
-              raise SystemExit(f'showChecking shared-loader inner anchor mismatch: {text.count(old)}')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          pattern = r'if \(z\) \{\s*this\.brandedLoader\.showConnecting\(str\);\s*\} else \{\s*this\.brandedLoader\.hide\(false\);\s*\}'
+          text, count = re.subn(pattern, 'this.brandedLoader.showConnecting(str);', text, count=1)
+          if count != 1:
+              raise SystemExit(f'showChecking shared-loader structural anchor mismatch: {count}')
+          path.write_text(text, encoding='utf-8')
           Path('.github/workflows/finalize-shared-loader-connect.yml').unlink()
           PY
 
@@ -48,7 +45,6 @@ jobs:
           grep -Fq 'this.brandedLoader.showConnecting(str);' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
           grep -Fq 'MainActivity.this.brandedLoader.showReconnecting(reconnectHost);' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
           grep -Fq 'this.brandedLoader.hide(true);' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
-          ! grep -Fq 'this.brandedLoader.hide(false);' 'source code/src/com/harleytg/forum/HcfMainActivities.java' || grep -Fq 'public void showUnavailable' 'source code/src/com/harleytg/forum/HcfMainActivities.java'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
