@@ -25,6 +25,9 @@ public final class HcfWidget {
     public static final String TARGET_FORUM = "forum";
     public static final String TARGET_NOTIFICATIONS = "notifications";
 
+    /** User setting: show the connected forum identity in the widget status line. */
+    public static final String PREF_SHOW_CONNECTED_USERNAME = "widget_show_connected_username";
+
     private static final int REQUEST_OPEN_BODY = 42100;
     private static final int REQUEST_OPEN_FORUM = 42101;
     private static final int REQUEST_OPEN_NOTIFICATIONS = 42102;
@@ -116,6 +119,8 @@ public final class HcfWidget {
             public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
                 if (AppPrefs.LAST_NOTIFICATION_COUNT.equals(key)
                         || AppPrefs.SESSION_USER_ID.equals(key)
+                        || AppPrefs.IDENTITY_USERNAME.equals(key)
+                        || PREF_SHOW_CONNECTED_USERNAME.equals(key)
                         || AppPrefs.WIDGET_FOLLOW_APP_THEME.equals(key)
                         || AppPrefs.APP_THEME.equals(key)
                         || AppPrefs.FORUM_AUTO_THEME.equals(key)) {
@@ -145,14 +150,23 @@ public final class HcfWidget {
         String userId = prefs.getString(AppPrefs.SESSION_USER_ID, "");
         boolean signedIn = userId != null && !userId.trim().isEmpty();
         int unreadCount = Math.max(0, prefs.getInt(AppPrefs.LAST_NOTIFICATION_COUNT, 0));
+        boolean showConnectedUsername = prefs.getBoolean(PREF_SHOW_CONNECTED_USERNAME, true);
+        String username = prefs.getString(AppPrefs.IDENTITY_USERNAME, "");
+        String connectedHandle = username == null ? "" : username.trim();
+        if (!connectedHandle.isEmpty() && !connectedHandle.startsWith("@")) {
+            connectedHandle = "@" + connectedHandle;
+        }
 
         CharSequence status;
         if (!signedIn) {
             status = context.getString(R.string.widget_hcf_signed_out);
-        } else if (unreadCount == 0) {
-            status = context.getString(R.string.widget_hcf_no_notifications);
         } else {
-            status = context.getString(R.string.widget_hcf_unread_count, unreadCount);
+            String notificationState = unreadCount == 0
+                    ? context.getString(R.string.widget_hcf_no_notifications)
+                    : context.getString(R.string.widget_hcf_unread_count, unreadCount);
+            status = showConnectedUsername && !connectedHandle.isEmpty()
+                    ? connectedHandle + " • " + notificationState
+                    : notificationState;
         }
 
         RemoteViews views = new RemoteViews(

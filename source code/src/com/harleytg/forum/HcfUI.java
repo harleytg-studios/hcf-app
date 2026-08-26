@@ -4588,7 +4588,7 @@ final class HcfSubActivities {
             addSettingsCategory(list, "Account & Security", "Forum identity, profile and account controls", "account_security");
             addSettingsCategory(list, "Notifications", "Required alerts, silent background alerts and notification tools", "notifications");
             addSettingsCategory(list, "Appearance & Performance", "Theme, interface density and performance", "appearance");
-            addSettingsCategory(list, "Home-screen Widget", "Theme source and widget appearance", "widget");
+            addSettingsCategory(list, "Home-screen Widget", "Theme source, connected identity and widget appearance", "widget");
             addSettingsCategory(list, "Forum & Site Data", "Server routing, links, cookies and local site data", "forum_data");
             addSettingsCategory(list, "Advanced & About", "App permissions, updates, recovery, telemetry, developer tools and build information", "advanced");
         }
@@ -4642,6 +4642,7 @@ final class HcfSubActivities {
                 new SettingTarget("show_startup_screen", "Show startup connection screen", "startup launch connection screen", "appearance", "appearance_performance"),
                 new SettingTarget("verbose_startup_loader", "Verbose startup loader", "startup loading detailed checks progress completed verbose compact", "appearance", "appearance_performance"),
                 new SettingTarget("widget_follow_app_theme", "Follow HCF app theme", "widget home screen theme app phone system light dark amoled", "widget", "widget_appearance"),
+                new SettingTarget("widget_show_connected_username", "Show connected @username", "widget account identity connected username handle profile", "widget", "widget_appearance"),
                 new SettingTarget("refresh_widget_now", "Refresh Home-screen Widget", "widget refresh reload home screen", "widget", "widget_appearance"),
                 new SettingTarget("auto_failover", "Automatically use backup if primary fails", "server backup failover routing", "forum_data", "connection_routing"),
                 new SettingTarget("external_links", "Allow external links to open in browser/apps", "links browser external apps", "forum_data", "connection_routing"),
@@ -5465,6 +5466,18 @@ final class HcfSubActivities {
 
             card.addView(text(
                     "When on, the widget uses HCF's selected Light, Dark, AMOLED, or resolved Auto theme even when the phone/launcher uses the opposite theme. Turn it off only if you want the widget to follow Android's phone theme instead.",
+                    10, getColor(R.color.hcf_muted)));
+
+            final boolean showConnectedUsername = prefs.getBoolean(HcfWidget.PREF_SHOW_CONNECTED_USERNAME, true);
+            Switch connectedUsername = target(toggle("Show connected @username", showConnectedUsername), "widget_show_connected_username");
+            connectedUsername.setOnCheckedChangeListener((button, checked) -> {
+                prefs.edit().putBoolean(HcfWidget.PREF_SHOW_CONNECTED_USERNAME, checked).apply();
+                HcfWidget.refreshAll(this);
+                AppLogger.info(this, "setting_widget_connected_username", checked ? "shown" : "hidden");
+            });
+            card.addView(connectedUsername);
+            card.addView(text(
+                    "When on, signed-in widgets show the connected forum identity as @username next to the cached notification state. No username is shown while signed out.",
                     10, getColor(R.color.hcf_muted)));
 
             card.addView(target(actionButton("Refresh Home-screen Widget", v -> {
@@ -7554,6 +7567,7 @@ final class HcfSettingsImportUi {
                 AppPrefs.SHOW_BOTTOM_NAV,
                 AppPrefs.SHOW_STARTUP_SCREEN,
                 AppPrefs.WIDGET_FOLLOW_APP_THEME,
+                HcfWidget.PREF_SHOW_CONNECTED_USERNAME,
                 AppPrefs.SHOW_URL_BAR,
                 AppPrefs.SILENCE_BACKGROUND_SERVICE_NOTIFICATION,
                 AppPrefs.TELEMETRY_ASK_BEFORE_CRASH_REPORT,
