@@ -6,8 +6,8 @@ import re
 import sys
 
 
-EXPECTED_VERSION_CODE = 10000099
-EXPECTED_INTERNAL_BUILD = 118
+EXPECTED_VERSION_CODE = 100000101
+EXPECTED_INTERNAL_BUILD = 119
 EXPECTED_PACKAGE = "com.harleytg.forum.dev"
 EXPECTED_SIGNER = "93:D4:9B:F9:A8:77:C7:CF:B1:B3:7F:90:64:BD:95:5C:D6:7B:D7:DD:8D:B7:3A:9E:3F:76:6B:59:C4:BC:CE:63"
 
@@ -76,7 +76,7 @@ version_code = int(version_match.group(1))
 require(f"expected versionCode {EXPECTED_VERSION_CODE}", version_code == EXPECTED_VERSION_CODE)
 require("manifest/BuildInfo versionCode mismatch", int(build_version_match.group(1)) == version_code)
 require("wrong internal build", int(internal_match.group(1)) == EXPECTED_INTERNAL_BUILD)
-require("wrong versionName", name_match.group(1) == f"1.0 ({version_code})")
+require("wrong versionName", name_match.group(1) == f"1.1 ({version_code})")
 require("wrong Dev package", f'package="{EXPECTED_PACKAGE}"' in manifest)
 require("wrong minimum SDK", 'android:minSdkVersion="26"' in manifest)
 require("wrong target SDK", 'android:targetSdkVersion="34"' in manifest)
@@ -95,6 +95,7 @@ expected_java_files = {
     "HcfNotifications.java",
     "HcfForum.java",
     "HcfUI.java",
+    "HcfWidget.java",
 }
 actual_java_files = {p.name for p in (source / "src/com/harleytg/forum").glob("*.java")}
 require("Java runtime source set mismatch", actual_java_files == expected_java_files)
