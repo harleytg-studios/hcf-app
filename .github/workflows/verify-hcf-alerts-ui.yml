@@ -70,13 +70,13 @@ jobs:
 
           unzip -p "$APK" classes.dex | strings > "$OUT/DEX-STRINGS.txt"
           grep -Fq 'Background notification sync' "$OUT/DEX-STRINGS.txt"
-          grep -Fq 'HCF Alerts are the real forum alerts.' "$OUT/DEX-STRINGS.txt"
-          grep -Fq 'HCF Silent Alerts is only the silent service-status channel.' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Real forum alerts (messages, mentions, replies, updates) use HCF Alerts.' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'App silent controls never affect this channel.' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'Permission allowed' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'High priority' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'Open Android settings' "$OUT/DEX-STRINGS.txt"
           ! grep -Fq 'Open HCF Alerts Android Settings' "$OUT/DEX-STRINGS.txt"
-          ! grep -Fq 'Real forum alerts' "$OUT/DEX-STRINGS.txt"
+          ! grep -Fq 'Allow Notification Permission' "$OUT/DEX-STRINGS.txt"
           ! grep -Fq 'Method not decompiled:' "$OUT/DEX-STRINGS.txt"
 
           "$BT/aapt" dump badging "$APK" | head -1 | tee "$OUT/APK-BADGING.txt"
