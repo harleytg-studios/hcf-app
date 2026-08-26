@@ -1,4 +1,4 @@
-name: Apply HCF Widget v100000101
+name: Align HCF v100000101 Release Verifier
 
 on:
   push:
@@ -19,23 +19,30 @@ jobs:
         with:
           ref: dev
 
-      - name: Apply widget and release patch
+      - name: Update release verifier
         shell: bash
         run: |
           set -euo pipefail
-          python3 .github/scripts/apply-widget-v100000101.py
-
-          # The Actions token can update normal source files but is intentionally
-          # not allowed to create/rename workflow files. Keep those changes out of
-          # this commit; the connected GitHub account applies them separately.
-          git checkout HEAD -- .github/scripts/verify-release-readiness.py
-          git checkout HEAD -- .github/workflows/build-dev-v10000099.yml
-          rm -f .github/workflows/build-dev-v100000101.yml
-          rm -f .github/scripts/apply-widget-v100000101.py
-
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/verify-release-readiness.py')
+          text = path.read_text(encoding='utf-8')
+          replacements = [
+              ('EXPECTED_VERSION_CODE = 10000099', 'EXPECTED_VERSION_CODE = 100000101'),
+              ('EXPECTED_INTERNAL_BUILD = 118', 'EXPECTED_INTERNAL_BUILD = 119'),
+              ('require("wrong versionName", name_match.group(1) == f"1.0 ({version_code})")',
+               'require("wrong versionName", name_match.group(1) == f"1.1 ({version_code})")'),
+              ('    "HcfUI.java",\n}', '    "HcfUI.java",\n    "HcfWidget.java",\n}'),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'Missing expected verifier fragment: {old}')
+              text = text.replace(old, new)
+          path.write_text(text, encoding='utf-8')
+          PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add .github/scripts/verify-release-readiness.py
           git diff --cached --check
-          git commit -m 'Add HCF notifications widget and bump Beta to 1.1 (100000101)'
+          git commit -m 'Align release verifier for Beta 1.1 (100000101)'
           git push origin HEAD:dev
