@@ -116,6 +116,11 @@ for widget_key in ("WIDGET_SHOW_CONNECTED_USERNAME", "WIDGET_SHOW_UNREAD_COUNT",
 require("widget expanded settings UI missing", all(label in ui_source for label in ("Show unread count", "Compact widget mode", "Show last updated time", "Default widget tap")))
 require("widget last-updated view missing", 'widget_hcf_updated' in widget_source and 'widget_hcf_updated' in text(source / "res/layout/widget_hcf_notifications.xml"))
 require("widget default tap routing missing", 'bodyPendingIntent' in widget_source and 'TAP_NOTIFICATIONS' in widget_source and 'TAP_SETTINGS' in widget_source)
+require("widget real-time sync timestamp missing", 'PREF_LAST_REALTIME_SYNC_MS' in widget_source and 'Synced ' in widget_source)
+require("widget real-time notification refresh helper missing", 'refreshWidgetAfterNotificationSync' in notifications_source and 'HcfWidget.refreshAll(context)' in notifications_source)
+require("adaptive sync does not redraw widget", 'refreshWidgetAfterNotificationSync(this, "adaptive")' in notifications_source)
+require("one-shot sync does not redraw widget", 'refreshWidgetAfterNotificationSync(context, "silent-one-shot")' in notifications_source)
+require("fallback job sync does not redraw widget", 'refreshWidgetAfterNotificationSync(this, "fallback-job")' in notifications_source)
 for palette in ("light", "dark", "amoled"):
     require(f"widget {palette} background missing", (source / f"res/drawable/widget_hcf_background_{palette}.xml").is_file())
     require(f"widget {palette} action background missing", (source / f"res/drawable/widget_hcf_action_background_{palette}.xml").is_file())

@@ -31,6 +31,7 @@ public final class HcfWidget {
     public static final String PREF_COMPACT_MODE = AppPrefs.WIDGET_COMPACT_MODE;
     public static final String PREF_SHOW_LAST_UPDATED = AppPrefs.WIDGET_SHOW_LAST_UPDATED;
     public static final String PREF_DEFAULT_TAP_ACTION = AppPrefs.WIDGET_DEFAULT_TAP_ACTION;
+    public static final String PREF_LAST_REALTIME_SYNC_MS = "widget_last_realtime_sync_ms";
 
     public static final String TAP_FORUM = "forum";
     public static final String TAP_NOTIFICATIONS = "notifications";
@@ -133,6 +134,7 @@ public final class HcfWidget {
                         || PREF_COMPACT_MODE.equals(key)
                         || PREF_SHOW_LAST_UPDATED.equals(key)
                         || PREF_DEFAULT_TAP_ACTION.equals(key)
+                        || PREF_LAST_REALTIME_SYNC_MS.equals(key)
                         || AppPrefs.WIDGET_FOLLOW_APP_THEME.equals(key)
                         || AppPrefs.APP_THEME.equals(key)
                         || AppPrefs.FORUM_AUTO_THEME.equals(key)) {
@@ -166,6 +168,7 @@ public final class HcfWidget {
         boolean showUnreadCount = prefs.getBoolean(PREF_SHOW_UNREAD_COUNT, true);
         boolean compactMode = prefs.getBoolean(PREF_COMPACT_MODE, false);
         boolean showLastUpdated = prefs.getBoolean(PREF_SHOW_LAST_UPDATED, false);
+        long lastRealtimeSyncMs = Math.max(0L, prefs.getLong(PREF_LAST_REALTIME_SYNC_MS, 0L));
         String username = prefs.getString(AppPrefs.IDENTITY_USERNAME, "");
         String connectedHandle = username == null ? "" : username.trim();
         if (!connectedHandle.isEmpty() && !connectedHandle.startsWith("@")) {
@@ -195,9 +198,10 @@ public final class HcfWidget {
             }
         }
 
-        String updatedText = "Updated "
-                + android.text.format.DateFormat.getTimeFormat(context)
-                .format(new java.util.Date());
+        String updatedText = lastRealtimeSyncMs > 0L
+                ? "Synced " + android.text.format.DateFormat.getTimeFormat(context)
+                .format(new java.util.Date(lastRealtimeSyncMs))
+                : "Waiting for live sync";
 
         RemoteViews views = new RemoteViews(
                 context.getPackageName(),

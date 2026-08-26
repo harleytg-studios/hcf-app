@@ -71,6 +71,21 @@ public final class HcfNotifications {
 
     private HcfNotifications() {}
 
+    /** Redraw placed widgets immediately after a successful forum notification sync. */
+    private static void refreshWidgetAfterNotificationSync(Context context, String source) {
+        if (context == null) return;
+        try {
+            context.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE).edit()
+                    .putLong(HcfWidget.PREF_LAST_REALTIME_SYNC_MS, System.currentTimeMillis())
+                    .apply();
+            HcfWidget.refreshAll(context);
+            AppLogger.info(context, "widget_live_refresh", source == null ? "sync" : source);
+        } catch (Throwable error) {
+            try { AppLogger.warn(context, "widget_live_refresh", error.getClass().getSimpleName()); }
+            catch (Throwable ignored) {}
+        }
+    }
+
     // ---- InstantNotificationService.java ----
     public static final class InstantNotificationService extends Service {
         static final String ACTION_SYNC_NOW = "com.harleytg.forum.dev.SYNC_NOTIFICATIONS_NOW";
@@ -153,6 +168,7 @@ public final class HcfNotifications {
                 String host = prefs.getString("active_host", "forum.harleytg.com");
                 if (!ForumUrlRouter.isForumHost(host)) host = "forum.harleytg.com";
                 ForumNotificationSync.perform(context, host, userId.trim(), "silent-one-shot");
+                refreshWidgetAfterNotificationSync(context, "silent-one-shot");
             } catch (ForumNotificationClient.HttpStatusException e) {
                 if (e.statusCode == 401) {
                     clearSessionForAuthFailure(context, "one-shot");
@@ -324,6 +340,7 @@ public final class HcfNotifications {
                     String host = prefs.getString("active_host", "forum.harleytg.com");
                     if (!ForumUrlRouter.isForumHost(host)) host = "forum.harleytg.com";
                     ForumNotificationSync.perform(this, host, userId.trim(), "adaptive");
+                    refreshWidgetAfterNotificationSync(this, "adaptive");
                     failures = 0;
                     nextDelay = PerformanceProfile.notificationPollInterval(this, prefs);
                 }
@@ -483,6 +500,7 @@ public final class HcfNotifications {
             String host = prefs.getString("active_host", "forum.harleytg.com");
             try {
                 ForumNotificationSync.perform(this, ForumUrlRouter.isForumHost(host) ? host : "forum.harleytg.com", userId.trim(), "fallback-job");
+                refreshWidgetAfterNotificationSync(this, "fallback-job");
             } catch (ForumNotificationClient.HttpStatusException http) {
                 if (http.statusCode == 401) {
                     InstantNotificationService.clearSessionForAuthFailure(this, "fallback-job");
