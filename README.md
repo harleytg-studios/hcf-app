@@ -7,9 +7,9 @@ Development/Beta branch for the Harley's Clan Forum Android app.
 - App name: **Harley's Clan Forum [Beta]**
 - Branch: `dev`
 - Android package: `com.harleytg.forum.dev`
-- Version name: `1.0 (10000099)`
-- Version code: `10000099`
-- Internal build: `118`
+- Version name: `1.1 (100000101)`
+- Version code: `100000101`
+- Internal build: `119`
 - Minimum SDK: `26`
 - Target SDK: `34`
 - Source directory: [`source code/`](./source%20code)
@@ -29,8 +29,8 @@ This branch is Android-only and intentionally minimal.
 `source code/` contains only active Android build/runtime inputs:
 
 - `AndroidManifest.xml` — package, version, permissions, components, and App Link declarations.
-- `src/` — six consolidated Java subsystem sources: `HcfCore`, `HcfForum`, `HcfUI`,
-  `HcfNotifications`, `HcfUpdates`, and `HcfPlatform`.
+- `src/` — seven consolidated Java subsystem sources: `HcfCore`, `HcfForum`, `HcfUI`,
+  `HcfNotifications`, `HcfUpdates`, `HcfPlatform`, plus the home-screen `HcfWidget` provider.
 - `res/` — Android resources and launcher assets.
 - `assets/` — bundled runtime assets.
 - `build-release.sh` — local compile, package, align, and signing script.
@@ -41,7 +41,7 @@ Only the two active read-only GitHub Actions workflows and their release-verific
 
 ## Release gates
 
-The v10000099 workflow compiles the complete Java/resource source, packages and aligns an unsigned CI APK, verifies package/version identity, checks the approved three-tile HCF Alerts UI, and rejects decompiler stubs or missing same-version SHA-256 update protections. Production signing remains local so the Beta private key is never stored in GitHub Actions.
+The v100000101 workflow compiles the complete Java/resource source, packages and aligns an unsigned CI APK, verifies package/version identity, checks the approved three-tile HCF Alerts UI, and rejects decompiler stubs or missing same-version SHA-256 update protections. Production signing remains local so the Beta private key is never stored in GitHub Actions.
 
 The shared Stable + Dev Digital Asset Links source is [`configs/app-links/assetlinks.json`](./configs/app-links/assetlinks.json). Its canonical deployment source is the `main`-branch path `configs/app-links/assetlinks.json`; this Dev release does not modify or rebuild the Stable app.
 
@@ -49,7 +49,7 @@ Individual authenticated forum message notifications can expose Android inline *
 
 ## HCF ban system
 
-v10000099 uses a backend-free manual moderation design:
+v100000101 uses a backend-free manual moderation design:
 
 - Public IP lookup: ipify with IPinfo fallback.
 - Signed-in sessions: Discord receives a user JSON observation.

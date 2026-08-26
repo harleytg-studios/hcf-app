@@ -11,4 +11,16 @@
     <string name="drawer">App drawer</string>
     <string name="reload">Reload</string>
     <string name="copy_url">Copy URL</string>
+    <string name="widget_hcf_name">HCF Notifications</string>
+    <string name="widget_hcf_description">Harley\'s Clan Forum notifications and quick actions</string>
+    <string name="widget_hcf_title">Harley\'s Clan Forum</string>
+    <string name="widget_hcf_logo_content_description">Harley\'s Clan Forum logo</string>
+    <string name="widget_hcf_status_initial">Tap to open forum</string>
+    <string name="widget_hcf_signed_out">Sign in for notifications</string>
+    <string name="widget_hcf_no_notifications">No new notifications · tap to open</string>
+    <string name="widget_hcf_unread_count">%1$d unread · tap to open</string>
+    <string name="widget_hcf_forum">Forum</string>
+    <string name="widget_hcf_notifications">Notifs</string>
+    <string name="widget_hcf_reload">Reload</string>
+    <string name="widget_hcf_settings">Settings</string>
 </resources>

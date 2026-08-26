@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    android:versionCode="10000099"
-    android:versionName="1.0 (10000099)"
+    android:versionCode="100000101"
+    android:versionName="1.1 (100000101)"
     android:compileSdkVersion="35"
     android:compileSdkVersionCodename="15"
     package="com.harleytg.forum.dev"
@@ -40,8 +40,8 @@
         android:appCategory="social">
         <meta-data android:name="com.harleytg.BRAND" android:value="Harley&apos;s Studios"/>
         <meta-data android:name="com.harleytg.BUILD_CHANNEL" android:value="dev"/>
-        <meta-data android:name="com.harleytg.APP_VERSION" android:value="1.0 (10000099)"/>
-        <meta-data android:name="com.harleytg.APP_VERSION_CODE" android:value="10000099"/>
+        <meta-data android:name="com.harleytg.APP_VERSION" android:value="1.1 (100000101)"/>
+        <meta-data android:name="com.harleytg.APP_VERSION_CODE" android:value="100000101"/>
         <meta-data android:name="com.harleytg.APP_TYPE" android:value="Native Android Application"/>
         <meta-data android:name="com.harleytg.SESSION_CLIENT" android:value="Harley&apos;s Clan Forum App"/>
         <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="true"/>
@@ -91,6 +91,11 @@
         <receiver android:name="com.harleytg.forum.dev.HcfUpdates$UpdateDownloadReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.DOWNLOAD_COMPLETE"/></intent-filter></receiver>
         <receiver android:name="com.harleytg.forum.dev.HcfNotifications$BootReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.MY_PACKAGE_REPLACED"/></intent-filter></receiver>
         <receiver android:name="com.harleytg.forum.dev.HcfNotifications$NotificationActionReceiver" android:enabled="true" android:exported="false"/>
+        <receiver android:name="com.harleytg.forum.dev.HcfWidget$NotificationsProvider" android:enabled="true" android:exported="false" android:label="@string/widget_hcf_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/hcf_widget_info"/>
+        </receiver>
+        <provider android:name="com.harleytg.forum.dev.HcfWidget$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.widgetbootstrap" android:initOrder="80"/>
         <activity
             android:name="com.harleytg.forum.dev.HcfForum$MainActivity"
             android:exported="false"
