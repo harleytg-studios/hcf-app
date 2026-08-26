@@ -3028,11 +3028,7 @@ public final class HcfMainActivities {
                 z = false;
             }
             if (this.brandedLoader != null) {
-                if (z) {
-                    this.brandedLoader.showConnecting(str);
-                } else {
-                    this.brandedLoader.hide(false);
-                }
+                this.brandedLoader.showConnecting(str);
                 this.statusOverlay.setVisibility(8);
                 if (this.startupStateContainer != null) {
                     this.startupStateContainer.setVisibility(8);
