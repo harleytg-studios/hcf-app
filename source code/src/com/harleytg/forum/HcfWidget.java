@@ -25,8 +25,16 @@ public final class HcfWidget {
     public static final String TARGET_FORUM = "forum";
     public static final String TARGET_NOTIFICATIONS = "notifications";
 
-    /** User setting: show the connected forum identity in the widget status line. */
-    public static final String PREF_SHOW_CONNECTED_USERNAME = "widget_show_connected_username";
+    /** User settings exposed under App Settings -> Home-screen Widget. */
+    public static final String PREF_SHOW_CONNECTED_USERNAME = AppPrefs.WIDGET_SHOW_CONNECTED_USERNAME;
+    public static final String PREF_SHOW_UNREAD_COUNT = AppPrefs.WIDGET_SHOW_UNREAD_COUNT;
+    public static final String PREF_COMPACT_MODE = AppPrefs.WIDGET_COMPACT_MODE;
+    public static final String PREF_SHOW_LAST_UPDATED = AppPrefs.WIDGET_SHOW_LAST_UPDATED;
+    public static final String PREF_DEFAULT_TAP_ACTION = AppPrefs.WIDGET_DEFAULT_TAP_ACTION;
+
+    public static final String TAP_FORUM = "forum";
+    public static final String TAP_NOTIFICATIONS = "notifications";
+    public static final String TAP_SETTINGS = "settings";
 
     private static final int REQUEST_OPEN_BODY = 42100;
     private static final int REQUEST_OPEN_FORUM = 42101;
@@ -121,6 +129,10 @@ public final class HcfWidget {
                         || AppPrefs.SESSION_USER_ID.equals(key)
                         || AppPrefs.IDENTITY_USERNAME.equals(key)
                         || PREF_SHOW_CONNECTED_USERNAME.equals(key)
+                        || PREF_SHOW_UNREAD_COUNT.equals(key)
+                        || PREF_COMPACT_MODE.equals(key)
+                        || PREF_SHOW_LAST_UPDATED.equals(key)
+                        || PREF_DEFAULT_TAP_ACTION.equals(key)
                         || AppPrefs.WIDGET_FOLLOW_APP_THEME.equals(key)
                         || AppPrefs.APP_THEME.equals(key)
                         || AppPrefs.FORUM_AUTO_THEME.equals(key)) {
@@ -151,6 +163,9 @@ public final class HcfWidget {
         boolean signedIn = userId != null && !userId.trim().isEmpty();
         int unreadCount = Math.max(0, prefs.getInt(AppPrefs.LAST_NOTIFICATION_COUNT, 0));
         boolean showConnectedUsername = prefs.getBoolean(PREF_SHOW_CONNECTED_USERNAME, true);
+        boolean showUnreadCount = prefs.getBoolean(PREF_SHOW_UNREAD_COUNT, true);
+        boolean compactMode = prefs.getBoolean(PREF_COMPACT_MODE, false);
+        boolean showLastUpdated = prefs.getBoolean(PREF_SHOW_LAST_UPDATED, false);
         String username = prefs.getString(AppPrefs.IDENTITY_USERNAME, "");
         String connectedHandle = username == null ? "" : username.trim();
         if (!connectedHandle.isEmpty() && !connectedHandle.startsWith("@")) {
@@ -161,13 +176,28 @@ public final class HcfWidget {
         if (!signedIn) {
             status = context.getString(R.string.widget_hcf_signed_out);
         } else {
-            String notificationState = unreadCount == 0
-                    ? context.getString(R.string.widget_hcf_no_notifications)
-                    : context.getString(R.string.widget_hcf_unread_count, unreadCount);
-            status = showConnectedUsername && !connectedHandle.isEmpty()
-                    ? connectedHandle + " • " + notificationState
-                    : notificationState;
+            String identityState = showConnectedUsername && !connectedHandle.isEmpty()
+                    ? connectedHandle : "";
+            String notificationState = "";
+            if (showUnreadCount) {
+                notificationState = unreadCount == 0
+                        ? context.getString(R.string.widget_hcf_no_notifications)
+                        : context.getString(R.string.widget_hcf_unread_count, unreadCount);
+            }
+            if (!identityState.isEmpty() && !notificationState.isEmpty()) {
+                status = identityState + " • " + notificationState;
+            } else if (!identityState.isEmpty()) {
+                status = identityState;
+            } else if (!notificationState.isEmpty()) {
+                status = notificationState;
+            } else {
+                status = "Connected to forum";
+            }
         }
+
+        String updatedText = "Updated "
+                + android.text.format.DateFormat.getTimeFormat(context)
+                .format(new java.util.Date());
 
         RemoteViews views = new RemoteViews(
                 context.getPackageName(),
@@ -175,11 +205,16 @@ public final class HcfWidget {
         );
         views.setTextViewText(R.id.widget_hcf_title, context.getString(R.string.widget_hcf_title));
         views.setTextViewText(R.id.widget_hcf_status, status);
+        views.setTextViewText(R.id.widget_hcf_updated, updatedText);
+        views.setViewVisibility(R.id.widget_hcf_logo, compactMode ? android.view.View.GONE : android.view.View.VISIBLE);
+        views.setViewVisibility(R.id.widget_hcf_title, compactMode ? android.view.View.GONE : android.view.View.VISIBLE);
+        views.setViewVisibility(R.id.widget_hcf_updated,
+                showLastUpdated && !compactMode ? android.view.View.VISIBLE : android.view.View.GONE);
         applyWidgetTheme(context, prefs, views);
 
         views.setOnClickPendingIntent(
                 R.id.widget_hcf_body,
-                startupPendingIntent(context, REQUEST_OPEN_BODY, TARGET_FORUM)
+                bodyPendingIntent(context, prefs)
         );
         views.setOnClickPendingIntent(
                 R.id.widget_hcf_forum,
@@ -218,6 +253,7 @@ public final class HcfWidget {
         views.setInt(R.id.widget_hcf_root, "setBackgroundResource", rootBackground);
         views.setTextColor(R.id.widget_hcf_title, titleColor);
         views.setTextColor(R.id.widget_hcf_status, mutedColor);
+        views.setTextColor(R.id.widget_hcf_updated, mutedColor);
 
         int[] actions = {
                 R.id.widget_hcf_forum,
@@ -239,6 +275,18 @@ public final class HcfWidget {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    private static PendingIntent bodyPendingIntent(Context context, SharedPreferences prefs) {
+        String action = prefs == null ? TAP_FORUM
+                : prefs.getString(PREF_DEFAULT_TAP_ACTION, TAP_FORUM);
+        if (TAP_SETTINGS.equals(action)) {
+            return settingsPendingIntent(context);
+        }
+        if (TAP_NOTIFICATIONS.equals(action)) {
+            return startupPendingIntent(context, REQUEST_OPEN_BODY, TARGET_NOTIFICATIONS);
+        }
+        return startupPendingIntent(context, REQUEST_OPEN_BODY, TARGET_FORUM);
     }
 
     private static PendingIntent startupPendingIntent(Context context, int requestCode, String target) {

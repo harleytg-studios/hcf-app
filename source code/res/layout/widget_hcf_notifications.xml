@@ -56,6 +56,17 @@
                     android:text="@string/widget_hcf_status_initial"
                     android:textColor="@color/hcf_muted"
                     android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/widget_hcf_updated"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/hcf_muted"
+                    android:textSize="10sp"
+                    android:visibility="gone" />
             </LinearLayout>
         </LinearLayout>
 

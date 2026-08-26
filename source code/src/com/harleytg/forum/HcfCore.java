@@ -2094,6 +2094,11 @@ final class AppPrefs {
     static final String TELEMETRY_REPORT_HISTORY = "telemetry_report_history";
     static final String UI_REVAMP_VERSION = "ui_revamp_version";
     static final String WIDGET_FOLLOW_APP_THEME = "widget_follow_app_theme";
+    static final String WIDGET_SHOW_CONNECTED_USERNAME = "widget_show_connected_username";
+    static final String WIDGET_SHOW_UNREAD_COUNT = "widget_show_unread_count";
+    static final String WIDGET_COMPACT_MODE = "widget_compact_mode";
+    static final String WIDGET_SHOW_LAST_UPDATED = "widget_show_last_updated";
+    static final String WIDGET_DEFAULT_TAP_ACTION = "widget_default_tap_action";
     static final String UPDATE_AUTO_CHECK = "update_auto_check";
     static final String UPDATE_AUTO_DOWNLOAD = "update_auto_download";
     static final String UPDATE_AUTO_INSTALL = "update_auto_install";
@@ -2832,6 +2837,10 @@ final class HcfSettingsTransfer {
             AppPrefs.SHOW_BOTTOM_NAV,
             AppPrefs.SHOW_STARTUP_SCREEN,
             AppPrefs.WIDGET_FOLLOW_APP_THEME,
+            AppPrefs.WIDGET_SHOW_CONNECTED_USERNAME,
+            AppPrefs.WIDGET_SHOW_UNREAD_COUNT,
+            AppPrefs.WIDGET_COMPACT_MODE,
+            AppPrefs.WIDGET_SHOW_LAST_UPDATED,
             AppPrefs.SHOW_URL_BAR,
             AppPrefs.SILENCE_BACKGROUND_SERVICE_NOTIFICATION,
             AppPrefs.TELEMETRY_ASK_BEFORE_CRASH_REPORT,
@@ -2852,6 +2861,7 @@ final class HcfSettingsTransfer {
             AppPrefs.APP_THEME,
             AppPrefs.NATIVE_ACCENT,
             AppPrefs.PERFORMANCE_PROFILE,
+            AppPrefs.WIDGET_DEFAULT_TAP_ACTION,
             AppPrefs.TELEMETRY_LEVEL,
             AppPrefs.FIREBASE_CONFIG_URL
     ));

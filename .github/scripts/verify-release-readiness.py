@@ -111,6 +111,11 @@ require("widget app-theme preference missing", 'WIDGET_FOLLOW_APP_THEME = "widge
 require("widget root settings category missing", '"Home-screen Widget"' in ui_source and '"Follow HCF app theme"' in ui_source)
 require("widget app-theme renderer missing", 'ThemeManager.webColorScheme(context)' in widget_source and 'systemPhoneDark()' in widget_source)
 require("widget theme changes do not refresh widget", 'AppPrefs.APP_THEME.equals(key)' in widget_source and 'AppPrefs.WIDGET_FOLLOW_APP_THEME.equals(key)' in widget_source)
+for widget_key in ("WIDGET_SHOW_CONNECTED_USERNAME", "WIDGET_SHOW_UNREAD_COUNT", "WIDGET_COMPACT_MODE", "WIDGET_SHOW_LAST_UPDATED", "WIDGET_DEFAULT_TAP_ACTION"):
+    require(f"widget setting preference missing: {widget_key}", widget_key in app_prefs)
+require("widget expanded settings UI missing", all(label in ui_source for label in ("Show unread count", "Compact widget mode", "Show last updated time", "Default widget tap")))
+require("widget last-updated view missing", 'widget_hcf_updated' in widget_source and 'widget_hcf_updated' in text(source / "res/layout/widget_hcf_notifications.xml"))
+require("widget default tap routing missing", 'bodyPendingIntent' in widget_source and 'TAP_NOTIFICATIONS' in widget_source and 'TAP_SETTINGS' in widget_source)
 for palette in ("light", "dark", "amoled"):
     require(f"widget {palette} background missing", (source / f"res/drawable/widget_hcf_background_{palette}.xml").is_file())
     require(f"widget {palette} action background missing", (source / f"res/drawable/widget_hcf_action_background_{palette}.xml").is_file())

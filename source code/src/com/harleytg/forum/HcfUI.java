@@ -4588,7 +4588,7 @@ final class HcfSubActivities {
             addSettingsCategory(list, "Account & Security", "Forum identity, profile and account controls", "account_security");
             addSettingsCategory(list, "Notifications", "Required alerts, silent background alerts and notification tools", "notifications");
             addSettingsCategory(list, "Appearance & Performance", "Theme, interface density and performance", "appearance");
-            addSettingsCategory(list, "Home-screen Widget", "Theme source, connected identity and widget appearance", "widget");
+            addSettingsCategory(list, "Home-screen Widget", "Theme, identity, content, layout and actions", "widget");
             addSettingsCategory(list, "Forum & Site Data", "Server routing, links, cookies and local site data", "forum_data");
             addSettingsCategory(list, "Advanced & About", "App permissions, updates, recovery, telemetry, developer tools and build information", "advanced");
         }
@@ -4643,6 +4643,10 @@ final class HcfSubActivities {
                 new SettingTarget("verbose_startup_loader", "Verbose startup loader", "startup loading detailed checks progress completed verbose compact", "appearance", "appearance_performance"),
                 new SettingTarget("widget_follow_app_theme", "Follow HCF app theme", "widget home screen theme app phone system light dark amoled", "widget", "widget_appearance"),
                 new SettingTarget("widget_show_connected_username", "Show connected @username", "widget account identity connected username handle profile", "widget", "widget_appearance"),
+                new SettingTarget("widget_show_unread_count", "Show unread count", "widget unread notifications count status", "widget", "widget_appearance"),
+                new SettingTarget("widget_compact_mode", "Compact widget mode", "widget compact small logo title layout", "widget", "widget_appearance"),
+                new SettingTarget("widget_show_last_updated", "Show last updated time", "widget refresh updated timestamp time", "widget", "widget_appearance"),
+                new SettingTarget("widget_default_tap_action", "Default widget tap", "widget tap open forum notifications settings action", "widget", "widget_appearance"),
                 new SettingTarget("refresh_widget_now", "Refresh Home-screen Widget", "widget refresh reload home screen", "widget", "widget_appearance"),
                 new SettingTarget("auto_failover", "Automatically use backup if primary fails", "server backup failover routing", "forum_data", "connection_routing"),
                 new SettingTarget("external_links", "Allow external links to open in browser/apps", "links browser external apps", "forum_data", "connection_routing"),
@@ -5479,6 +5483,62 @@ final class HcfSubActivities {
             card.addView(text(
                     "When on, signed-in widgets show the connected forum identity as @username next to the cached notification state. No username is shown while signed out.",
                     10, getColor(R.color.hcf_muted)));
+
+            Switch showUnread = target(toggle("Show unread count",
+                    prefs.getBoolean(HcfWidget.PREF_SHOW_UNREAD_COUNT, true)), "widget_show_unread_count");
+            showUnread.setOnCheckedChangeListener((button, checked) -> {
+                prefs.edit().putBoolean(HcfWidget.PREF_SHOW_UNREAD_COUNT, checked).apply();
+                HcfWidget.refreshAll(this);
+                AppLogger.info(this, "setting_widget_unread_count", checked ? "shown" : "hidden");
+            });
+            card.addView(showUnread);
+
+            Switch compactWidget = target(toggle("Compact widget mode",
+                    prefs.getBoolean(HcfWidget.PREF_COMPACT_MODE, false)), "widget_compact_mode");
+            compactWidget.setOnCheckedChangeListener((button, checked) -> {
+                prefs.edit().putBoolean(HcfWidget.PREF_COMPACT_MODE, checked).apply();
+                HcfWidget.refreshAll(this);
+                AppLogger.info(this, "setting_widget_compact_mode", checked ? "on" : "off");
+            });
+            card.addView(compactWidget);
+            card.addView(text(
+                    "Compact mode hides the large widget logo and title so the connected identity/status gets more room. Quick actions stay available.",
+                    10, getColor(R.color.hcf_muted)));
+
+            Switch showUpdated = target(toggle("Show last updated time",
+                    prefs.getBoolean(HcfWidget.PREF_SHOW_LAST_UPDATED, false)), "widget_show_last_updated");
+            showUpdated.setOnCheckedChangeListener((button, checked) -> {
+                prefs.edit().putBoolean(HcfWidget.PREF_SHOW_LAST_UPDATED, checked).apply();
+                HcfWidget.refreshAll(this);
+                AppLogger.info(this, "setting_widget_last_updated", checked ? "shown" : "hidden");
+            });
+            card.addView(showUpdated);
+
+            final String currentTap = prefs.getString(HcfWidget.PREF_DEFAULT_TAP_ACTION, HcfWidget.TAP_FORUM);
+            final String currentTapLabel = HcfWidget.TAP_NOTIFICATIONS.equals(currentTap)
+                    ? "Notifications" : HcfWidget.TAP_SETTINGS.equals(currentTap) ? "App Settings" : "Forum";
+            Button defaultTap = target(actionButton("Default widget tap: " + currentTapLabel, null),
+                    "widget_default_tap_action");
+            defaultTap.setOnClickListener(v -> {
+                final String[] labels = {"Forum", "Notifications", "App Settings"};
+                String savedTap = prefs.getString(HcfWidget.PREF_DEFAULT_TAP_ACTION, HcfWidget.TAP_FORUM);
+                int selected = HcfWidget.TAP_NOTIFICATIONS.equals(savedTap) ? 1
+                        : HcfWidget.TAP_SETTINGS.equals(savedTap) ? 2 : 0;
+                new AlertDialog.Builder(this)
+                        .setTitle("Default widget tap")
+                        .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                            String value = which == 1 ? HcfWidget.TAP_NOTIFICATIONS
+                                    : which == 2 ? HcfWidget.TAP_SETTINGS : HcfWidget.TAP_FORUM;
+                            prefs.edit().putString(HcfWidget.PREF_DEFAULT_TAP_ACTION, value).apply();
+                            HcfWidget.refreshAll(this);
+                            defaultTap.setText("Default widget tap: " + labels[which]);
+                            AppLogger.info(this, "setting_widget_default_tap", value);
+                            dialog.dismiss();
+                        })
+                        .setNegativeButton("Cancel", null)
+                        .show();
+            });
+            card.addView(defaultTap);
 
             card.addView(target(actionButton("Refresh Home-screen Widget", v -> {
                 HcfWidget.refreshAll(this);
