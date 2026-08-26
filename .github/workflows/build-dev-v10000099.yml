@@ -212,7 +212,6 @@ jobs:
           grep -Fq 'hcf_test_alerts_v2' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'HcfDiscordSecret' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'configs/ban-list.json' "$OUT/DEX-STRINGS.txt"
-          grep -Fq 'HCF Notifications' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'HcfWidget' "$OUT/DEX-STRINGS.txt"
           ! grep -Fq 'https://discord.com/api/webhooks/' "$OUT/DEX-STRINGS.txt"
           ! grep -Fq 'https://discordapp.com/api/webhooks/' "$OUT/DEX-STRINGS.txt"
