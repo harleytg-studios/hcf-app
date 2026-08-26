@@ -18,6 +18,8 @@ Development/Beta branch for the Harley's Clan Forum Android app.
 
 v100000101 adds the resizable **HCF Notifications** Android App Widget. It displays the cached signed-in forum unread count from `hcf_app`, updates when the notification/session preferences change, and provides quick actions for Forum, Notifications, Reload, and App Settings. Widget rendering performs no direct network requests; Reload delegates to the existing HCF notification sync service and then refreshes the cached widget UI.
 
+App Settings now includes a root-level **Home-screen Widget** category. **Follow HCF app theme** is enabled by default, so the widget explicitly uses HCF's resolved Light, Dark, or AMOLED palette instead of allowing the launcher/phone theme to override its colors. Turning the option off makes the widget follow Android's phone light/dark mode instead. Theme preference changes refresh existing widget instances automatically, and the category also includes a manual **Refresh Home-screen Widget** action.
+
 ## Beta/DEV v2 signing line
 
 - Key alias: `hcf-beta-v2`
