@@ -1,0 +1,34 @@
+name: Apply HCF Widget v100000101
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/apply-widget-v100000101.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Apply widget and release patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/apply-widget-v100000101.py
+          rm -f .github/scripts/apply-widget-v100000101.py
+          rm -f .github/workflows/apply-widget-v100000101.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Add HCF notifications widget and bump Beta to 1.1 (100000101)'
+          git push origin HEAD:dev
