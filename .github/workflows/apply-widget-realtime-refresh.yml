@@ -1,0 +1,38 @@
+name: Apply Widget Realtime Refresh
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/scripts/apply-widget-realtime-refresh.py'
+      - '.github/workflows/apply-widget-realtime-refresh.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Apply realtime widget refresh patch
+        run: python3 .github/scripts/apply-widget-realtime-refresh.py
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'source code/src/com/harleytg/forum/HcfNotifications.java' \
+                  'source code/src/com/harleytg/forum/HcfWidget.java' \
+                  'README.md' \
+                  '.github/scripts/verify-release-readiness.py'
+          git diff --cached --quiet && exit 0
+          git commit -m 'Make HCF widget refresh near real time'
+          git push origin dev
