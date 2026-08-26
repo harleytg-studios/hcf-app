@@ -14,6 +14,10 @@ Development/Beta branch for the Harley's Clan Forum Android app.
 - Target SDK: `34`
 - Source directory: [`source code/`](./source%20code)
 
+## HCF Notifications home-screen widget
+
+v100000101 adds the resizable **HCF Notifications** Android App Widget. It displays the cached signed-in forum unread count from `hcf_app`, updates when the notification/session preferences change, and provides quick actions for Forum, Notifications, Reload, and App Settings. Widget rendering performs no direct network requests; Reload delegates to the existing HCF notification sync service and then refreshes the cached widget UI.
+
 ## Beta/DEV v2 signing line
 
 - Key alias: `hcf-beta-v2`
