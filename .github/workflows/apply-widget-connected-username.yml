@@ -5,6 +5,7 @@ on:
     branches: [dev]
     paths:
       - '.github/workflows/apply-widget-connected-username.yml'
+      - '.github/scripts/apply-widget-connected-username.py'
   workflow_dispatch:
 
 permissions:
@@ -30,7 +31,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "source code/src/com/harleytg/forum/HcfUI.java" "source code/src/com/harleytg/forum/HcfWidget.java" README.md
+          git add "source code/src/com/harleytg/forum/HcfUI.java" "source code/src/com/harleytg/forum/HcfWidget.java"
           if git diff --cached --quiet; then
             echo "No source changes to commit."
             exit 0
