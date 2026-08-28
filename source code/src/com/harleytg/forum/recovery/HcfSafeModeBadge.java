@@ -38,11 +38,11 @@ public final class HcfSafeModeBadge {
             ((Application) appContext).registerActivityLifecycleCallbacks(
                     new Application.ActivityLifecycleCallbacks() {
                         @Override public void onActivityCreated(Activity activity, Bundle state) {
-                            update(activity);
+                            HcfSafeModeBadge.update(activity);
                         }
 
                         @Override public void onActivityResumed(Activity activity) {
-                            update(activity);
+                            HcfSafeModeBadge.update(activity);
                         }
 
                         @Override public void onActivityStarted(Activity activity) {}
