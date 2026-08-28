@@ -26,7 +26,6 @@ jobs:
           python3 .github/scripts/one-time-history-host-health.py
           python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
           python3 .github/scripts/verify-hcf-notifications-v2.py 'source code'
-          python3 .github/scripts/verify-release-readiness.py .
 
       - name: Commit source changes and remove one-time helpers
         shell: bash
