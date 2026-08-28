@@ -15,10 +15,10 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.LinearLayout;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 
-/** Shows a compact Safe Mode badge in the native HCF app header while Safe Mode is active. */
+/** Shows a compact Safe Mode badge as an overlay below the native HCF URL bar. */
 public final class HcfSafeModeBadge {
     private static final String PREF_FILE = "hcf_app";
     private static final String KEY_ACTIVE = "safe_mode_active";
@@ -63,11 +63,13 @@ public final class HcfSafeModeBadge {
 
     private static void update(Activity activity) {
         if (activity == null || activity.isFinishing()) return;
-        View topBar = activity.findViewById(R.id.topAppBar);
-        if (!(topBar instanceof ViewGroup)) return;
 
-        ViewGroup header = (ViewGroup) topBar;
-        View badge = findTaggedView(header, BADGE_TAG);
+        View rootView = activity.findViewById(R.id.rootFrame);
+        View urlBar = activity.findViewById(R.id.urlBar);
+        if (!(rootView instanceof FrameLayout) || urlBar == null) return;
+
+        FrameLayout root = (FrameLayout) rootView;
+        View badge = findTaggedView(root, BADGE_TAG);
         boolean active = isSafeModeActive(activity);
 
         if (!active) {
@@ -77,22 +79,45 @@ public final class HcfSafeModeBadge {
 
         if (badge == null) {
             badge = createBadge(activity);
-            int insertAt = header.getChildCount();
-            View liveBadge = activity.findViewById(R.id.liveStatusBadge);
-            if (liveBadge != null && liveBadge.getParent() == header) {
-                insertAt = header.indexOfChild(liveBadge);
-            } else {
-                View notifications = activity.findViewById(R.id.notificationButtonFrame);
-                if (notifications != null && notifications.getParent() == header) {
-                    insertAt = header.indexOfChild(notifications);
-                }
-            }
-            header.addView(badge, Math.max(0, insertAt));
+            root.addView(badge);
+
+            final View overlayBadge = badge;
+            urlBar.addOnLayoutChangeListener((v, left, top, right, bottom,
+                                              oldLeft, oldTop, oldRight, oldBottom) ->
+                    positionBelowUrlBar(root, urlBar, overlayBadge));
         }
 
+        final View overlayBadge = badge;
         badge.setVisibility(View.VISIBLE);
         badge.bringToFront();
-        AppLogger.info(activity, "safe_mode_badge", "visible");
+        root.post(() -> positionBelowUrlBar(root, urlBar, overlayBadge));
+        AppLogger.info(activity, "safe_mode_badge", "overlay_below_url_bar");
+    }
+
+    private static void positionBelowUrlBar(FrameLayout root, View urlBar, View badge) {
+        if (root == null || urlBar == null || badge == null) return;
+
+        int[] rootLocation = new int[2];
+        int[] urlLocation = new int[2];
+        root.getLocationOnScreen(rootLocation);
+        urlBar.getLocationOnScreen(urlLocation);
+
+        int topMargin = (urlLocation[1] - rootLocation[1]) + urlBar.getHeight() + dp(root.getContext(), 6);
+        FrameLayout.LayoutParams lp;
+        ViewGroup.LayoutParams current = badge.getLayoutParams();
+        if (current instanceof FrameLayout.LayoutParams) {
+            lp = (FrameLayout.LayoutParams) current;
+        } else {
+            lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(root.getContext(), 26));
+        }
+
+        lp.width = ViewGroup.LayoutParams.WRAP_CONTENT;
+        lp.height = dp(root.getContext(), 26);
+        lp.gravity = Gravity.TOP | Gravity.END;
+        lp.topMargin = Math.max(0, topMargin);
+        lp.rightMargin = dp(root.getContext(), 10);
+        badge.setLayoutParams(lp);
+        badge.bringToFront();
     }
 
     private static boolean isSafeModeActive(Context context) {
@@ -115,6 +140,9 @@ public final class HcfSafeModeBadge {
         badge.setBackgroundResource(R.drawable.status_chip_background);
         badge.setPadding(dp(context, 7), 0, dp(context, 7), 0);
         badge.setMinHeight(dp(context, 26));
+        badge.setClickable(false);
+        badge.setFocusable(false);
+        badge.setElevation(dp(context, 8));
 
         try {
             Drawable shield = context.getDrawable(R.drawable.fa_shield);
@@ -128,9 +156,9 @@ public final class HcfSafeModeBadge {
             }
         } catch (Throwable ignored) {}
 
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, dp(context, 26));
-        lp.rightMargin = dp(context, 6);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(context, 26), Gravity.TOP | Gravity.END);
+        lp.rightMargin = dp(context, 10);
         badge.setLayoutParams(lp);
         return badge;
     }
