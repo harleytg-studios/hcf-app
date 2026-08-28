@@ -51,6 +51,7 @@ public final class HcfPersistentCrashWatchdog {
     private static final Object LOCK = new Object();
     private static int startedActivities;
     private static volatile boolean heartbeatRunning;
+    private static volatile Context applicationContext;
 
     private HcfPersistentCrashWatchdog() {}
 
@@ -61,6 +62,7 @@ public final class HcfPersistentCrashWatchdog {
             if (raw == null) return true;
             Context app = raw.getApplicationContext();
             if (app == null) app = raw;
+            applicationContext = app;
 
             initializeProcessState(app);
             installContextHandler(app);
@@ -227,17 +229,22 @@ public final class HcfPersistentCrashWatchdog {
         Context context = activity.getApplicationContext();
         if (context == null) context = activity;
         long now = System.currentTimeMillis();
-        prefs(context).edit()
-                .putString(KEY_STAGE, stageFor(activity))
+        String stage = stageFor(activity);
+        SharedPreferences p = prefs(context);
+        String previousStage = p.getString(KEY_STAGE, "");
+        p.edit()
+                .putString(KEY_STAGE, stage)
                 .putString(KEY_ACTIVITY, activity.getClass().getSimpleName())
                 .putLong(KEY_STAGE_AT, now)
                 .putLong(KEY_HEARTBEAT_AT, now)
                 .apply();
-        AppLogger.info(context, "crash_watchdog_stage", stageFor(activity) + " | " + event);
+        if (!stage.equals(previousStage)) {
+            AppLogger.info(context, "crash_watchdog_stage", stage + " | " + event);
+        }
     }
 
     private static void noteVisibility(Activity activity, String visibility) {
-        Context context = activity == null ? appContext() : activity.getApplicationContext();
+        Context context = activity == null ? applicationContext : activity.getApplicationContext();
         if (context == null && activity != null) context = activity;
         if (context == null) return;
         prefs(context).edit()
@@ -329,10 +336,6 @@ public final class HcfPersistentCrashWatchdog {
 
     private static SharedPreferences prefs(Context context) {
         return context.getSharedPreferences(PREF_FILE, Context.MODE_PRIVATE);
-    }
-
-    private static Context appContext() {
-        return null;
     }
 
     private static String clean(String value, int max) {
