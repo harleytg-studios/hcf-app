@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="hcf_new_discussion"
+        android:enabled="true"
+        android:icon="@drawable/ic_notification_paw"
+        android:shortcutShortLabel="@string/shortcut_new_discussion_short"
+        android:shortcutLongLabel="@string/shortcut_new_discussion_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.harleytg.forum.dev"
+            android:targetClass="com.harleytg.forum.dev.HcfSafeMode$EntryActivity"
+            android:data="https://forum.harleytg.com/compose" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="hcf_notifications"
+        android:enabled="true"
+        android:icon="@drawable/ic_notification_paw"
+        android:shortcutShortLabel="@string/shortcut_notifications_short"
+        android:shortcutLongLabel="@string/shortcut_notifications_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.harleytg.forum.dev"
+            android:targetClass="com.harleytg.forum.dev.HcfSafeMode$EntryActivity"
+            android:data="https://forum.harleytg.com/notifications" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="hcf_latest_discussions"
+        android:enabled="true"
+        android:icon="@drawable/ic_notification_paw"
+        android:shortcutShortLabel="@string/shortcut_latest_short"
+        android:shortcutLongLabel="@string/shortcut_latest_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.harleytg.forum.dev"
+            android:targetClass="com.harleytg.forum.dev.HcfSafeMode$EntryActivity"
+            android:data="https://forum.harleytg.com/all" />
+    </shortcut>
+</shortcuts>
