@@ -2,8 +2,13 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_hcf_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@drawable/widget_hcf_background">
+    android:layout_height="match_parent">
+
+    <FrameLayout
+        android:id="@+id/widget_hcf_background_layer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_hcf_background" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -56,6 +61,17 @@
                     android:text="@string/widget_hcf_status_initial"
                     android:textColor="@color/hcf_muted"
                     android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/widget_hcf_preview"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:textColor="@color/hcf_text"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
 
                 <TextView
                     android:id="@+id/widget_hcf_updated"
