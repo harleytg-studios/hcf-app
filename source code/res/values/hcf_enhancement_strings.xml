@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcut_new_discussion_short">New Discussion</string>
+    <string name="shortcut_new_discussion_long">Start a new HCF discussion</string>
+    <string name="shortcut_notifications_short">Notifications</string>
+    <string name="shortcut_notifications_long">Open HCF notifications</string>
+    <string name="shortcut_latest_short">Latest Discussions</string>
+    <string name="shortcut_latest_long">Open latest HCF discussions</string>
+    <string name="widget_hcf_unread_name">HCF Unread Notifications</string>
+</resources>
