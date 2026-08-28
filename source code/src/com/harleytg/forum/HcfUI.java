@@ -4386,6 +4386,7 @@ final class HcfSubActivities {
         private SharedPreferences prefs;
         private TextView securityStatus;
         private TextView serverStatus;
+        private TextView hostHealthStatus;
         private LinearLayout settingsContent;
         private ScrollView settingsScroll;
         private TextView telemetryStatus;
@@ -4633,6 +4634,9 @@ final class HcfSubActivities {
                 new SettingTarget("open_account_security", "Open Account Security", "password email two factor 2fa sessions security", "account_security", "account_controls"),
                 new SettingTarget("allow_android_notification_permission", "Allow Android Notification Permission", "notification alerts permission android", "notifications", "hcf_alerts"),
                 new SettingTarget("background_notification_sync", "Background notification sync", "notification sync background HCF Alerts real forum alerts outside app closed app", "notifications", "hcf_alerts"),
+                new SettingTarget("notification_history_privacy", "Notification history privacy", "notification history local privacy off titles message retention", "notifications", "notification_history"),
+                new SettingTarget("notification_history_retention", "Notification history retention", "notification history keep 10 30 60 events local", "notifications", "notification_history"),
+                new SettingTarget("open_notification_history", "Open Notification History", "notification history recent local events", "notifications", "notification_history"),
                 new SettingTarget("silence_hcf_silent_alerts", "Silence HCF Silent Alerts", "silent service status background notification scheduled jobs", "notifications", "silent_alerts"),
                 new SettingTarget("open_developer_tools", "Open Developer Tools", "notification test developer", "notifications", "test_alerts"),
                 new SettingTarget("theme", "Theme", "forum auto phone auto dark light appearance", "appearance", "appearance_performance"),
@@ -4649,6 +4653,10 @@ final class HcfSubActivities {
                 new SettingTarget("widget_default_tap_action", "Default widget tap", "widget tap open forum notifications settings action", "widget", "widget_appearance"),
                 new SettingTarget("refresh_widget_now", "Refresh Home-screen Widget", "widget refresh reload home screen", "widget", "widget_appearance"),
                 new SettingTarget("auto_failover", "Automatically use backup if primary fails", "server backup failover routing", "forum_data", "connection_routing"),
+                new SettingTarget("host_health_status", "Host Health", "primary backup server online offline latency health active host", "forum_data", "host_health"),
+                new SettingTarget("test_host_health", "Test Both Forum Hosts", "primary backup server test latency health", "forum_data", "host_health"),
+                new SettingTarget("use_primary_host", "Use Primary Forum", "manual switch primary host forum.harleytg.com", "forum_data", "host_health"),
+                new SettingTarget("use_backup_host", "Use Backup Forum", "manual switch backup host freeflarum", "forum_data", "host_health"),
                 new SettingTarget("external_links", "Allow external links to open in browser/apps", "links browser external apps", "forum_data", "connection_routing"),
                 new SettingTarget("retry_primary", "Retry Primary Forum on Next Open", "primary server retry routing", "forum_data", "connection_routing"),
                 new SettingTarget("forum_link_settings", "Open Forum Link Settings", "android links domains primary backup", "forum_data", "connection_routing"),
@@ -4783,6 +4791,7 @@ final class HcfSubActivities {
                     break;
                 case "notifications":
                     settingsContent.addView(connectedSettingsPanel("HCF Alerts", "Real forum notifications • background delivery", mainAlertsCard(), shouldExpand("hcf_alerts", true)));
+                    settingsContent.addView(connectedSettingsPanel("Notification History", "Local history privacy and retention", notificationHistoryCard(), shouldExpand("notification_history", false)));
                     settingsContent.addView(connectedSettingsPanel("HCF Silent Alerts", "Silent service-status channel only", silentAlertsCard(), shouldExpand("silent_alerts", false)));
                     if (BuildInfo.ENABLE_DEV_TEST_MENU) {
                         settingsContent.addView(connectedSettingsPanel("HCF Test Alerts", "Dev/Beta diagnostics only", testAlertsInfoCard(), shouldExpand("test_alerts", false)));
@@ -4796,6 +4805,7 @@ final class HcfSubActivities {
                     break;
                 case "forum_data":
                     settingsContent.addView(connectedSettingsPanel("Connection & Routing", "Primary/backup forum routing and link handling", connectionCard(), shouldExpand("connection_routing", true)));
+                    settingsContent.addView(connectedSettingsPanel("Host Health", "Primary/backup reachability, latency and manual host selection", hostHealthCard(), shouldExpand("host_health", false)));
                     settingsContent.addView(connectedSettingsPanel("Cookies & Site Data", "Forum data stored locally on this device", privacyCard(), shouldExpand("cookies_site_data", false)));
                     break;
                 case "advanced":
@@ -4883,11 +4893,13 @@ final class HcfSubActivities {
             if ("account_identity".equals(key)) return "Account & Identity";
             if ("account_controls".equals(key)) return "Account Controls";
             if ("hcf_alerts".equals(key)) return "HCF Alerts";
+            if ("notification_history".equals(key)) return "Notification History";
             if ("silent_alerts".equals(key)) return "HCF Silent Alerts";
             if ("test_alerts".equals(key)) return "HCF Test Alerts";
             if ("appearance_performance".equals(key)) return "Appearance & Performance";
             if ("widget_appearance".equals(key)) return "Widget Appearance";
             if ("connection_routing".equals(key)) return "Connection & Routing";
+            if ("host_health".equals(key)) return "Host Health";
             if ("cookies_site_data".equals(key)) return "Cookies & Site Data";
             if ("permissions_security".equals(key)) return "Permissions & Security";
             if ("app_updates".equals(key)) return "App Updates";
@@ -5367,6 +5379,64 @@ final class HcfSubActivities {
             return card;
         }
 
+        private View notificationHistoryCard() {
+            LinearLayout card = card();
+            String mode = HcfWidget.historyMode(prefs);
+            int limit = HcfWidget.historyLimit(prefs);
+            card.addView(target(settingsInfoCard(
+                    "Stored notification history",
+                    HcfWidget.historyModeLabel(mode) + " • keep up to " + limit + " events • stored only on this device",
+                    R.drawable.fa_lock), "notification_history_privacy"));
+
+            Button privacy = target(actionButton("History content: " + HcfWidget.historyModeLabel(mode), null),
+                    "notification_history_privacy");
+            privacy.setOnClickListener(v -> {
+                final String[] labels = {"Off", "Titles only", "Titles + message"};
+                final String[] values = {HcfWidget.HISTORY_MODE_OFF, HcfWidget.HISTORY_MODE_TITLE, HcfWidget.HISTORY_MODE_FULL};
+                String saved = HcfWidget.historyMode(prefs);
+                int selected = HcfWidget.HISTORY_MODE_OFF.equals(saved) ? 0
+                        : HcfWidget.HISTORY_MODE_TITLE.equals(saved) ? 1 : 2;
+                new AlertDialog.Builder(this)
+                        .setTitle("Notification history privacy")
+                        .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                            HcfWidget.setHistoryPrivacy(prefs, values[which], HcfWidget.historyLimit(prefs));
+                            AppLogger.info(this, "notification_history_privacy", values[which]);
+                            dialog.dismiss();
+                            showSettingsSection("notifications");
+                        })
+                        .setNegativeButton("Cancel", null)
+                        .show();
+            });
+            card.addView(privacy);
+
+            Button retention = target(actionButton("History retention: " + limit + " events", null),
+                    "notification_history_retention");
+            retention.setOnClickListener(v -> {
+                final String[] labels = {"10 events", "30 events", "60 events"};
+                final int[] values = {10, 30, 60};
+                int saved = HcfWidget.historyLimit(prefs);
+                int selected = saved <= 10 ? 0 : saved <= 30 ? 1 : 2;
+                new AlertDialog.Builder(this)
+                        .setTitle("Notification history retention")
+                        .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                            HcfWidget.setHistoryPrivacy(prefs, HcfWidget.historyMode(prefs), values[which]);
+                            AppLogger.info(this, "notification_history_retention", Integer.toString(values[which]));
+                            dialog.dismiss();
+                            showSettingsSection("notifications");
+                        })
+                        .setNegativeButton("Cancel", null)
+                        .show();
+            });
+            card.addView(retention);
+            card.addView(target(actionButton("Open Notification History", v ->
+                    startActivity(new Intent(this, HcfWidget.NotificationHistoryActivity.class))),
+                    "open_notification_history"));
+            card.addView(text(
+                    "Off stores no notification-history list. Titles only removes message bodies and destination URLs from retained history. Titles + message keeps the current local history behavior. Clearing history does not erase the separate home-screen widget preview.",
+                    10, getColor(R.color.hcf_muted)));
+            return card;
+        }
+
         private View testAlertsInfoCard() {
             LinearLayout card = card();
             NotificationHelper.createChannel(this);
@@ -5604,6 +5674,156 @@ final class HcfSubActivities {
                 Toast.makeText(this, label + " • " + PerformanceProfile.detail(this, prefs), Toast.LENGTH_SHORT).show();
                 dialog.dismiss();
             }).setNegativeButton("Cancel", null).show();
+        }
+
+        private View hostHealthCard() {
+            LinearLayout card = card();
+            hostHealthStatus = target(text(hostHealthSummary(), 11, getColor(R.color.hcf_meta)), "host_health_status");
+            hostHealthStatus.setBackgroundResource(R.drawable.quick_action_background);
+            hostHealthStatus.setPadding(dp(14), dp(11), dp(14), dp(11));
+            card.addView(hostHealthStatus);
+            card.addView(target(actionButton("Test Both Forum Hosts", v -> testHostHealth()), "test_host_health"));
+            card.addView(target(actionButton("Use Primary Forum", v -> selectForumHost("forum.harleytg.com", true)), "use_primary_host"));
+            card.addView(target(actionButton("Use Backup Forum", v -> selectForumHost("harleysclan.freeflarum.com", false)), "use_backup_host"));
+            card.addView(text(
+                    "Host tests use HTTPS only and record the last reachability result and round-trip latency locally. Manual selection changes the preferred host without disabling automatic failover.",
+                    10, getColor(R.color.hcf_muted)));
+            return card;
+        }
+
+        private String hostHealthSummary() {
+            String active = prefs.getString("active_host", "forum.harleytg.com");
+            if (!ForumUrlRouter.isForumHost(active)) active = "forum.harleytg.com";
+            String primary = hostHealthLine("Primary", "host_health_primary");
+            String backup = hostHealthLine("Backup", "host_health_backup");
+            long lastSuccess = prefs.getLong("host_health_last_success_at", 0L);
+            String lastSuccessHost = prefs.getString("host_health_last_success_host", "");
+            String success = lastSuccess <= 0L
+                    ? "Last successful probe: Not tested yet"
+                    : "Last successful probe: " + ("harleysclan.freeflarum.com".equals(lastSuccessHost) ? "Backup" : "Primary")
+                            + " • " + ageLabel(lastSuccess);
+            return "Currently using: " + ("forum.harleytg.com".equals(active) ? "Primary" : "Backup") + " • " + active
+                    + "\n" + primary + "\n" + backup + "\n" + success;
+        }
+
+        private String hostHealthLine(String label, String prefix) {
+            long checkedAt = prefs.getLong(prefix + "_checked_at", 0L);
+            if (checkedAt <= 0L) return label + ": Not tested";
+            boolean healthy = prefs.getBoolean(prefix + "_ok", false);
+            long latency = prefs.getLong(prefix + "_latency_ms", -1L);
+            int status = prefs.getInt(prefix + "_http_status", -1);
+            return label + ": " + (healthy ? "Online" : "Offline")
+                    + (latency >= 0 ? " • " + latency + " ms" : "")
+                    + (status > 0 ? " • HTTP " + status : "")
+                    + " • " + ageLabel(checkedAt);
+        }
+
+        private void testHostHealth() {
+            if (hostHealthStatus != null) {
+                hostHealthStatus.setText("Testing primary and backup hosts…");
+                hostHealthStatus.setTextColor(getColor(R.color.hcf_cyan));
+            }
+            new Thread(() -> {
+                HostHealthResult primary = probeHost("forum.harleytg.com");
+                HostHealthResult backup = probeHost("harleysclan.freeflarum.com");
+                long now = System.currentTimeMillis();
+                SharedPreferences.Editor editor = prefs.edit()
+                        .putBoolean("host_health_primary_ok", primary.healthy)
+                        .putLong("host_health_primary_latency_ms", primary.latencyMs)
+                        .putInt("host_health_primary_http_status", primary.httpStatus)
+                        .putLong("host_health_primary_checked_at", now)
+                        .putBoolean("host_health_backup_ok", backup.healthy)
+                        .putLong("host_health_backup_latency_ms", backup.latencyMs)
+                        .putInt("host_health_backup_http_status", backup.httpStatus)
+                        .putLong("host_health_backup_checked_at", now);
+                String active = prefs.getString("active_host", "forum.harleytg.com");
+                if ("forum.harleytg.com".equals(active) && primary.healthy) {
+                    editor.putLong("host_health_last_success_at", now)
+                            .putString("host_health_last_success_host", primary.host);
+                } else if ("harleysclan.freeflarum.com".equals(active) && backup.healthy) {
+                    editor.putLong("host_health_last_success_at", now)
+                            .putString("host_health_last_success_host", backup.host);
+                } else if (primary.healthy) {
+                    editor.putLong("host_health_last_success_at", now)
+                            .putString("host_health_last_success_host", primary.host);
+                } else if (backup.healthy) {
+                    editor.putLong("host_health_last_success_at", now)
+                            .putString("host_health_last_success_host", backup.host);
+                }
+                editor.apply();
+                AppLogger.info(this, "host_health",
+                        "primary=" + primary.summary() + " • backup=" + backup.summary());
+                runOnUiThread(() -> {
+                    if (hostHealthStatus != null) {
+                        hostHealthStatus.setText(hostHealthSummary());
+                        hostHealthStatus.setTextColor(getColor(
+                                primary.healthy || backup.healthy ? R.color.hcf_meta : R.color.hcf_warning));
+                    }
+                    Toast.makeText(this,
+                            primary.healthy || backup.healthy
+                                    ? "Host health test complete."
+                                    : "Neither forum host responded successfully.",
+                            Toast.LENGTH_SHORT).show();
+                });
+            }, "hcf-host-health").start();
+        }
+
+        private HostHealthResult probeHost(String host) {
+            long started = android.os.SystemClock.elapsedRealtime();
+            HttpsURLConnection connection = null;
+            try {
+                connection = (HttpsURLConnection) new URL("https://" + host + "/").openConnection();
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+                connection.setUseCaches(false);
+                connection.setInstanceFollowRedirects(false);
+                connection.setRequestMethod("HEAD");
+                connection.setRequestProperty("User-Agent", BuildInfo.USER_AGENT_MARKER + " HostHealth/1");
+                int status = connection.getResponseCode();
+                long latency = Math.max(0L, android.os.SystemClock.elapsedRealtime() - started);
+                boolean healthy = status >= 200 && status < 500;
+                return new HostHealthResult(host, healthy, latency, status, "");
+            } catch (Throwable error) {
+                long latency = Math.max(0L, android.os.SystemClock.elapsedRealtime() - started);
+                return new HostHealthResult(host, false, latency, -1, error.getClass().getSimpleName());
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        }
+
+        private void selectForumHost(String host, boolean primary) {
+            if (!ForumUrlRouter.isForumHost(host)) return;
+            SharedPreferences.Editor editor = prefs.edit().putString("active_host", host);
+            if (primary) editor.remove("fallback_until");
+            editor.apply();
+            refreshStatusLabels();
+            if (hostHealthStatus != null) hostHealthStatus.setText(hostHealthSummary());
+            AppLogger.info(this, "settings_host_select", host);
+            Toast.makeText(this,
+                    (primary ? "Primary" : "Backup") + " forum selected for the next forum navigation.",
+                    Toast.LENGTH_SHORT).show();
+        }
+
+        private static final class HostHealthResult {
+            final String host;
+            final boolean healthy;
+            final long latencyMs;
+            final int httpStatus;
+            final String error;
+
+            HostHealthResult(String host, boolean healthy, long latencyMs, int httpStatus, String error) {
+                this.host = host;
+                this.healthy = healthy;
+                this.latencyMs = latencyMs;
+                this.httpStatus = httpStatus;
+                this.error = error == null ? "" : error;
+            }
+
+            String summary() {
+                return (healthy ? "online" : "offline") + "/" + latencyMs + "ms"
+                        + (httpStatus > 0 ? "/http" + httpStatus : "")
+                        + (error.isEmpty() ? "" : "/" + error);
+            }
         }
 
         private View connectionCard() {
@@ -6350,6 +6570,7 @@ final class HcfSubActivities {
                 serverStatus.setText("Current server: " + (primary ? "Primary • " : "Backup • ") + host);
                 serverStatus.setTextColor(getColor(primary ? R.color.hcf_cyan : R.color.hcf_warning));
             }
+            if (hostHealthStatus != null) hostHealthStatus.setText(hostHealthSummary());
         }
 
         private String cookieSummary() {
@@ -6629,7 +6850,7 @@ final class HcfSubActivities {
             if (lower.contains("permission") || lower.contains("security")) return R.drawable.fa_shield;
             if (lower.contains("notification") || lower.contains("alert")) return R.drawable.fa_bell;
             if (lower.contains("appearance") || lower.contains("performance") || lower.contains("runtime") || lower.contains("widget")) return R.drawable.fa_gear;
-            if (lower.contains("connection") || lower.contains("routing") || lower.contains("endpoint")) return R.drawable.fa_globe;
+            if (lower.contains("connection") || lower.contains("routing") || lower.contains("endpoint") || lower.contains("host")) return R.drawable.fa_globe;
             if (lower.contains("cookie") || lower.contains("site data")) return R.drawable.fa_lock;
             if (lower.contains("update")) return R.drawable.fa_download;
             if (lower.contains("error") || lower.contains("recovery")) return R.drawable.fa_triangle_exclamation;

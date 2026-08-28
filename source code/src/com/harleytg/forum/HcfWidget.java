@@ -68,6 +68,11 @@ public final class HcfWidget {
     public static final String PREF_REFRESH_INTERVAL_MIN = "widget_refresh_interval_min";
     public static final String PREF_SHOW_LAST_NOTIFICATION_PREVIEW =
             "widget_show_last_notification_preview";
+    public static final String PREF_HISTORY_MODE = "native_notification_history_mode";
+    public static final String PREF_HISTORY_LIMIT = "native_notification_history_limit";
+    public static final String HISTORY_MODE_OFF = "off";
+    public static final String HISTORY_MODE_TITLE = "title";
+    public static final String HISTORY_MODE_FULL = "full";
 
     private static final String PREF_HISTORY_JSON = "native_notification_history_json";
     private static final String PREF_LAST_TITLE = "widget_last_notification_title";
@@ -201,31 +206,38 @@ public final class HcfWidget {
             long now = System.currentTimeMillis();
 
             SharedPreferences prefs = context.getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
-            JSONArray history = parseHistory(prefs.getString(PREF_HISTORY_JSON, "[]"));
-            JSONArray next = new JSONArray();
-            try {
-                JSONObject item = new JSONObject();
-                item.put("title", title);
-                item.put("body", body);
-                item.put("url", url);
-                item.put("count", count);
-                item.put("time", now);
-                next.put(item);
-                for (int i = 0; i < history.length() && next.length() < HISTORY_LIMIT; i++) {
-                    Object existing = history.opt(i);
-                    if (existing != null) next.put(existing);
-                }
-            } catch (Throwable ignored) {
-                next = history;
-            }
-
-            prefs.edit()
-                    .putString(PREF_HISTORY_JSON, next.toString())
+            String historyMode = historyMode(prefs);
+            int historyLimit = historyLimit(prefs);
+            SharedPreferences.Editor editor = prefs.edit()
                     .putString(PREF_LAST_TITLE, title)
                     .putString(PREF_LAST_BODY, body)
                     .putString(PREF_LAST_URL, url)
-                    .putLong(PREF_LAST_EVENT_MS, now)
-                    .apply();
+                    .putLong(PREF_LAST_EVENT_MS, now);
+
+            if (HISTORY_MODE_OFF.equals(historyMode)) {
+                editor.remove(PREF_HISTORY_JSON);
+            } else {
+                JSONArray history = parseHistory(prefs.getString(PREF_HISTORY_JSON, "[]"));
+                JSONArray next = new JSONArray();
+                try {
+                    JSONObject item = historyItem(title, body, url, count, now, historyMode);
+                    next.put(item);
+                    for (int i = 0; i < history.length() && next.length() < historyLimit; i++) {
+                        JSONObject existing = history.optJSONObject(i);
+                        if (existing == null) continue;
+                        next.put(historyItem(
+                                existing.optString("title", ""),
+                                existing.optString("body", ""),
+                                existing.optString("url", ""),
+                                existing.optInt("count", -1),
+                                existing.optLong("time", 0L),
+                                historyMode));
+                    }
+                    editor.putString(PREF_HISTORY_JSON, next.toString());
+                } catch (Throwable ignored) {}
+            }
+
+            editor.apply();
             refreshAll(context);
         }
     }
@@ -318,6 +330,64 @@ public final class HcfWidget {
                     prefs.edit().putBoolean(
                             PREF_SHOW_LAST_NOTIFICATION_PREVIEW, preview.isChecked()).apply();
                     refreshAll(SettingsActivity.this);
+                }
+            });
+
+            root.addView(section("Notification history privacy"), spaced(16));
+            TextView historyHelp = label(
+                    "Choose what HCF keeps in the local notification history. Widget preview storage is controlled separately above.",
+                    12, false);
+            historyHelp.setTextColor(Color.rgb(174, 187, 194));
+            root.addView(historyHelp, spaced(2));
+
+            RadioGroup historyModeGroup = new RadioGroup(this);
+            historyModeGroup.setOrientation(RadioGroup.VERTICAL);
+            final String[] historyModes = {HISTORY_MODE_OFF, HISTORY_MODE_TITLE, HISTORY_MODE_FULL};
+            final String[] historyModeNames = {"Off", "Titles only", "Titles + message"};
+            String selectedHistoryMode = historyMode(prefs);
+            for (int i = 0; i < historyModes.length; i++) {
+                RadioButton button = new RadioButton(this);
+                button.setId(47200 + i);
+                button.setText(historyModeNames[i]);
+                button.setTextColor(Color.rgb(232, 248, 255));
+                button.setTag(historyModes[i]);
+                historyModeGroup.addView(button);
+                if (historyModes[i].equals(selectedHistoryMode)) button.setChecked(true);
+            }
+            root.addView(historyModeGroup, matchWrap());
+            historyModeGroup.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(RadioGroup group, int checkedId) {
+                    View checked = group.findViewById(checkedId);
+                    if (checked == null || !(checked.getTag() instanceof String)) return;
+                    setHistoryPrivacy(prefs, (String) checked.getTag(), historyLimit(prefs));
+                }
+            });
+
+            TextView retentionTitle = label("History retention", 14, true);
+            retentionTitle.setTextColor(Color.rgb(0, 184, 240));
+            root.addView(retentionTitle, spaced(12));
+            RadioGroup retentionGroup = new RadioGroup(this);
+            retentionGroup.setOrientation(RadioGroup.VERTICAL);
+            final int[] retentionValues = {10, 30, 60};
+            final String[] retentionNames = {"Keep 10 events", "Keep 30 events", "Keep 60 events"};
+            int selectedRetention = historyLimit(prefs);
+            for (int i = 0; i < retentionValues.length; i++) {
+                RadioButton button = new RadioButton(this);
+                button.setId(47300 + i);
+                button.setText(retentionNames[i]);
+                button.setTextColor(Color.rgb(232, 248, 255));
+                button.setTag(Integer.valueOf(retentionValues[i]));
+                retentionGroup.addView(button);
+                if (retentionValues[i] == selectedRetention) button.setChecked(true);
+            }
+            root.addView(retentionGroup, matchWrap());
+            retentionGroup.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+                @Override
+                public void onCheckedChanged(RadioGroup group, int checkedId) {
+                    View checked = group.findViewById(checkedId);
+                    if (checked == null || !(checked.getTag() instanceof Integer)) return;
+                    setHistoryPrivacy(prefs, historyMode(prefs), ((Integer) checked.getTag()).intValue());
                 }
             });
 
@@ -513,10 +583,6 @@ public final class HcfWidget {
                 public void onClick(View v) {
                     getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE).edit()
                             .remove(PREF_HISTORY_JSON)
-                            .remove(PREF_LAST_TITLE)
-                            .remove(PREF_LAST_BODY)
-                            .remove(PREF_LAST_URL)
-                            .remove(PREF_LAST_EVENT_MS)
                             .apply();
                     refreshAll(NotificationHistoryActivity.this);
                     renderHistory();
@@ -538,9 +604,12 @@ public final class HcfWidget {
             if (list == null) return;
             list.removeAllViews();
             SharedPreferences prefs = getSharedPreferences(AppPrefs.FILE, Context.MODE_PRIVATE);
+            String mode = historyMode(prefs);
             JSONArray history = parseHistory(prefs.getString(PREF_HISTORY_JSON, "[]"));
             if (history.length() == 0) {
-                TextView empty = text("No notification history yet.", 15, false);
+                TextView empty = text(HISTORY_MODE_OFF.equals(mode)
+                        ? "Notification history is turned off."
+                        : "No notification history yet.", 15, false);
                 empty.setTextColor(Color.rgb(174, 187, 194));
                 list.addView(empty, matchWrap());
                 return;
@@ -1053,6 +1122,81 @@ public final class HcfWidget {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    public static String historyMode(SharedPreferences prefs) {
+        if (prefs == null) return HISTORY_MODE_FULL;
+        return normalizeHistoryMode(prefs.getString(PREF_HISTORY_MODE, HISTORY_MODE_FULL));
+    }
+
+    public static int historyLimit(SharedPreferences prefs) {
+        if (prefs == null) return HISTORY_LIMIT;
+        return normalizeHistoryLimit(prefs.getInt(PREF_HISTORY_LIMIT, HISTORY_LIMIT));
+    }
+
+    public static String historyModeLabel(String mode) {
+        String normalized = normalizeHistoryMode(mode);
+        if (HISTORY_MODE_OFF.equals(normalized)) return "Off";
+        if (HISTORY_MODE_TITLE.equals(normalized)) return "Titles only";
+        return "Titles + message";
+    }
+
+    public static void setHistoryPrivacy(SharedPreferences prefs, String mode, int limit) {
+        if (prefs == null) return;
+        String normalizedMode = normalizeHistoryMode(mode);
+        int normalizedLimit = normalizeHistoryLimit(limit);
+        SharedPreferences.Editor editor = prefs.edit()
+                .putString(PREF_HISTORY_MODE, normalizedMode)
+                .putInt(PREF_HISTORY_LIMIT, normalizedLimit);
+        if (HISTORY_MODE_OFF.equals(normalizedMode)) {
+            editor.remove(PREF_HISTORY_JSON).apply();
+            return;
+        }
+
+        JSONArray current = parseHistory(prefs.getString(PREF_HISTORY_JSON, "[]"));
+        JSONArray sanitized = new JSONArray();
+        try {
+            for (int i = 0; i < current.length() && sanitized.length() < normalizedLimit; i++) {
+                JSONObject item = current.optJSONObject(i);
+                if (item == null) continue;
+                sanitized.put(historyItem(
+                        item.optString("title", ""),
+                        item.optString("body", ""),
+                        item.optString("url", ""),
+                        item.optInt("count", -1),
+                        item.optLong("time", 0L),
+                        normalizedMode));
+            }
+            editor.putString(PREF_HISTORY_JSON, sanitized.toString());
+        } catch (Throwable ignored) {}
+        editor.apply();
+    }
+
+    private static JSONObject historyItem(String title, String body, String url,
+                                          int count, long time, String mode) throws Exception {
+        JSONObject item = new JSONObject();
+        item.put("title", safe(title));
+        if (HISTORY_MODE_FULL.equals(normalizeHistoryMode(mode))) {
+            item.put("body", safe(body));
+            item.put("url", safe(url));
+        } else {
+            item.put("body", "");
+            item.put("url", "");
+        }
+        item.put("count", count);
+        item.put("time", time);
+        return item;
+    }
+
+    private static String normalizeHistoryMode(String mode) {
+        if (HISTORY_MODE_OFF.equals(mode) || HISTORY_MODE_TITLE.equals(mode)) return mode;
+        return HISTORY_MODE_FULL;
+    }
+
+    private static int normalizeHistoryLimit(int limit) {
+        if (limit <= 10) return 10;
+        if (limit <= 30) return 30;
+        return 60;
     }
 
     private static JSONArray parseHistory(String raw) {
