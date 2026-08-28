@@ -169,23 +169,21 @@ public final class HcfSafeModeSettings {
         section.addView(header);
 
         Button open = new Button(activity);
+        UiButtons.normalizeText(open);
         open.setText("Open Safe Mode & Recovery");
+        open.setTextColor(activity.getColor(R.color.hcf_accent_text));
+        open.setBackgroundResource(R.drawable.quick_action_background);
         open.setAllCaps(false);
-        open.setGravity(Gravity.CENTER);
-        open.setTextColor(activity.getColor(R.color.hcf_cyan_bright));
-        open.setTextSize(13);
-        open.setTypeface(null, Typeface.BOLD);
-        open.setIncludeFontPadding(false);
-        open.setMinimumWidth(0);
-        open.setMinimumHeight(0);
-        open.setBackgroundResource(R.drawable.button_background);
+        open.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        open.setPadding(dp(activity, 14), 0, dp(activity, 14), 0);
+        FaIcons.applyStart(open, R.drawable.fa_shield);
         open.setOnClickListener(v -> {
             AppLogger.info(activity, "safe_mode_tools_open", "developer_tools");
             activity.startActivity(new Intent(activity, HcfSafeMode.SafeModeActivity.class));
         });
         LinearLayout.LayoutParams buttonLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 48));
-        buttonLp.topMargin = dp(activity, 8);
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 52));
+        buttonLp.topMargin = dp(activity, 7);
         section.addView(open, buttonLp);
 
         return section;
