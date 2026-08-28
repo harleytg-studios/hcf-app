@@ -67,10 +67,14 @@
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$IdentityActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$SupportContactActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$MediaViewerActivity" android:exported="false" android:screenOrientation="unspecified"/>
+        <activity android:name="com.harleytg.forum.dev.HcfWidget$SettingsActivity" android:exported="false"/>
+        <activity android:name="com.harleytg.forum.dev.HcfEnhancements$NotificationHistoryActivity" android:exported="false"/>
+        <activity android:name="com.harleytg.forum.dev.HcfEnhancements$RouteActivity" android:exported="false" android:launchMode="singleTop" android:noHistory="true"/>
         <activity android:name="com.harleytg.forum.dev.HcfSafeMode$SafeModeActivity" android:exported="false" android:launchMode="singleTop"/>
         <activity android:name="com.harleytg.forum.dev.HcfUI$StartupMainActivity" android:exported="false" android:launchMode="singleTop"/>
         <activity android:name="com.harleytg.forum.dev.HcfUI$StartupActivity" android:exported="false" android:launchMode="singleTop"/>
         <activity android:name="com.harleytg.forum.dev.HcfSafeMode$EntryActivity" android:exported="true" android:launchMode="singleTop" android:noHistory="true">
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts"/>
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -98,10 +102,18 @@
         <receiver android:name="com.harleytg.forum.dev.HcfUpdates$UpdateDownloadReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.DOWNLOAD_COMPLETE"/></intent-filter></receiver>
         <receiver android:name="com.harleytg.forum.dev.HcfNotifications$BootReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.MY_PACKAGE_REPLACED"/></intent-filter></receiver>
         <receiver android:name="com.harleytg.forum.dev.HcfNotifications$NotificationActionReceiver" android:enabled="true" android:exported="false"/>
+        <receiver android:name="com.harleytg.forum.dev.HcfEnhancements$NotificationEventReceiver" android:enabled="true" android:exported="false">
+            <intent-filter><action android:name="com.harleytg.forum.dev.NOTIFICATION_EVENT"/></intent-filter>
+        </receiver>
         <receiver android:name="com.harleytg.forum.dev.HcfWidget$NotificationsProvider" android:enabled="true" android:exported="false" android:label="@string/widget_hcf_name">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/hcf_widget_info"/>
         </receiver>
+        <receiver android:name="com.harleytg.forum.dev.HcfWidget$UnreadProvider" android:enabled="true" android:exported="false" android:label="@string/widget_hcf_unread_name">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/hcf_widget_unread_info"/>
+        </receiver>
+        <receiver android:name="com.harleytg.forum.dev.HcfWidget$RefreshReceiver" android:enabled="true" android:exported="false"/>
         <provider android:name="com.harleytg.forum.dev.HcfWidget$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.widgetbootstrap" android:initOrder="80"/>
         <activity
             android:name="com.harleytg.forum.dev.HcfForum$MainActivity"
