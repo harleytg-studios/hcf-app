@@ -6,10 +6,8 @@ import android.content.ContentProvider;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.content.res.ColorStateList;
 import android.database.Cursor;
 import android.graphics.Typeface;
-import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -18,12 +16,12 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
-/** Shows a compact Safe Mode badge as an overlay below the native HCF URL bar. */
+/** Shows a subtle Safe Mode text overlay below the native HCF URL bar. */
 public final class HcfSafeModeBadge {
     private static final String PREF_FILE = "hcf_app";
     private static final String KEY_ACTIVE = "safe_mode_active";
     private static final String KEY_SESSION_PID = "safe_mode_session_pid";
-    private static final String BADGE_TAG = "hcf_safe_mode_header_badge";
+    private static final String BADGE_TAG = "hcf_safe_mode_overlay_text";
 
     private HcfSafeModeBadge() {}
 
@@ -91,7 +89,7 @@ public final class HcfSafeModeBadge {
         badge.setVisibility(View.VISIBLE);
         badge.bringToFront();
         root.post(() -> positionBelowUrlBar(root, urlBar, overlayBadge));
-        AppLogger.info(activity, "safe_mode_badge", "overlay_below_url_bar");
+        AppLogger.info(activity, "safe_mode_badge", "gray_plain_text_overlay");
     }
 
     private static void positionBelowUrlBar(FrameLayout root, View urlBar, View badge) {
@@ -108,14 +106,14 @@ public final class HcfSafeModeBadge {
         if (current instanceof FrameLayout.LayoutParams) {
             lp = (FrameLayout.LayoutParams) current;
         } else {
-            lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(root.getContext(), 26));
+            lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(root.getContext(), 20));
         }
 
         lp.width = ViewGroup.LayoutParams.WRAP_CONTENT;
-        lp.height = dp(root.getContext(), 26);
+        lp.height = dp(root.getContext(), 20);
         lp.gravity = Gravity.TOP | Gravity.END;
         lp.topMargin = Math.max(0, topMargin);
-        lp.rightMargin = dp(root.getContext(), 10);
+        lp.rightMargin = dp(root.getContext(), 12);
         badge.setLayoutParams(lp);
         badge.bringToFront();
     }
@@ -131,34 +129,23 @@ public final class HcfSafeModeBadge {
         badge.setTag(BADGE_TAG);
         badge.setText("Safe Mode");
         badge.setTextSize(9);
-        badge.setTextColor(context.getColor(R.color.hcf_cyan_bright));
-        badge.setTypeface(null, Typeface.BOLD);
+        badge.setTextColor(context.getColor(R.color.hcf_muted));
+        badge.setAlpha(0.72f);
+        badge.setTypeface(null, Typeface.NORMAL);
         badge.setGravity(Gravity.CENTER);
         badge.setSingleLine(true);
         badge.setIncludeFontPadding(false);
         badge.setContentDescription("Safe Mode active");
-        badge.setBackgroundResource(R.drawable.status_chip_background);
-        badge.setPadding(dp(context, 7), 0, dp(context, 7), 0);
-        badge.setMinHeight(dp(context, 26));
+        badge.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        badge.setPadding(dp(context, 4), 0, dp(context, 4), 0);
+        badge.setMinHeight(dp(context, 20));
         badge.setClickable(false);
         badge.setFocusable(false);
-        badge.setElevation(dp(context, 8));
-
-        try {
-            Drawable shield = context.getDrawable(R.drawable.fa_shield);
-            if (shield != null) {
-                shield = shield.mutate();
-                shield.setTintList(ColorStateList.valueOf(context.getColor(R.color.hcf_cyan_bright)));
-                int size = dp(context, 11);
-                shield.setBounds(0, 0, size, size);
-                badge.setCompoundDrawablesRelative(shield, null, null, null);
-                badge.setCompoundDrawablePadding(dp(context, 4));
-            }
-        } catch (Throwable ignored) {}
+        badge.setElevation(dp(context, 6));
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, dp(context, 26), Gravity.TOP | Gravity.END);
-        lp.rightMargin = dp(context, 10);
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(context, 20), Gravity.TOP | Gravity.END);
+        lp.rightMargin = dp(context, 12);
         badge.setLayoutParams(lp);
         return badge;
     }
