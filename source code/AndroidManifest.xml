@@ -49,6 +49,7 @@
         <provider android:name="com.harleytg.forum.dev.HcfSafeModeTheme$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.safemodetheme" android:initOrder="496"/>
         <provider android:name="com.harleytg.forum.dev.HcfSafeModeSettings$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.safemodesettings" android:initOrder="495"/>
         <provider android:name="com.harleytg.forum.dev.HcfSafeModeBadge$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.safemodebadge" android:initOrder="494"/>
+        <provider android:name="com.harleytg.forum.dev.HcfCrashWatchdog$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.crashwatchdog" android:initOrder="493"/>
         <provider android:name="com.harleytg.forum.dev.HcfUpdates$UpdateFileProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.updatefiles" android:grantUriPermissions="true"/>
         <provider android:name="com.harleytg.forum.dev.HcfNativeRoutes$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.nativeroutes" android:initOrder="120"/>
         <provider android:name="com.harleytg.forum.dev.HcfSetupCompletionGuard$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.setupcompletion" android:initOrder="115"/>
