@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- HCF widget, notification-history, and host-health enhancement resources. -->
     <string name="shortcut_new_discussion_short">New Discussion</string>
     <string name="shortcut_new_discussion_long">Start a new HCF discussion</string>
     <string name="shortcut_notifications_short">Notifications</string>
