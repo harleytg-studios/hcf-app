@@ -68,8 +68,8 @@
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$SupportContactActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$MediaViewerActivity" android:exported="false" android:screenOrientation="unspecified"/>
         <activity android:name="com.harleytg.forum.dev.HcfWidget$SettingsActivity" android:exported="false"/>
-        <activity android:name="com.harleytg.forum.dev.HcfEnhancements$NotificationHistoryActivity" android:exported="false"/>
-        <activity android:name="com.harleytg.forum.dev.HcfEnhancements$RouteActivity" android:exported="false" android:launchMode="singleTop" android:noHistory="true"/>
+        <activity android:name="com.harleytg.forum.dev.HcfWidget$NotificationHistoryActivity" android:exported="false"/>
+        <activity android:name="com.harleytg.forum.dev.HcfWidget$RouteActivity" android:exported="false" android:launchMode="singleTop" android:noHistory="true"/>
         <activity android:name="com.harleytg.forum.dev.HcfSafeMode$SafeModeActivity" android:exported="false" android:launchMode="singleTop"/>
         <activity android:name="com.harleytg.forum.dev.HcfUI$StartupMainActivity" android:exported="false" android:launchMode="singleTop"/>
         <activity android:name="com.harleytg.forum.dev.HcfUI$StartupActivity" android:exported="false" android:launchMode="singleTop"/>
@@ -102,7 +102,7 @@
         <receiver android:name="com.harleytg.forum.dev.HcfUpdates$UpdateDownloadReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.DOWNLOAD_COMPLETE"/></intent-filter></receiver>
         <receiver android:name="com.harleytg.forum.dev.HcfNotifications$BootReceiver" android:enabled="true" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.MY_PACKAGE_REPLACED"/></intent-filter></receiver>
         <receiver android:name="com.harleytg.forum.dev.HcfNotifications$NotificationActionReceiver" android:enabled="true" android:exported="false"/>
-        <receiver android:name="com.harleytg.forum.dev.HcfEnhancements$NotificationEventReceiver" android:enabled="true" android:exported="false">
+        <receiver android:name="com.harleytg.forum.dev.HcfWidget$NotificationEventReceiver" android:enabled="true" android:exported="false">
             <intent-filter><action android:name="com.harleytg.forum.dev.NOTIFICATION_EVENT"/></intent-filter>
         </receiver>
         <receiver android:name="com.harleytg.forum.dev.HcfWidget$NotificationsProvider" android:enabled="true" android:exported="false" android:label="@string/widget_hcf_name">
