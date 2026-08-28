@@ -34,6 +34,6 @@
             android:action="android.intent.action.VIEW"
             android:targetPackage="com.harleytg.forum.dev"
             android:targetClass="com.harleytg.forum.dev.HcfSafeMode$EntryActivity"
-            android:data="https://forum.harleytg.com/all" />
+            android:data="https://forum.harleytg.com/" />
     </shortcut>
 </shortcuts>
