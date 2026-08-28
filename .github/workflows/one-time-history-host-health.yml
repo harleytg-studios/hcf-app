@@ -1,0 +1,42 @@
+name: One-time HCF history privacy + host health patch
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/one-time-history-host-health.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Apply focused source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/one-time-history-host-health.py
+          python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
+          python3 .github/scripts/verify-hcf-notifications-v2.py 'source code'
+          python3 .github/scripts/verify-release-readiness.py .
+
+      - name: Commit source changes and remove one-time helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/scripts/one-time-history-host-health.py
+          rm -f .github/workflows/one-time-history-host-health.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Add notification history privacy and host health tools'
+          git push origin HEAD:dev
