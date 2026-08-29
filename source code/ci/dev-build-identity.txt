@@ -4,7 +4,7 @@ Product version: 1.1
 Dev tag: v1.1-hf1-a3
 Android versionCode: 100000104
 Internal build: 122
-Channel label: Beta / Development Build
-Patch: Build-Label-About
+Channel label: v1.1-hf1-a3 (100000104) • Development Build / Beta
+Patch: Build-Identity-Whats-New
 
-The public-facing Dev build label intentionally does not include RC.
+The public-facing Dev build identity includes version, versionCode, and Development Build / Beta; it intentionally does not include RC.

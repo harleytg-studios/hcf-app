@@ -322,15 +322,16 @@ final class BuildInfo {
     static final String APK_FILE_NAME = "HCF-Beta-v1.1-hf1-a3.apk";
     static final String BRAND = "Harley's Studios";
     static final String BASE_VERSION = "1.1";
+    static final String BUILD_TAG = "Development Build / Beta";
     static final String CHANNEL = "Dev";
     static final String DEFAULT_UPDATE_CHANNEL = "dev";
-    static final String DEVELOPMENT_BUILD_LABEL = "Beta / Development Build";
+    static final String DEVELOPMENT_BUILD_LABEL = "v1.1-hf1-a3 (100000104) • " + BUILD_TAG;
     static final boolean ENABLE_DEV_TEST_MENU = true;
     static final boolean FCM_CONFIGURED = false;
     static final boolean FIREBASE_WEB_CONFIG_BUNDLED = true;
     static final int INTERNAL_BUILD = 122;
     static final String META_LINE = "v1.1-hf1-a3 • Hotfix 1 • Alpha 3";
-    static final String PATCH_NAME = "Build-Label-About";
+    static final String PATCH_NAME = "Build-Identity-Whats-New";
     static final String RELEASE_STAGE = "Hotfix Alpha";
     static final String SESSION_CLIENT = "Harley's Clan Forum App";
     static final String UPDATE_DEV_BRANCH = "dev";
@@ -339,7 +340,7 @@ final class BuildInfo {
     static final String USER_AGENT_MARKER = "HarleysClanForumApp/1.1-hf1-a3 Build/100000104";
     static final String VERSION = "1.1-hf1-a3";
     static final int VERSION_CODE = 100000104;
-    static final String VERSION_BUILD_LINE = "v" + VERSION + " • Beta / Development Build • Build " + VERSION_CODE;
+    static final String VERSION_BUILD_LINE = "v" + VERSION + " (" + VERSION_CODE + ") • " + BUILD_TAG;
     static final String VERSION_CODE_SCHEME = "dev-hotfix-alpha-v1";
     static final String VERSION_TAG = "v1.1-hf1-a3";
     static final String REMOTE_DOMAIN_CONFIG = "https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/domains.config";

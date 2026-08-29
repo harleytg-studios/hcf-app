@@ -1053,15 +1053,33 @@ final class UpdateAutomation {
 // ---- ReleaseNotes.java ----
 /* loaded from: classes.dex */
 final class ReleaseNotes {
-    static final String NOTES = "Harley's Clan Forum (app) v" + BuildInfo.VERSION + " • Beta/Dev v" + BuildInfo.VERSION_CODE + "\n• Development/Beta versionCode " + BuildInfo.VERSION_CODE + ".\n• Theme selection now has five modes: Forum Auto, Phone Auto, Light, Dark, and AMOLED.\n• Forum Auto follows Flarum Night Mode and remembers the last known forum theme for cold start; Phone Auto follows Android directly.\n• Theme handoff recreation is debounced to prevent the previous Auto-theme flicker.\n• Developer Tools reorganized into Notification Lab, Runtime & WebView, Diagnostics & Logs, and Telemetry groups.\n• Added a compact Notification Test Console, Force Notification Sync, and copyable Runtime Snapshot.\n• About now shows app identity, build/channel, device/runtime, forum endpoints, privacy, release and support information in connected cards.\n• Forum Identity drawer profile photo now fills the entire inner cyan frame with no letterboxing gap.\n• Real drawer avatars use FIT_XY inside the protected 1dp border; the HTG placeholder keeps FIT_CENTER.\n• Downloaded-APK installer visibility fix from v10000046 is retained.\n• Launcher icon reverted to the original square HTG artwork.\n• Dedicated round/adaptive launcher-icon selection was removed from the app manifest.\n• Auto can now promote capable devices to Auto • Real-Time for faster foreground notification and forum freshness checks.\n• Notification polling is adaptive: fast while actively using HCF, progressively slower after backgrounding, screen-off, Battery Saver, or constrained-device conditions.\n• Live forum checks use smaller change signatures and HTTP validators instead of repeatedly hashing large API responses.\n• Shared executors reduce repeated background thread creation.\n• WebView timers/renderer priority now follow foreground/background state, while renderer-crash recovery remains enabled.\n• Notification state writes and routine success logging are reduced to meaningful changes.\n• Network restoration, app resume, pull-to-refresh, notification opening, and successful forum API mutations request immediate freshness sync.\n• Native FCM transport is not bundled in this source build, so adaptive polling remains the active fallback transport.\n\nStable remains separate; this feature set is scoped to com.harleytg.forum.dev.";
-    static final String SUMMARY = "Beta/Dev v" + BuildInfo.VERSION_CODE + " • Setup, secure updates & reliability";
+    static final String NOTES = "Harley's Clan Forum • v" + BuildInfo.VERSION + " (" + BuildInfo.VERSION_CODE + ") • " + BuildInfo.BUILD_TAG + "
+"
+            + "• Build identity now shows version, versionCode, and the Development Build / Beta tag in App Settings and the forum drawer.
+"
+            + "• What's New now reads the live BuildInfo version/build instead of the stale v1.0 label.
+"
+            + "• Android 14 foreground-service reliability fix is retained: network and screen callbacks sync the already-running notification service instead of self-restarting it.
+"
+            + "• Safe Mode, crash recovery, diagnostics, and sanitized crash reporting remain available for recovery builds.
+"
+            + "• Home-screen widget controls include theme following, compact mode, unread count, last-updated status, refresh behavior, and tap actions.
+"
+            + "• Theme selection includes Forum Auto, Phone Auto, Light, Dark, and AMOLED.
+"
+            + "• Developer notification/runtime tools and secure same-version APK hash updates remain enabled for the Dev/Beta channel.
+
+"
+            + "Stable remains separate; this feature set is scoped to com.harleytg.forum.dev.";
+    static final String SUMMARY = "v" + BuildInfo.VERSION + " (" + BuildInfo.VERSION_CODE + ") • " + BuildInfo.BUILD_TAG;
+    private static final String NOTES_REVISION = "build-identity-v2";
 
     static void seedForFreshInstall(SharedPreferences sharedPreferences) {
         markSeen(sharedPreferences);
     }
 
     private static String releaseId() {
-        return BuildInfo.VERSION + "-" + BuildInfo.VERSION_CODE;
+        return BuildInfo.VERSION + "-" + BuildInfo.VERSION_CODE + "-" + NOTES_REVISION;
     }
 
     static boolean shouldNotify(SharedPreferences sharedPreferences) {
@@ -1110,7 +1128,7 @@ final class ReleaseNotes {
         TextView label = label(activity, "What's New", 24, R.color.hcf_text, true);
         label.setPadding(0, dp(activity, 2), 0, 0);
         linearLayout3.addView(label);
-        TextView label2 = label(activity, "v1.0  •  Dev", 11, R.color.hcf_cyan_bright, true);
+        TextView label2 = label(activity, "v" + BuildInfo.VERSION + "  •  " + BuildInfo.VERSION_CODE + "  •  " + BuildInfo.BUILD_TAG, 11, R.color.hcf_cyan_bright, true);
         label2.setPadding(0, dp(activity, 4), 0, 0);
         linearLayout3.addView(label2);
         linearLayout2.addView(linearLayout3, layoutParams);

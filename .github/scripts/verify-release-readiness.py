@@ -88,7 +88,14 @@ require("BuildInfo user agent mismatch", f"Build/{version_code}" in build_info)
 require("BuildInfo version tag mismatch", f'VERSION_TAG = "v{EXPECTED_VERSION}"' in build_info)
 require("BuildInfo version scheme mismatch", 'VERSION_CODE_SCHEME = "dev-hotfix-alpha-v1"' in build_info)
 require("About base version missing", 'BASE_VERSION = "1.1"' in build_info)
-require("RC remains in public Dev build label", 'DEVELOPMENT_BUILD_LABEL = "Beta / Development Build"' in build_info and 'Beta / Development Build • Build ' in build_info)
+require("public Dev build tag mismatch", 'BUILD_TAG = "Development Build / Beta"' in build_info)
+require(
+    "public Dev build identity label mismatch",
+    f'DEVELOPMENT_BUILD_LABEL = "v{EXPECTED_VERSION} ({version_code}) • " + BUILD_TAG' in build_info
+    and 'VERSION_BUILD_LINE = "v" + VERSION + " (" + VERSION_CODE + ") • " + BUILD_TAG' in build_info,
+)
+require("What's New still has stale v1.0 copy", "What's New • v1.0" not in main_activity and '"v1.0  •  Dev"' not in updates_source)
+require("What's New revision marker missing", 'NOTES_REVISION = "build-identity-v2"' in updates_source)
 require("About does not show product/dev versions", 'Version " + BuildInfo.BASE_VERSION' in ui_source and 'Dev build " + BuildInfo.VERSION_TAG' in ui_source)
 require("README versionCode mismatch", f"Version code: `{version_code}`" in readme)
 require("README internal build mismatch", f"Internal build: `{EXPECTED_INTERNAL_BUILD}`" in readme)

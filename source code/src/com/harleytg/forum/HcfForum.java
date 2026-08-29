@@ -2489,8 +2489,11 @@ public final class HcfForum {
             }
             ReleaseNotes.markSeen(this.prefs);
             this.welcomeBanner.animate().cancel();
-            this.welcomeBanner.setText("✨  What's New • v1.0\nBeta/Dev v" + BuildInfo.VERSION_CODE + " • Setup, secure updates & reliability  •  Tap to view");
-            this.welcomeBanner.setContentDescription("What's new in v1.0. Tap to view release notes.");
+            this.welcomeBanner.setText("✨  What's New • v" + BuildInfo.VERSION
+                    + "
+" + BuildInfo.VERSION_CODE + " • " + BuildInfo.BUILD_TAG + "  •  Tap to view");
+            this.welcomeBanner.setContentDescription("What's new in v" + BuildInfo.VERSION
+                    + " build " + BuildInfo.VERSION_CODE + ". Tap to view release notes.");
             this.welcomeBanner.setClickable(true);
             this.welcomeBanner.setFocusable(true);
             this.welcomeBanner.setAlpha(0.0f);
