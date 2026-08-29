@@ -11,6 +11,8 @@ HCF_PRIMARY_HOST = forum.harleytg.com
 HCF_BACKUP_HOST = harleysclan.freeflarum.com
 HCF_TESTFLIGHT_URL =
 HCF_OBSERVATION_PROXY_URL =
+HCF_DISCORD_WEBHOOK_URL =
+APS_ENVIRONMENT = development
 
 // Internal/private builds may define HCF_INTERNAL_DISTRIBUTION in Local.xcconfig.
 // Never put a Discord webhook or API secret in this tracked file.
