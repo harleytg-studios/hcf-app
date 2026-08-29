@@ -1,0 +1,129 @@
+name: One-time widget settings routing patch
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/one-time-widget-settings-route.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-widget-settings:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Dev source
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Route App Settings widget category to full widget settings and bump dev build
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          VERSION = '1.1-hf1-a2'
+          VERSION_TAG = 'v' + VERSION
+          VERSION_CODE = 100000103
+          INTERNAL_BUILD = 121
+          PATCH_NAME = 'Widget-Settings-Subscreen'
+
+          def sub_once(text, pattern, repl, label):
+              out, count = re.subn(pattern, repl, text, count=1, flags=re.M)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 replacement, got {count}')
+              return out
+
+          # App Settings routing: Home-screen Widget now opens the complete widget settings screen.
+          ui_path = Path('source code/src/com/harleytg/forum/HcfUI.java')
+          ui = ui_path.read_text(encoding='utf-8')
+          old = '''        private void showSettingsSection(String section) {
+            if (section == null) section = "";
+            currentSettingsSection = section;'''
+          new = '''        private void showSettingsSection(String section) {
+            if (section == null) section = "";
+            if ("widget".equals(section)) {
+                startActivity(new Intent(this, HcfWidget.SettingsActivity.class));
+                return;
+            }
+            currentSettingsSection = section;'''
+          if old not in ui:
+              raise SystemExit('showSettingsSection routing point not found')
+          ui = ui.replace(old, new, 1)
+          ui = ui.replace(
+              'addSettingsCategory(list, "Home-screen Widget", "Theme, identity, content, layout and actions", "widget");',
+              'addSettingsCategory(list, "Home-screen Widget", "Appearance, refresh, preview, history and tap behavior", "widget");',
+              1,
+          )
+          ui_path.write_text(ui, encoding='utf-8')
+
+          # Manifest version identity.
+          manifest_path = Path('source code/AndroidManifest.xml')
+          manifest = manifest_path.read_text(encoding='utf-8')
+          manifest = sub_once(manifest, r'android:versionCode="\d+"', f'android:versionCode="{VERSION_CODE}"', 'manifest versionCode')
+          manifest = sub_once(manifest, r'android:versionName="[^"]+"', f'android:versionName="{VERSION} ({VERSION_CODE})"', 'manifest versionName')
+          manifest = sub_once(manifest, r'(<meta-data android:name="com\.harleytg\.APP_VERSION" android:value=")[^"]+("/>)', rf'\g<1>{VERSION} ({VERSION_CODE})\g<2>', 'manifest APP_VERSION')
+          manifest = sub_once(manifest, r'(<meta-data android:name="com\.harleytg\.APP_VERSION_CODE" android:value=")\d+("/>)', rf'\g<1>{VERSION_CODE}\g<2>', 'manifest APP_VERSION_CODE')
+          manifest_path.write_text(manifest, encoding='utf-8')
+
+          # BuildInfo identity.
+          core_path = Path('source code/src/com/harleytg/forum/HcfCore.java')
+          core = core_path.read_text(encoding='utf-8')
+          string_values = {
+              'APK_FILE_NAME': f'HCF-Beta-{VERSION_TAG}.apk',
+              'DEVELOPMENT_BUILD_LABEL': f"Harley's Clan Forum {VERSION_TAG} [Development / Beta / RC]",
+              'META_LINE': f'{VERSION_TAG} • Hotfix 1 • Alpha 2',
+              'PATCH_NAME': PATCH_NAME,
+              'RELEASE_STAGE': 'Hotfix Alpha',
+              'USER_AGENT_MARKER': f'HarleysClanForumApp/{VERSION} Build/{VERSION_CODE}',
+              'VERSION': VERSION,
+              'VERSION_CODE_SCHEME': 'dev-hotfix-alpha-v1',
+              'VERSION_TAG': VERSION_TAG,
+          }
+          for key, value in string_values.items():
+              core = sub_once(core, rf'^    static final String {key} = ".*";$', f'    static final String {key} = "{value}";', f'BuildInfo {key}')
+          core = sub_once(core, r'^    static final int INTERNAL_BUILD = \d+;$', f'    static final int INTERNAL_BUILD = {INTERNAL_BUILD};', 'BuildInfo INTERNAL_BUILD')
+          core = sub_once(core, r'^    static final int VERSION_CODE = \d+;$', f'    static final int VERSION_CODE = {VERSION_CODE};', 'BuildInfo VERSION_CODE')
+          core = sub_once(core, r'^    static final String VERSION_BUILD_LINE = .*;$', '    static final String VERSION_BUILD_LINE = "v" + VERSION + " • Hotfix 1 • Alpha 2 • Build " + VERSION_CODE;', 'BuildInfo VERSION_BUILD_LINE')
+          core_path.write_text(core, encoding='utf-8')
+
+          # Release verifier identity + explicit regression guard for the new routing.
+          verifier_path = Path('.github/scripts/verify-release-readiness.py')
+          verifier = verifier_path.read_text(encoding='utf-8')
+          verifier = sub_once(verifier, r'^EXPECTED_VERSION_CODE = \d+$', f'EXPECTED_VERSION_CODE = {VERSION_CODE}', 'verifier versionCode')
+          verifier = sub_once(verifier, r'^EXPECTED_VERSION = ".*"$', f'EXPECTED_VERSION = "{VERSION}"', 'verifier version')
+          verifier = sub_once(verifier, r'^EXPECTED_INTERNAL_BUILD = \d+$', f'EXPECTED_INTERNAL_BUILD = {INTERNAL_BUILD}', 'verifier internalBuild')
+          marker = 'require("widget root settings category missing", \'"Home-screen Widget"\' in ui_source and \'"Follow HCF app theme"\' in ui_source)\n'
+          if 'widget App Settings route missing' not in verifier:
+              if marker not in verifier:
+                  raise SystemExit('verifier widget category guard insertion point missing')
+              verifier = verifier.replace(marker, marker + 'require("widget App Settings route missing", \'startActivity(new Intent(this, HcfWidget.SettingsActivity.class))\' in ui_source)\n', 1)
+          verifier_path.write_text(verifier, encoding='utf-8')
+
+          # README build identity.
+          readme_path = Path('README.md')
+          readme = readme_path.read_text(encoding='utf-8')
+          readme = sub_once(readme, r'^- Version name: `[^`]+`$', f'- Version name: `{VERSION} ({VERSION_CODE})`', 'README version name')
+          readme = sub_once(readme, r'^- Version tag: `[^`]+`$', f'- Version tag: `{VERSION_TAG}`', 'README version tag')
+          readme = sub_once(readme, r'^- Patch: `[^`]+`$', f'- Patch: `{PATCH_NAME}`', 'README patch')
+          readme = sub_once(readme, r'^- Version code: `\d+`$', f'- Version code: `{VERSION_CODE}`', 'README version code')
+          readme = sub_once(readme, r'^- Internal build: `\d+`$', f'- Internal build: `{INTERNAL_BUILD}`', 'README internal build')
+          readme = re.sub(r'- Current dev build: `v[^`]+` / Android versionCode `\d+`\.', f'- Current dev build: `{VERSION_TAG}` / Android versionCode `{VERSION_CODE}`.', readme, count=1)
+          if 'App Settings → Home-screen Widget now opens' not in readme:
+              anchor = '## HCF Notifications home-screen widget\n\n'
+              note = 'App Settings → Home-screen Widget now opens the complete native widget settings screen, including transparency, text size, notification preview/history privacy, retention, automatic refresh, and tap behavior. Back returns to App Settings.\n\n'
+              if anchor in readme:
+                  readme = readme.replace(anchor, anchor + note, 1)
+          readme_path.write_text(readme, encoding='utf-8')
+          PY
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'source code/src/com/harleytg/forum/HcfUI.java' 'source code/AndroidManifest.xml' 'source code/src/com/harleytg/forum/HcfCore.java' '.github/scripts/verify-release-readiness.py' README.md
+          git commit -m 'Move widget settings under App Settings v1.1-hf1-a2'
+          git push origin HEAD:dev
