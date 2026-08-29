@@ -88,7 +88,7 @@ require("BuildInfo user agent mismatch", f"Build/{version_code}" in build_info)
 require("BuildInfo version tag mismatch", f'VERSION_TAG = "v{EXPECTED_VERSION}"' in build_info)
 require("BuildInfo version scheme mismatch", 'VERSION_CODE_SCHEME = "dev-hotfix-alpha-v1"' in build_info)
 require("About base version missing", 'BASE_VERSION = "1.1"' in build_info)
-require("public Dev build tag mismatch", 'BUILD_TAG = "Development Build / Beta"' in build_info)
+require("public Dev build tag mismatch", 'BUILD_TAG = "Beta / Development Build"' in build_info)
 require(
     "public Dev build identity label mismatch",
     f'DEVELOPMENT_BUILD_LABEL = "v{EXPECTED_VERSION} ({version_code}) • " + BUILD_TAG' in build_info
