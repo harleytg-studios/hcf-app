@@ -1,0 +1,8 @@
+HarleysClanForum.xcodeproj/
+DerivedData/
+.build/
+.swiftpm/
+Config/Local.xcconfig
+Config/Secrets.xcconfig
+*.xcarchive
+*.ipa
