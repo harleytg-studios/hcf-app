@@ -148,7 +148,27 @@ public final class HcfNotifications {
 
         static void requestImmediateSync(Context context) {
             if (context == null || NotificationHelper.silencePassiveEnabled(context) || !hasSession(context)) return;
+            // Never call startForegroundService() again from the service itself. On Android 14
+            // (and some OEM builds) a self-restart can open a fresh foreground-service deadline
+            // and crash with ForegroundServiceDidNotStartInTimeException even though this
+            // service is already foregrounded.
+            if (context instanceof InstantNotificationService) {
+                ((InstantNotificationService) context).requestImmediateSyncLocal("service-context");
+                return;
+            }
             startWithAction(context, ACTION_SYNC_NOW);
+        }
+
+        private void requestImmediateSyncLocal(String source) {
+            if (!running) return;
+            failures = 0;
+            if (inFlight.get()) {
+                immediateRequested = true;
+            } else {
+                scheduleNext(0L);
+            }
+            AppLogger.info(this, "instant_notification_service",
+                    "immediate sync • " + (source == null ? "local" : source));
         }
 
         private static void requestOneShotSync(Context context) {
@@ -395,8 +415,7 @@ public final class HcfNotifications {
                 networkCallback = new ConnectivityManager.NetworkCallback() {
                     @Override public void onAvailable(Network network) {
                         if (running) {
-                            failures = 0;
-                            requestImmediateSync(InstantNotificationService.this);
+                            InstantNotificationService.this.requestImmediateSyncLocal("network-available");
                         }
                     }
                 };
@@ -413,7 +432,7 @@ public final class HcfNotifications {
                 screenOnReceiver = new BroadcastReceiver() {
                     @Override public void onReceive(Context context, Intent intent) {
                         if (intent != null && Intent.ACTION_SCREEN_ON.equals(intent.getAction()) && running) {
-                            requestImmediateSync(InstantNotificationService.this);
+                            InstantNotificationService.this.requestImmediateSyncLocal("screen-on");
                         }
                     }
                 };
