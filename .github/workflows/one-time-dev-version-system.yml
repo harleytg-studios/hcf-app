@@ -104,18 +104,19 @@ jobs:
           readme = readme.replace('The v100000101 workflow compiles', 'The generic Dev release workflow compiles', 1)
           readme = readme.replace('v100000101 uses a backend-free manual moderation design:', 'The current dev build uses a backend-free manual moderation design:', 1)
           if '## Dev version system' not in readme:
-              section = '''## Dev version system
-
-The `dev` branch is the shared Development → Beta → RC testing line. Human-facing versions use a compact suffix while Android `versionCode` remains a strictly increasing install/update number.
-
-- Normal development: `v1.1-a1`, `v1.1-a2`, `v1.1-b1`, `v1.1-rc1`
-- Hotfix development: `v1.1-hf1-a1`, `v1.1-hf1-a2`, `v1.1-hf1-rc1`
-- Next hotfix train: `v1.1-hf2-a1`
-- Stable promotion may drop the dev suffix and use the stable branch release version.
-- Current dev build: `v1.1-hf1-a1` / Android versionCode `100000102`.
-
-'''
-              readme = readme.replace('## HCF Notifications home-screen widget\n', section + '## HCF Notifications home-screen widget\n', 1)
+              lines = [
+                  '## Dev version system',
+                  '',
+                  'The `dev` branch is the shared Development → Beta → RC testing line. Human-facing versions use a compact suffix while Android `versionCode` remains a strictly increasing install/update number.',
+                  '',
+                  '- Normal development: `v1.1-a1`, `v1.1-a2`, `v1.1-b1`, `v1.1-rc1`',
+                  '- Hotfix development: `v1.1-hf1-a1`, `v1.1-hf1-a2`, `v1.1-hf1-rc1`',
+                  '- Next hotfix train: `v1.1-hf2-a1`',
+                  '- Stable promotion may drop the dev suffix and use the stable branch release version.',
+                  '- Current dev build: `v1.1-hf1-a1` / Android versionCode `100000102`.',
+                  '',
+              ]
+              readme = readme.replace('## HCF Notifications home-screen widget\n', '\n'.join(lines) + '\n## HCF Notifications home-screen widget\n', 1)
           write(readme_path, readme)
           PY
 
