@@ -25,5 +25,5 @@ let package = Package(
             dependencies: ["HCFCore", "HCFForum", "HCFNotifications", "HCFUpdates", "HCFPlatform"]
         )
     ],
-    swiftLanguageModes: [.v6]
+    swiftLanguageModes: [.v5]
 )
