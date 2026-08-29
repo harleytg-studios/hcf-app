@@ -1,0 +1,73 @@
+name: iOS Dev Build
+
+on:
+  push:
+    branches: [ios-dev]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-dev-build.yml'
+      - 'source code/res/drawable-nodpi-v4/htg_app_logo.png'
+  pull_request:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-dev-build.yml'
+      - 'source code/res/drawable-nodpi-v4/htg_app_logo.png'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build for iOS Simulator
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project HarleysClanForum.xcodeproj \
+            -scheme 'HCF Dev' \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build | xcpretty
+
+      - name: Run unit tests
+        working-directory: ios
+        run: |
+          set -o pipefail
+          DESTINATION=$(xcrun simctl list devices available -j | python3 -c '
+          import json,sys
+          data=json.load(sys.stdin)
+          for runtime, devices in data["devices"].items():
+              for device in devices:
+                  if device.get("isAvailable") and device["name"].startswith("iPhone"):
+                      print("platform=iOS Simulator,id=" + device["udid"])
+                      raise SystemExit
+          raise SystemExit("No available iPhone simulator")')
+          xcodebuild \
+            -project HarleysClanForum.xcodeproj \
+            -scheme 'HCF Dev' \
+            -configuration Debug \
+            -destination "$DESTINATION" \
+            CODE_SIGNING_ALLOWED=NO \
+            test | xcpretty
