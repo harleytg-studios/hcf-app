@@ -28,63 +28,68 @@ jobs:
           path = Path('source code/src/com/harleytg/forum/HcfNotifications.java')
           text = path.read_text(encoding='utf-8')
 
-          old_sync = '''        static void requestImmediateSync(Context context) {
-              if (context == null || NotificationHelper.silencePassiveEnabled(context) || !hasSession(context)) return;
-              startWithAction(context, ACTION_SYNC_NOW);
-          }
-'''
-          new_sync = '''        static void requestImmediateSync(Context context) {
-              if (context == null || NotificationHelper.silencePassiveEnabled(context) || !hasSession(context)) return;
-              // Never call startForegroundService() again from the service itself. On Android 14
-              // (and some OEM builds) a self-restart can open a fresh foreground-service deadline
-              // and crash with ForegroundServiceDidNotStartInTimeException even though this
-              // service is already foregrounded.
-              if (context instanceof InstantNotificationService) {
-                  ((InstantNotificationService) context).requestImmediateSyncLocal("service-context");
-                  return;
-              }
-              startWithAction(context, ACTION_SYNC_NOW);
-          }
+          old_sync = (
+              "        static void requestImmediateSync(Context context) {\n"
+              "            if (context == null || NotificationHelper.silencePassiveEnabled(context) || !hasSession(context)) return;\n"
+              "            startWithAction(context, ACTION_SYNC_NOW);\n"
+              "        }\n"
+          )
+          new_sync = (
+              "        static void requestImmediateSync(Context context) {\n"
+              "            if (context == null || NotificationHelper.silencePassiveEnabled(context) || !hasSession(context)) return;\n"
+              "            // Never call startForegroundService() again from the service itself. On Android 14\n"
+              "            // (and some OEM builds) a self-restart can open a fresh foreground-service deadline\n"
+              "            // and crash with ForegroundServiceDidNotStartInTimeException even though this\n"
+              "            // service is already foregrounded.\n"
+              "            if (context instanceof InstantNotificationService) {\n"
+              "                ((InstantNotificationService) context).requestImmediateSyncLocal(\"service-context\");\n"
+              "                return;\n"
+              "            }\n"
+              "            startWithAction(context, ACTION_SYNC_NOW);\n"
+              "        }\n\n"
+              "        private void requestImmediateSyncLocal(String source) {\n"
+              "            if (!running) return;\n"
+              "            failures = 0;\n"
+              "            if (inFlight.get()) {\n"
+              "                immediateRequested = true;\n"
+              "            } else {\n"
+              "                scheduleNext(0L);\n"
+              "            }\n"
+              "            AppLogger.info(this, \"instant_notification_service\",\n"
+              "                    \"immediate sync • \" + (source == null ? \"local\" : source));\n"
+              "        }\n"
+          )
 
-          private void requestImmediateSyncLocal(String source) {
-              if (!running) return;
-              failures = 0;
-              if (inFlight.get()) {
-                  immediateRequested = true;
-              } else {
-                  scheduleNext(0L);
-              }
-              AppLogger.info(this, "instant_notification_service",
-                      "immediate sync • " + (source == null ? "local" : source));
-          }
-'''
+          old_network = (
+              "                    @Override public void onAvailable(Network network) {\n"
+              "                        if (running) {\n"
+              "                            failures = 0;\n"
+              "                            requestImmediateSync(InstantNotificationService.this);\n"
+              "                        }\n"
+              "                    }\n"
+          )
+          new_network = (
+              "                    @Override public void onAvailable(Network network) {\n"
+              "                        if (running) {\n"
+              "                            InstantNotificationService.this.requestImmediateSyncLocal(\"network-available\");\n"
+              "                        }\n"
+              "                    }\n"
+          )
 
-          old_network = '''                    @Override public void onAvailable(Network network) {
-                          if (running) {
-                              failures = 0;
-                              requestImmediateSync(InstantNotificationService.this);
-                          }
-                      }
-'''
-          new_network = '''                    @Override public void onAvailable(Network network) {
-                          if (running) {
-                              InstantNotificationService.this.requestImmediateSyncLocal("network-available");
-                          }
-                      }
-'''
-
-          old_screen = '''                    @Override public void onReceive(Context context, Intent intent) {
-                          if (intent != null && Intent.ACTION_SCREEN_ON.equals(intent.getAction()) && running) {
-                              requestImmediateSync(InstantNotificationService.this);
-                          }
-                      }
-'''
-          new_screen = '''                    @Override public void onReceive(Context context, Intent intent) {
-                          if (intent != null && Intent.ACTION_SCREEN_ON.equals(intent.getAction()) && running) {
-                              InstantNotificationService.this.requestImmediateSyncLocal("screen-on");
-                          }
-                      }
-'''
+          old_screen = (
+              "                    @Override public void onReceive(Context context, Intent intent) {\n"
+              "                        if (intent != null && Intent.ACTION_SCREEN_ON.equals(intent.getAction()) && running) {\n"
+              "                            requestImmediateSync(InstantNotificationService.this);\n"
+              "                        }\n"
+              "                    }\n"
+          )
+          new_screen = (
+              "                    @Override public void onReceive(Context context, Intent intent) {\n"
+              "                        if (intent != null && Intent.ACTION_SCREEN_ON.equals(intent.getAction()) && running) {\n"
+              "                            InstantNotificationService.this.requestImmediateSyncLocal(\"screen-on\");\n"
+              "                        }\n"
+              "                    }\n"
+          )
 
           for label, old in (("requestImmediateSync", old_sync), ("network callback", old_network), ("screen receiver", old_screen)):
               count = text.count(old)
