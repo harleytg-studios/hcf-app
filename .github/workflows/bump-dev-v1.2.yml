@@ -1,0 +1,87 @@
+name: Bump Dev to v1.2 Alpha 1
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/bump-dev-v1.2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Apply v1.2-a1 identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          manifest = Path('source code/AndroidManifest.xml')
+          core = Path('source code/src/com/harleytg/forum/HcfCore.java')
+
+          def replace_exact(path, old, new):
+              text = path.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly 1 occurrence of {old!r}, found {count}')
+              path.write_text(text.replace(old, new), encoding='utf-8')
+
+          replace_exact(manifest, 'android:versionCode="100000105"', 'android:versionCode="100000106"')
+          replace_exact(manifest, 'android:versionName="1.1-hf2-a1 (100000105)"', 'android:versionName="1.2-a1 (100000106)"')
+
+          replacements = [
+              ('static final String APK_FILE_NAME = "HCF-Beta-v1.1-hf2-a1.apk";', 'static final String APK_FILE_NAME = "HCF-Beta-v1.2-a1.apk";'),
+              ('static final String BASE_VERSION = "1.1";', 'static final String BASE_VERSION = "1.2";'),
+              ('static final String DEVELOPMENT_BUILD_LABEL = "v1.1-hf2-a1 (100000105) • " + BUILD_TAG;', 'static final String DEVELOPMENT_BUILD_LABEL = "v1.2-a1 (100000106) • " + BUILD_TAG;'),
+              ('static final int INTERNAL_BUILD = 123;', 'static final int INTERNAL_BUILD = 124;'),
+              ('static final String META_LINE = "v1.1-hf2-a1 • Hotfix 2 • Alpha 1";', 'static final String META_LINE = "v1.2-a1 • Alpha 1";'),
+              ('static final String PATCH_NAME = "Hotfix-2";', 'static final String PATCH_NAME = "Alpha-1";'),
+              ('static final String RELEASE_STAGE = "Hotfix Alpha";', 'static final String RELEASE_STAGE = "Alpha";'),
+              ('static final String USER_AGENT_MARKER = "HarleysClanForumApp/1.1-hf2-a1 Build/100000105";', 'static final String USER_AGENT_MARKER = "HarleysClanForumApp/1.2-a1 Build/100000106";'),
+              ('static final String VERSION = "1.1-hf2-a1";', 'static final String VERSION = "1.2-a1";'),
+              ('static final int VERSION_CODE = 100000105;', 'static final int VERSION_CODE = 100000106;'),
+              ('static final String VERSION_CODE_SCHEME = "dev-hotfix-alpha-v1";', 'static final String VERSION_CODE_SCHEME = "dev-alpha-v1";'),
+              ('static final String VERSION_TAG = "v1.1-hf2-a1";', 'static final String VERSION_TAG = "v1.2-a1";'),
+          ]
+          for old, new in replacements:
+              replace_exact(core, old, new)
+          PY
+
+      - name: Remove one-time workflow before validation
+        shell: bash
+        run: rm -f '.github/workflows/bump-dev-v1.2.yml'
+
+      - name: Verify release readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/verify-hcf-alerts-ui.py 'source code'
+          python3 .github/scripts/verify-hcf-notifications-v2.py 'source code'
+          python3 .github/scripts/verify-release-readiness.py .
+          grep -Fq 'android:versionCode="100000106"' 'source code/AndroidManifest.xml'
+          grep -Fq 'android:versionName="1.2-a1 (100000106)"' 'source code/AndroidManifest.xml'
+          grep -Fq 'static final String VERSION = "1.2-a1";' 'source code/src/com/harleytg/forum/HcfCore.java'
+          grep -Fq 'static final String VERSION_TAG = "v1.2-a1";' 'source code/src/com/harleytg/forum/HcfCore.java'
+          grep -Fq 'static final int VERSION_CODE = 100000106;' 'source code/src/com/harleytg/forum/HcfCore.java'
+
+      - name: Commit v1.2-a1
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Start Dev v1.2 alpha 1'
+          git push origin HEAD:dev
