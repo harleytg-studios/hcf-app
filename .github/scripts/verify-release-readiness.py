@@ -6,9 +6,9 @@ import re
 import sys
 
 
-EXPECTED_VERSION_CODE = 100000105
-EXPECTED_VERSION = "1.1-hf2-a1"
-EXPECTED_INTERNAL_BUILD = 123
+EXPECTED_VERSION_CODE = 100000106
+EXPECTED_VERSION = "1.2-a1"
+EXPECTED_INTERNAL_BUILD = 124
 EXPECTED_PACKAGE = "com.harleytg.forum.dev"
 EXPECTED_SIGNER = "93:D4:9B:F9:A8:77:C7:CF:B1:B3:7F:90:64:BD:95:5C:D6:7B:D7:DD:8D:B7:3A:9E:3F:76:6B:59:C4:BC:CE:63"
 
@@ -86,8 +86,8 @@ require("wrong compile SDK", 'android:compileSdkVersion="35"' in manifest)
 require("BuildInfo APK name mismatch", f'HCF-Beta-v{EXPECTED_VERSION}.apk' in build_info)
 require("BuildInfo user agent mismatch", f"Build/{version_code}" in build_info)
 require("BuildInfo version tag mismatch", f'VERSION_TAG = "v{EXPECTED_VERSION}"' in build_info)
-require("BuildInfo version scheme mismatch", 'VERSION_CODE_SCHEME = "dev-hotfix-alpha-v1"' in build_info)
-require("About base version missing", 'BASE_VERSION = "1.1"' in build_info)
+require("BuildInfo version scheme mismatch", 'VERSION_CODE_SCHEME = "dev-alpha-v1"' in build_info)
+require("About base version missing", 'BASE_VERSION = "1.2"' in build_info)
 require("public Dev build tag mismatch", 'BUILD_TAG = "Beta / Development Build"' in build_info)
 require(
     "public Dev build identity label mismatch",
