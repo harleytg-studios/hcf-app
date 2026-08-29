@@ -33,28 +33,21 @@ jobs:
           INTERNAL_BUILD = 121
           PATCH_NAME = 'Widget-Settings-Subscreen'
 
-          def sub_once(text, pattern, repl, label):
-              out, count = re.subn(pattern, repl, text, count=1, flags=re.M)
+          def sub_once(text, pattern, repl, label, flags=re.M):
+              out, count = re.subn(pattern, repl, text, count=1, flags=flags)
               if count != 1:
                   raise SystemExit(f'{label}: expected 1 replacement, got {count}')
               return out
 
-          # App Settings routing: Home-screen Widget now opens the complete widget settings screen.
           ui_path = Path('source code/src/com/harleytg/forum/HcfUI.java')
           ui = ui_path.read_text(encoding='utf-8')
-          old = '''        private void showSettingsSection(String section) {
-            if (section == null) section = "";
-            currentSettingsSection = section;'''
-          new = '''        private void showSettingsSection(String section) {
-            if (section == null) section = "";
-            if ("widget".equals(section)) {
+          route_pattern = r'(\s*private void showSettingsSection\(String section\) \{\s*if \(section == null\) section = "";\s*)'
+          route_replacement = r'''\1if ("widget".equals(section)) {
                 startActivity(new Intent(this, HcfWidget.SettingsActivity.class));
                 return;
             }
-            currentSettingsSection = section;'''
-          if old not in ui:
-              raise SystemExit('showSettingsSection routing point not found')
-          ui = ui.replace(old, new, 1)
+            '''
+          ui = sub_once(ui, route_pattern, route_replacement, 'showSettingsSection route', flags=re.M | re.S)
           ui = ui.replace(
               'addSettingsCategory(list, "Home-screen Widget", "Theme, identity, content, layout and actions", "widget");',
               'addSettingsCategory(list, "Home-screen Widget", "Appearance, refresh, preview, history and tap behavior", "widget");',
@@ -62,7 +55,6 @@ jobs:
           )
           ui_path.write_text(ui, encoding='utf-8')
 
-          # Manifest version identity.
           manifest_path = Path('source code/AndroidManifest.xml')
           manifest = manifest_path.read_text(encoding='utf-8')
           manifest = sub_once(manifest, r'android:versionCode="\d+"', f'android:versionCode="{VERSION_CODE}"', 'manifest versionCode')
@@ -71,7 +63,6 @@ jobs:
           manifest = sub_once(manifest, r'(<meta-data android:name="com\.harleytg\.APP_VERSION_CODE" android:value=")\d+("/>)', rf'\g<1>{VERSION_CODE}\g<2>', 'manifest APP_VERSION_CODE')
           manifest_path.write_text(manifest, encoding='utf-8')
 
-          # BuildInfo identity.
           core_path = Path('source code/src/com/harleytg/forum/HcfCore.java')
           core = core_path.read_text(encoding='utf-8')
           string_values = {
@@ -92,7 +83,6 @@ jobs:
           core = sub_once(core, r'^    static final String VERSION_BUILD_LINE = .*;$', '    static final String VERSION_BUILD_LINE = "v" + VERSION + " • Hotfix 1 • Alpha 2 • Build " + VERSION_CODE;', 'BuildInfo VERSION_BUILD_LINE')
           core_path.write_text(core, encoding='utf-8')
 
-          # Release verifier identity + explicit regression guard for the new routing.
           verifier_path = Path('.github/scripts/verify-release-readiness.py')
           verifier = verifier_path.read_text(encoding='utf-8')
           verifier = sub_once(verifier, r'^EXPECTED_VERSION_CODE = \d+$', f'EXPECTED_VERSION_CODE = {VERSION_CODE}', 'verifier versionCode')
@@ -105,7 +95,6 @@ jobs:
               verifier = verifier.replace(marker, marker + 'require("widget App Settings route missing", \'startActivity(new Intent(this, HcfWidget.SettingsActivity.class))\' in ui_source)\n', 1)
           verifier_path.write_text(verifier, encoding='utf-8')
 
-          # README build identity.
           readme_path = Path('README.md')
           readme = readme_path.read_text(encoding='utf-8')
           readme = sub_once(readme, r'^- Version name: `[^`]+`$', f'- Version name: `{VERSION} ({VERSION_CODE})`', 'README version name')
