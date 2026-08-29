@@ -1,0 +1,7 @@
+HCF Dev widget settings routing validation
+
+App Settings -> Home-screen Widget now opens HcfWidget.SettingsActivity so the full widget controls live behind the App Settings widget category.
+
+Build: v1.1-hf1-a2
+VersionCode: 100000103
+Patch: Widget-Settings-Subscreen
