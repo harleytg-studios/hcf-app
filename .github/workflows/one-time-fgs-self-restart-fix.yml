@@ -1,0 +1,120 @@
+name: One-time Android 14 foreground service crash fix
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/one-time-fgs-self-restart-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Patch foreground service self-restart crash
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('source code/src/com/harleytg/forum/HcfNotifications.java')
+          text = path.read_text(encoding='utf-8')
+
+          old_sync = '''        static void requestImmediateSync(Context context) {
+              if (context == null || NotificationHelper.silencePassiveEnabled(context) || !hasSession(context)) return;
+              startWithAction(context, ACTION_SYNC_NOW);
+          }
+'''
+          new_sync = '''        static void requestImmediateSync(Context context) {
+              if (context == null || NotificationHelper.silencePassiveEnabled(context) || !hasSession(context)) return;
+              // Never call startForegroundService() again from the service itself. On Android 14
+              // (and some OEM builds) a self-restart can open a fresh foreground-service deadline
+              // and crash with ForegroundServiceDidNotStartInTimeException even though this
+              // service is already foregrounded.
+              if (context instanceof InstantNotificationService) {
+                  ((InstantNotificationService) context).requestImmediateSyncLocal("service-context");
+                  return;
+              }
+              startWithAction(context, ACTION_SYNC_NOW);
+          }
+
+          private void requestImmediateSyncLocal(String source) {
+              if (!running) return;
+              failures = 0;
+              if (inFlight.get()) {
+                  immediateRequested = true;
+              } else {
+                  scheduleNext(0L);
+              }
+              AppLogger.info(this, "instant_notification_service",
+                      "immediate sync • " + (source == null ? "local" : source));
+          }
+'''
+
+          old_network = '''                    @Override public void onAvailable(Network network) {
+                          if (running) {
+                              failures = 0;
+                              requestImmediateSync(InstantNotificationService.this);
+                          }
+                      }
+'''
+          new_network = '''                    @Override public void onAvailable(Network network) {
+                          if (running) {
+                              InstantNotificationService.this.requestImmediateSyncLocal("network-available");
+                          }
+                      }
+'''
+
+          old_screen = '''                    @Override public void onReceive(Context context, Intent intent) {
+                          if (intent != null && Intent.ACTION_SCREEN_ON.equals(intent.getAction()) && running) {
+                              requestImmediateSync(InstantNotificationService.this);
+                          }
+                      }
+'''
+          new_screen = '''                    @Override public void onReceive(Context context, Intent intent) {
+                          if (intent != null && Intent.ACTION_SCREEN_ON.equals(intent.getAction()) && running) {
+                              InstantNotificationService.this.requestImmediateSyncLocal("screen-on");
+                          }
+                      }
+'''
+
+          for label, old in (("requestImmediateSync", old_sync), ("network callback", old_network), ("screen receiver", old_screen)):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected exactly one {label} block, found {count}')
+
+          text = text.replace(old_sync, new_sync, 1)
+          text = text.replace(old_network, new_network, 1)
+          text = text.replace(old_screen, new_screen, 1)
+
+          if 'requestImmediateSync(InstantNotificationService.this);' in text:
+              raise SystemExit('Unsafe service self-restart call still present')
+          if 'requestImmediateSyncLocal("network-available")' not in text:
+              raise SystemExit('Network callback patch missing')
+          if 'requestImmediateSyncLocal("screen-on")' not in text:
+              raise SystemExit('Screen-on patch missing')
+          if 'context instanceof InstantNotificationService' not in text:
+              raise SystemExit('Service-context guard missing')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit source fix and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/one-time-fgs-self-restart-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'source code/src/com/harleytg/forum/HcfNotifications.java' .github/workflows/one-time-fgs-self-restart-fix.yml
+          git diff --cached --check
+          git commit -m 'Fix Android 14 foreground notification service crash'
+          git push origin HEAD:dev
