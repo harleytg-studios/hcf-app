@@ -34,7 +34,7 @@ settings:
 
 configFiles:
   Debug: Config/Dev.xcconfig
-  Release: Config/Dev.xcconfig
+  Release: Config/Release.xcconfig
 
 targets:
   HarleysClanForum:
@@ -47,6 +47,7 @@ targets:
           - Resources/Info.plist
           - Resources/HCF.entitlements
           - Resources/PrivacyInfo.xcprivacy
+          - Resources/Assets.xcassets
     resources:
       - path: HarleysClanForum/Resources/Assets.xcassets
       - path: HarleysClanForum/Resources/PrivacyInfo.xcprivacy
@@ -89,12 +90,14 @@ targets:
         script: |
           set -euo pipefail
           SRC="${SRCROOT}/../source code/res/drawable-nodpi-v4/htg_app_logo.png"
+          APP_ICON="${SRCROOT}/HarleysClanForum/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+          LOGO="${SRCROOT}/HarleysClanForum/Resources/Assets.xcassets/HTGLogo.imageset/HTGLogo.png"
           if [ ! -f "$SRC" ]; then
             echo "error: HCF logo source not found: $SRC"
             exit 1
           fi
-          cp "$SRC" "${SRCROOT}/HarleysClanForum/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
-          cp "$SRC" "${SRCROOT}/HarleysClanForum/Resources/Assets.xcassets/HTGLogo.imageset/HTGLogo.png"
+          /usr/bin/sips -z 1024 1024 "$SRC" --out "$APP_ICON" >/dev/null
+          cp "$SRC" "$LOGO"
 
   HCFWidgetExtension:
     type: app-extension
@@ -105,6 +108,9 @@ targets:
         excludes:
           - Info.plist
           - HCFWidget.entitlements
+          - PrivacyInfo.xcprivacy
+    resources:
+      - path: HCFWidgetExtension/PrivacyInfo.xcprivacy
     info:
       path: HCFWidgetExtension/Info.plist
     entitlements:
