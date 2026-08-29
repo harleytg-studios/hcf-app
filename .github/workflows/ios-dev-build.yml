@@ -49,6 +49,7 @@ jobs:
             -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
+            SWIFT_VERSION=5 \
             build | xcpretty
 
       - name: Run unit tests
@@ -70,4 +71,43 @@ jobs:
             -configuration Debug \
             -destination "$DESTINATION" \
             CODE_SIGNING_ALLOWED=NO \
+            SWIFT_VERSION=5 \
             test | xcpretty
+
+      - name: Build unsigned iPhone app
+        working-directory: ios
+        run: |
+          set -o pipefail
+          rm -rf build/DeviceDerivedData build/Payload build/HCF-iOS-v1.1-hf2-a1-100000105-unsigned.ipa
+          xcodebuild \
+            -project HarleysClanForum.xcodeproj \
+            -scheme 'HCF Dev' \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DeviceDerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            SWIFT_VERSION=5 \
+            build | xcpretty
+
+          APP_PATH=$(find build/DeviceDerivedData/Build/Products/Debug-iphoneos -maxdepth 1 -type d -name '*.app' ! -name '*Tests*' | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo 'No device .app was produced.' >&2
+            exit 1
+          fi
+
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/HarleysClanForum.app
+          (
+            cd build
+            /usr/bin/zip -qry HCF-iOS-v1.1-hf2-a1-100000105-unsigned.ipa Payload
+          )
+          ls -lh build/HCF-iOS-v1.1-hf2-a1-100000105-unsigned.ipa
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: HCF-iOS-v1.1-hf2-a1-100000105-unsigned
+          path: ios/build/HCF-iOS-v1.1-hf2-a1-100000105-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
