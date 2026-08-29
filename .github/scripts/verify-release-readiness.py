@@ -96,6 +96,8 @@ require(
 )
 require("What's New still has stale v1.0 copy", "What's New • v1.0" not in main_activity and '"v1.0  •  Dev"' not in updates_source)
 require("What's New revision marker missing", 'NOTES_REVISION = "build-identity-v2"' in updates_source)
+require("stale detailed release title remains", "Harley's Clan Forum (app) v1.0" not in updates_source)
+require("dynamic What's New build tag missing", "BuildInfo.BUILD_TAG" in updates_source and "Current Dev build" in updates_source)
 require("About does not show product/dev versions", 'Version " + BuildInfo.BASE_VERSION' in ui_source and 'Dev build " + BuildInfo.VERSION_TAG' in ui_source)
 require("README versionCode mismatch", f"Version code: `{version_code}`" in readme)
 require("README internal build mismatch", f"Internal build: `{EXPECTED_INTERNAL_BUILD}`" in readme)

@@ -2490,8 +2490,7 @@ public final class HcfForum {
             ReleaseNotes.markSeen(this.prefs);
             this.welcomeBanner.animate().cancel();
             this.welcomeBanner.setText("✨  What's New • v" + BuildInfo.VERSION
-                    + "
-" + BuildInfo.VERSION_CODE + " • " + BuildInfo.BUILD_TAG + "  •  Tap to view");
+                    + "\n" + BuildInfo.VERSION_CODE + " • " + BuildInfo.BUILD_TAG + "  •  Tap to view");
             this.welcomeBanner.setContentDescription("What's new in v" + BuildInfo.VERSION
                     + " build " + BuildInfo.VERSION_CODE + ". Tap to view release notes.");
             this.welcomeBanner.setClickable(true);

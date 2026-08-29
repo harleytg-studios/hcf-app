@@ -1053,23 +1053,14 @@ final class UpdateAutomation {
 // ---- ReleaseNotes.java ----
 /* loaded from: classes.dex */
 final class ReleaseNotes {
-    static final String NOTES = "Harley's Clan Forum • v" + BuildInfo.VERSION + " (" + BuildInfo.VERSION_CODE + ") • " + BuildInfo.BUILD_TAG + "
-"
-            + "• Build identity now shows version, versionCode, and the Development Build / Beta tag in App Settings and the forum drawer.
-"
-            + "• What's New now reads the live BuildInfo version/build instead of the stale v1.0 label.
-"
-            + "• Android 14 foreground-service reliability fix is retained: network and screen callbacks sync the already-running notification service instead of self-restarting it.
-"
-            + "• Safe Mode, crash recovery, diagnostics, and sanitized crash reporting remain available for recovery builds.
-"
-            + "• Home-screen widget controls include theme following, compact mode, unread count, last-updated status, refresh behavior, and tap actions.
-"
-            + "• Theme selection includes Forum Auto, Phone Auto, Light, Dark, and AMOLED.
-"
-            + "• Developer notification/runtime tools and secure same-version APK hash updates remain enabled for the Dev/Beta channel.
-
-"
+    static final String NOTES = "Harley's Clan Forum • v" + BuildInfo.VERSION + " (" + BuildInfo.VERSION_CODE + ") • " + BuildInfo.BUILD_TAG + "\n"
+            + "• Build identity now shows version, versionCode, and the Development Build / Beta tag in App Settings and the forum drawer.\n"
+            + "• What's New now uses the live BuildInfo version/build and build tag instead of stale fixed version text.\n"
+            + "• Android 14 foreground-service crash fix is retained: network and screen callbacks sync the already-running notification service instead of self-restarting it.\n"
+            + "• Safe Mode, crash recovery, diagnostics, and sanitized crash reporting remain available.\n"
+            + "• Home-screen widget controls include theme following, compact mode, unread count, last-updated status, refresh behavior, and tap actions.\n"
+            + "• Theme selection includes Forum Auto, Phone Auto, Light, Dark, and AMOLED.\n"
+            + "• Developer notification/runtime tools and secure same-version APK hash updates remain enabled for the Dev/Beta channel.\n\n"
             + "Stable remains separate; this feature set is scoped to com.harleytg.forum.dev.";
     static final String SUMMARY = "v" + BuildInfo.VERSION + " (" + BuildInfo.VERSION_CODE + ") • " + BuildInfo.BUILD_TAG;
     private static final String NOTES_REVISION = "build-identity-v2";
@@ -1145,15 +1136,14 @@ final class ReleaseNotes {
         LinearLayout linearLayout4 = new LinearLayout(activity);
         linearLayout4.setOrientation(1);
         linearLayout4.setPadding(0, dp(activity, 10), 0, dp(activity, 6));
-        addSection(activity, linearLayout4, "Harley's Clan Forum (app) v1.0", "This is Beta/Dev build " + BuildInfo.VERSION_CODE + ". The public version remains 1.0 while the Android versionCode advances for normal in-place upgrades.");
-        addSection(activity, linearLayout4, "New • VersionCode + SHA-256 updates", "Update checks now compare both Android versionCode and the exact APK SHA-256. A revised APK with the same versionCode is offered only when its hash differs, then its hash, package, version and signing-certificate lineage are verified again before Android's installer opens.");
-        addSection(activity, linearLayout4, "Improved • Secure update reliability", "Failed downloads can be retried, superseded downloads are cleaned up, the newest trusted release APK is selected, and stale installer files no longer block a same-version hash revision.");
-        addSection(activity, linearLayout4, "Fixed • Alerts and first-run setup", "Real forum-alert fallbacks stay on HCF Alerts even when passive Silent Alerts are disabled. What's New waits until the versioned App Setup Center has finished instead of being hidden behind it.");
-        addSection(activity, linearLayout4, "Updated • Account & Security", "Account & Security now keeps forum-account controls together: identity, profile shortcuts and Account Security access. Android app permissions and hardening remain under Advanced & About > Permissions & Security.");
-        addSection(activity, linearLayout4, "Updated • Connected sub-settings", "Expanded sub-settings now use the top row as the actual header of the content below it, removing duplicate titles and making each open section feel like one connected card.");
-        addSection(activity, linearLayout4, "Updated • HCF Alerts background delivery", "Background notification sync now lives under HCF Alerts. HCF Alerts remains the real alert channel and is never disabled by the Silent Alerts setting. Disabling HCF Silent Alerts stops the continuous foreground sync service, so delivery while the app is closed may fall back to delayed Android background checks.");
-        addSection(activity, linearLayout4, "New • Contact Support v2", "Contact Support now matches the HCF settings design with expandable sections, locked forum/app context, structured issue fields, privacy controls, report preview and email handoff.");
-        addSection(activity, linearLayout4, "New • Performance Profiles", "Choose Auto, Performance, Balanced or Quality in App Settings. Auto reduces motion automatically on low-RAM devices or while Android battery saver is active.");
+        addSection(activity, linearLayout4, "Current Dev build", "Harley's Clan Forum v" + BuildInfo.VERSION + " (versionCode " + BuildInfo.VERSION_CODE + ") • " + BuildInfo.BUILD_TAG + ".");
+        addSection(activity, linearLayout4, "Updated • Build identity", "The forum drawer and App Settings now show the full version, Android versionCode, and Development Build / Beta tag instead of only the channel label.");
+        addSection(activity, linearLayout4, "Updated • What's New", "The banner, release-notes header, summary and accessibility text now read the live BuildInfo version/build so old fixed v1.0 text cannot drift out of date.");
+        addSection(activity, linearLayout4, "Fixed • Android 14 notification service crash", "Network-available and screen-on callbacks no longer restart the foreground notification service with startForegroundService(). They request immediate sync on the service that is already running.");
+        addSection(activity, linearLayout4, "Recovery • Safe Mode and crash tools", "Safe Mode, crash recovery, diagnostics and sanitized crash reporting remain available to recover from startup or runtime failures.");
+        addSection(activity, linearLayout4, "Updated • Home-screen Widget", "Widget settings cover app-theme following, compact mode, unread count, last-updated status, refresh behavior and configurable tap actions.");
+        addSection(activity, linearLayout4, "Updated • Secure Dev/Beta updates", "Update checks compare Android versionCode and APK SHA-256, allowing a revised same-version APK only when its hash differs while preserving package and signer verification.");
+        addSection(activity, linearLayout4, "Updated • Appearance and performance", "Forum Auto, Phone Auto, Light, Dark and AMOLED themes remain available together with the app's performance profiles and runtime tools.");
         scrollView.addView(linearLayout4, new FrameLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(-1, 0, 1.0f);
         layoutParams2.topMargin = dp(activity, 4);
