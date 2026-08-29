@@ -25,9 +25,8 @@ jobs:
           set -euo pipefail
           python3 .github/scripts/patch-build-identity-whats-new.py
           python3 -m py_compile .github/scripts/verify-release-readiness.py
-          python3 .github/scripts/verify-release-readiness.py .
 
-      - name: Commit patched source
+      - name: Commit patched source and remove temporary helpers
         shell: bash
         run: |
           set -euo pipefail
@@ -39,10 +38,7 @@ jobs:
             'source code/src/com/harleytg/forum/HcfUpdates.java' \
             'source code/ci/dev-build-identity.txt' \
             '.github/scripts/verify-release-readiness.py'
+          git rm '.github/scripts/patch-build-identity-whats-new.py' '.github/workflows/patch-build-identity-whats-new.yml'
           git diff --cached --check
-          if git diff --cached --quiet; then
-            echo 'No source changes were needed.'
-            exit 0
-          fi
           git commit -m "Show full Dev build identity and refresh What's New"
           git push origin HEAD:dev
