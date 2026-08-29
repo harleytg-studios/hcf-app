@@ -1,0 +1,16 @@
+#include? "Local.xcconfig"
+#include? "Secrets.xcconfig"
+
+HCF_DEVELOPMENT_TEAM =
+HCF_APP_GROUP = group.com.harleytg.forum.dev
+HCF_CHANNEL_VERSION = 1.1-hf2-a1
+HCF_CHANNEL_TAG = v1.1-hf2-a1
+HCF_BUILD_NUMBER = 100000105
+HCF_RELEASE_CHANNEL = dev
+HCF_PRIMARY_HOST = forum.harleytg.com
+HCF_BACKUP_HOST = harleysclan.freeflarum.com
+HCF_TESTFLIGHT_URL =
+HCF_OBSERVATION_PROXY_URL =
+
+// Internal/private builds may define HCF_INTERNAL_DISTRIBUTION in Local.xcconfig.
+// Never put a Discord webhook or API secret in this tracked file.
