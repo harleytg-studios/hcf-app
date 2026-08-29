@@ -7,16 +7,28 @@ Development/Beta branch for the Harley's Clan Forum Android app.
 - App name: **Harley's Clan Forum [Beta]**
 - Branch: `dev`
 - Android package: `com.harleytg.forum.dev`
-- Version name: `1.1 (100000101)`
-- Version code: `100000101`
-- Internal build: `119`
+- Version name: `1.1-hf1-a1 (100000102)`
+- Version tag: `v1.1-hf1-a1`
+- Patch: `FGS-Crash-Fix`
+- Version code: `100000102`
+- Internal build: `120`
 - Minimum SDK: `26`
 - Target SDK: `34`
 - Source directory: [`source code/`](./source%20code)
 
+## Dev version system
+
+The `dev` branch is the shared Development → Beta → RC testing line. Human-facing versions use a compact suffix while Android `versionCode` remains a strictly increasing install/update number.
+
+- Normal development: `v1.1-a1`, `v1.1-a2`, `v1.1-b1`, `v1.1-rc1`
+- Hotfix development: `v1.1-hf1-a1`, `v1.1-hf1-a2`, `v1.1-hf1-rc1`
+- Next hotfix train: `v1.1-hf2-a1`
+- Stable promotion may drop the dev suffix and use the stable branch release version.
+- Current dev build: `v1.1-hf1-a1` / Android versionCode `100000102`.
+
 ## HCF Notifications home-screen widget
 
-v100000101 adds the resizable **HCF Notifications** Android App Widget. It displays the cached signed-in forum unread count from `hcf_app`, updates when the notification/session preferences change, and provides quick actions for Forum, Notifications, Reload, and App Settings. Widget rendering performs no direct network requests; Reload delegates to the existing HCF notification sync service and then refreshes the cached widget UI.
+The current dev line includes the resizable **HCF Notifications** Android App Widget. It displays the cached signed-in forum unread count from `hcf_app`, updates when the notification/session preferences change, and provides quick actions for Forum, Notifications, Reload, and App Settings. Widget rendering performs no direct network requests; Reload delegates to the existing HCF notification sync service and then refreshes the cached widget UI.
 
 App Settings includes a root-level **Home-screen Widget** category. **Follow HCF app theme** is enabled by default, so the widget explicitly uses HCF's resolved Light, Dark, or AMOLED palette instead of allowing the launcher/phone theme to override its colors. **Show connected @username** and **Show unread count** are enabled by default. Additional controls include **Compact widget mode**, **Show last updated time**, and a **Default widget tap** chooser for Forum, Notifications, or App Settings. Identity, theme, content, layout, and action preference changes refresh existing widget instances automatically, and the category includes a manual **Refresh Home-screen Widget** action. While HCF live/background notification sync is active, every successful forum notification sync now immediately redraws placed widgets and records the actual sync time, so widget state tracks the existing adaptive notification loop instead of waiting for the launcher periodic update. The launcher schedule remains only a fallback, and no second widget-only network poller is created. The user-selected widget controls are included in HCF settings transfer/backup data.
 
@@ -47,7 +59,7 @@ Only the two active read-only GitHub Actions workflows and their release-verific
 
 ## Release gates
 
-The v100000101 workflow compiles the complete Java/resource source, packages and aligns an unsigned CI APK, verifies package/version identity, checks the approved three-tile HCF Alerts UI, and rejects decompiler stubs or missing same-version SHA-256 update protections. Production signing remains local so the Beta private key is never stored in GitHub Actions.
+The generic Dev release workflow compiles the complete Java/resource source, packages and aligns an unsigned CI APK, verifies package/version identity, checks the approved three-tile HCF Alerts UI, and rejects decompiler stubs or missing same-version SHA-256 update protections. Production signing remains local so the Beta private key is never stored in GitHub Actions.
 
 The shared Stable + Dev Digital Asset Links source is [`configs/app-links/assetlinks.json`](./configs/app-links/assetlinks.json). Its canonical deployment source is the `main`-branch path `configs/app-links/assetlinks.json`; this Dev release does not modify or rebuild the Stable app.
 
@@ -55,7 +67,7 @@ Individual authenticated forum message notifications can expose Android inline *
 
 ## HCF ban system
 
-v100000101 uses a backend-free manual moderation design:
+The current dev build uses a backend-free manual moderation design:
 
 - Public IP lookup: ipify with IPinfo fallback.
 - Signed-in sessions: Discord receives a user JSON observation.

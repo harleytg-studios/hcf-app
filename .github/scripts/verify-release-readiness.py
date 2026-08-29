@@ -6,8 +6,9 @@ import re
 import sys
 
 
-EXPECTED_VERSION_CODE = 100000101
-EXPECTED_INTERNAL_BUILD = 119
+EXPECTED_VERSION_CODE = 100000102
+EXPECTED_VERSION = "1.1-hf1-a1"
+EXPECTED_INTERNAL_BUILD = 120
 EXPECTED_PACKAGE = "com.harleytg.forum.dev"
 EXPECTED_SIGNER = "93:D4:9B:F9:A8:77:C7:CF:B1:B3:7F:90:64:BD:95:5C:D6:7B:D7:DD:8D:B7:3A:9E:3F:76:6B:59:C4:BC:CE:63"
 
@@ -77,13 +78,15 @@ version_code = int(version_match.group(1))
 require(f"expected versionCode {EXPECTED_VERSION_CODE}", version_code == EXPECTED_VERSION_CODE)
 require("manifest/BuildInfo versionCode mismatch", int(build_version_match.group(1)) == version_code)
 require("wrong internal build", int(internal_match.group(1)) == EXPECTED_INTERNAL_BUILD)
-require("wrong versionName", name_match.group(1) == f"1.1 ({version_code})")
+require("wrong versionName", name_match.group(1) == f"{EXPECTED_VERSION} ({version_code})")
 require("wrong Dev package", f'package="{EXPECTED_PACKAGE}"' in manifest)
 require("wrong minimum SDK", 'android:minSdkVersion="26"' in manifest)
 require("wrong target SDK", 'android:targetSdkVersion="34"' in manifest)
 require("wrong compile SDK", 'android:compileSdkVersion="35"' in manifest)
-require("BuildInfo APK name mismatch", f'HCF-Beta-v{version_code}.apk' in build_info)
+require("BuildInfo APK name mismatch", f'HCF-Beta-v{EXPECTED_VERSION}.apk' in build_info)
 require("BuildInfo user agent mismatch", f"Build/{version_code}" in build_info)
+require("BuildInfo version tag mismatch", f'VERSION_TAG = "v{EXPECTED_VERSION}"' in build_info)
+require("BuildInfo version scheme mismatch", 'VERSION_CODE_SCHEME = "dev-hotfix-alpha-v1"' in build_info)
 require("README versionCode mismatch", f"Version code: `{version_code}`" in readme)
 require("README internal build mismatch", f"Internal build: `{EXPECTED_INTERNAL_BUILD}`" in readme)
 require("brand spelling regression", "Harley's Studios" in build_info and "Harley&apos;s Studios" in manifest)
@@ -214,7 +217,7 @@ require("target=_blank external-link bridge missing", "HCFNative.openExternalLin
 require("v1 signing compatibility floor missing", "--min-sdk-version 23" in build_script)
 require("v4 signature sidecar check missing", "Missing APK Signature Scheme v4 sidecar" in build_script)
 require("release gate is not called by build", "verify-release-readiness.py" in build_script)
-require("canonical v100000101 workflow missing", any(path.name == "build-dev-v100000101.yml" for path in workflows))
+require("canonical Dev workflow missing", any(path.name == "build-dev.yml" for path in workflows))
 alerts_workflow = text(root / ".github/workflows/verify-hcf-alerts-ui.yml")
 require("HCF Alerts workflow watches obsolete split UI path", "HcfSubActivities.java" not in alerts_workflow)
 require("HCF Alerts workflow does not watch HcfUI.java", "HcfUI.java" in alerts_workflow)

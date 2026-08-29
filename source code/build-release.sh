@@ -48,7 +48,7 @@ case "$package_name" in
     ;;
   com.harleytg.forum.dev)
     channel="dev"
-    output_name="HCF-Beta-v${version_code}.apk"
+    output_name="$buildinfo_apk_name"
     default_alias="hcf-beta-v2"
     expected_signer="${HCF_EXPECTED_SIGNER:-93D49BF9A877C7CFB1B37F9064BD955CD67BD7DD8DB73A9E3F766B59C4BCCE63}"
     ;;
