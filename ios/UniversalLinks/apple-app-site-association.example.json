@@ -1,0 +1,23 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": [
+          "YOUR_APPLE_TEAM_ID.com.harleytg.forum.dev"
+        ],
+        "components": [
+          {
+            "/": "/*",
+            "comment": "Open all Harley's Clan Forum routes in the native HCF iOS app."
+          }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": [
+      "YOUR_APPLE_TEAM_ID.com.harleytg.forum.dev"
+    ]
+  }
+}
