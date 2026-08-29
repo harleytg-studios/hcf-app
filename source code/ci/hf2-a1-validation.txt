@@ -1,0 +1,6 @@
+Harley's Clan Forum Dev validation marker
+Version: v1.1-hf2-a1
+Android versionCode: 100000105
+Internal build: 123
+Channel label: Beta / Development Build
+Purpose: trigger the normal HCF Beta Dev Release Gate after the Hotfix 2 version bump.
