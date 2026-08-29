@@ -6,5 +6,6 @@ Android versionCode: 100000104
 Internal build: 122
 Channel label: v1.1-hf1-a3 (100000104) • Development Build / Beta
 Patch: Build-Identity-Whats-New
+What's New revision: build-identity-v2
 
 The public-facing Dev build identity includes version, versionCode, and Development Build / Beta; it intentionally does not include RC.
