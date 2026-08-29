@@ -6,9 +6,9 @@ import re
 import sys
 
 
-EXPECTED_VERSION_CODE = 100000103
-EXPECTED_VERSION = "1.1-hf1-a2"
-EXPECTED_INTERNAL_BUILD = 121
+EXPECTED_VERSION_CODE = 100000104
+EXPECTED_VERSION = "1.1-hf1-a3"
+EXPECTED_INTERNAL_BUILD = 122
 EXPECTED_PACKAGE = "com.harleytg.forum.dev"
 EXPECTED_SIGNER = "93:D4:9B:F9:A8:77:C7:CF:B1:B3:7F:90:64:BD:95:5C:D6:7B:D7:DD:8D:B7:3A:9E:3F:76:6B:59:C4:BC:CE:63"
 
@@ -87,6 +87,9 @@ require("BuildInfo APK name mismatch", f'HCF-Beta-v{EXPECTED_VERSION}.apk' in bu
 require("BuildInfo user agent mismatch", f"Build/{version_code}" in build_info)
 require("BuildInfo version tag mismatch", f'VERSION_TAG = "v{EXPECTED_VERSION}"' in build_info)
 require("BuildInfo version scheme mismatch", 'VERSION_CODE_SCHEME = "dev-hotfix-alpha-v1"' in build_info)
+require("About base version missing", 'BASE_VERSION = "1.1"' in build_info)
+require("RC remains in public Dev build label", 'DEVELOPMENT_BUILD_LABEL = "Beta / Development Build"' in build_info and 'Beta / Development Build • Build ' in build_info)
+require("About does not show product/dev versions", 'Version " + BuildInfo.BASE_VERSION' in ui_source and 'Dev build " + BuildInfo.VERSION_TAG' in ui_source)
 require("README versionCode mismatch", f"Version code: `{version_code}`" in readme)
 require("README internal build mismatch", f"Internal build: `{EXPECTED_INTERNAL_BUILD}`" in readme)
 require("brand spelling regression", "Harley's Studios" in build_info and "Harley&apos;s Studios" in manifest)

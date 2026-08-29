@@ -6468,7 +6468,7 @@ final class HcfSubActivities {
         private View aboutCard() {
             LinearLayout card = card();
             card.addView(target(settingsInfoCard("App identity",
-                    getString(R.string.app_name) + "\nVersion " + BuildInfo.VERSION + " • Build " + installedVersionCode() + "\n" + BuildInfo.DEVELOPMENT_BUILD_LABEL,
+                    getString(R.string.app_name) + "\nVersion " + BuildInfo.BASE_VERSION + "\nDev build " + BuildInfo.VERSION_TAG + " • Android build " + installedVersionCode() + "\n" + BuildInfo.DEVELOPMENT_BUILD_LABEL,
                     R.drawable.fa_circle_info), "app_identity"));
             card.addView(target(settingsInfoCard("Build & channel",
                     "Channel: " + BuildInfo.CHANNEL + " • Update feed: " + effectiveUpdateChannel()
