@@ -5,3 +5,6 @@ from network-available or screen-on callbacks. Those events now schedule an imme
 sync on the already-running foreground service.
 
 Primary fix commit: eaf5000173151860d9a8b03b7d21c5d5bf12db9f
+Compact dev release: v1.1-hf1-a1
+Android versionCode: 100000102
+Patch: FGS-Crash-Fix
