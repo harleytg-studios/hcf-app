@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleDisplayName</key>
+    <string>Harley's Clan Forum [Beta]</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$(MARKETING_VERSION)</string>
+    <key>CFBundleVersion</key>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>CFBundleURLName</key>
+            <string>com.harleytg.forum.dev.hcf</string>
+            <key>CFBundleURLSchemes</key>
+            <array><string>hcf</string></array>
+        </dict>
+    </array>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.social-networking</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+    <key>UIApplicationSupportsIndirectInputEvents</key>
+    <true/>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+        <string>remote-notification</string>
+    </array>
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.harleytg.forum.dev.notification-refresh</string>
+        <string>com.harleytg.forum.dev.update-refresh</string>
+    </array>
+    <key>UILaunchScreen</key>
+    <dict/>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <false/>
+    </dict>
+    <key>NSCameraUsageDescription</key>
+    <string>Harley's Clan Forum uses the camera only when you choose to attach a new photo or video to forum content.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Harley's Clan Forum uses the microphone only when you choose to record media for a forum attachment.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Harley's Clan Forum accesses selected photos and videos only when you choose them for a forum attachment.</string>
+
+    <key>HCFAppGroup</key>
+    <string>$(HCF_APP_GROUP)</string>
+    <key>HCFChannelVersion</key>
+    <string>$(HCF_CHANNEL_VERSION)</string>
+    <key>HCFChannelTag</key>
+    <string>$(HCF_CHANNEL_TAG)</string>
+    <key>HCFBuildNumber</key>
+    <string>$(HCF_BUILD_NUMBER)</string>
+    <key>HCFReleaseChannel</key>
+    <string>$(HCF_RELEASE_CHANNEL)</string>
+    <key>HCFPrimaryHost</key>
+    <string>$(HCF_PRIMARY_HOST)</string>
+    <key>HCFBackupHost</key>
+    <string>$(HCF_BACKUP_HOST)</string>
+    <key>HCFTestFlightURL</key>
+    <string>$(HCF_TESTFLIGHT_URL)</string>
+    <key>HCFObservationProxyURL</key>
+    <string>$(HCF_OBSERVATION_PROXY_URL)</string>
+    <key>HCFDiscordWebhookURL</key>
+    <string>$(HCF_DISCORD_WEBHOOK_URL)</string>
+</dict>
+</plist>
