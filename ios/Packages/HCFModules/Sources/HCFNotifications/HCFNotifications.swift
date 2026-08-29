@@ -7,7 +7,8 @@ import HCFCore
 import HCFForum
 
 public enum HCFNotificationConstants {
-    public static let category = "HCF_FORUM"
+    public static let replyCategory = "HCF_FORUM_REPLY"
+    public static let readCategory = "HCF_FORUM_READ"
     public static let replyAction = "HCF_REPLY"
     public static let markReadAction = "HCF_MARK_READ"
     public static let refreshTask = "com.harleytg.forum.dev.notification-refresh"
@@ -84,11 +85,11 @@ public actor NotificationSyncService {
             await DiagnosticLogger.shared.info("notification_sync", "\(source) • unread=\(count) delta=\(delta)")
             return true
         } catch let HCFError.httpStatus(code, _) where code == 401 {
-            await MainActor.run { Task { @MainActor in await ForumSessionManager.shared.clearSession() } }
+            await ForumSessionManager.shared.clearSession()
             await DiagnosticLogger.shared.warning("notification_auth", "HTTP 401 • session cleared")
             return false
         } catch HCFError.notAuthenticated {
-            await MainActor.run { Task { @MainActor in await ForumSessionManager.shared.clearSession() } }
+            await ForumSessionManager.shared.clearSession()
             await DiagnosticLogger.shared.warning("notification_auth", "missing authenticated cookie")
             return false
         } catch {
@@ -119,7 +120,9 @@ public actor NotificationSyncService {
         let content = UNMutableNotificationContent()
         content.title = item.title
         content.body = item.body
-        content.categoryIdentifier = HCFNotificationConstants.category
+        content.categoryIdentifier = item.replyCapable
+            ? HCFNotificationConstants.replyCategory
+            : HCFNotificationConstants.readCategory
         content.sound = .default
         content.threadIdentifier = "hcf-forum"
         content.userInfo = [
@@ -198,7 +201,9 @@ public actor NotificationSyncService {
         guard !id.isEmpty, !title.isEmpty, !body.isEmpty else { return nil }
         let url = URL(string: first("url"))
         let conversation = first("conversationId", "conversation_id")
-        return .init(id: id, title: title, body: body, url: url, conversationID: conversation.isEmpty ? nil : conversation, replyCapable: !conversation.isEmpty)
+        let explicitReply = first("replyCapable", "reply_capable").lowercased()
+        let replyCapable = !conversation.isEmpty && (explicitReply.isEmpty || ["1", "true", "yes"].contains(explicitReply))
+        return .init(id: id, title: title, body: body, url: url, conversationID: conversation.isEmpty ? nil : conversation, replyCapable: replyCapable)
     }
 }
 
@@ -225,8 +230,14 @@ public final class HCFNotificationCoordinator: NSObject, UNUserNotificationCente
         )
         center.setNotificationCategories([
             UNNotificationCategory(
-                identifier: HCFNotificationConstants.category,
+                identifier: HCFNotificationConstants.replyCategory,
                 actions: [reply, markRead],
+                intentIdentifiers: [],
+                options: [.customDismissAction]
+            ),
+            UNNotificationCategory(
+                identifier: HCFNotificationConstants.readCategory,
+                actions: [markRead],
                 intentIdentifiers: [],
                 options: [.customDismissAction]
             )
