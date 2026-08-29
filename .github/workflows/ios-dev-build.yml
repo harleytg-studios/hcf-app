@@ -35,7 +35,7 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Prepare preview assets
+      - name: Prepare preview assets and test project
         working-directory: ios
         run: |
           set -euo pipefail
@@ -50,13 +50,18 @@ jobs:
           from pathlib import Path
           path = Path('project.yml')
           text = path.read_text()
+
           marker = '    preBuildScripts:\n      - name: Sync HCF logo assets'
           if marker in text:
               start = text.index(marker)
               end_marker = '\n\n  HCFWidgetExtension:'
               end = text.index(end_marker, start)
               text = text[:start] + text[end:]
-              path.write_text(text)
+
+          # These tests exercise Swift modules only; making them hostless avoids
+          # Xcode deriving a stale executable path from the app's branded product name.
+          text = text.replace('      - target: HarleysClanForum\n', '')
+          path.write_text(text)
           PY
 
       - name: Generate Xcode project
