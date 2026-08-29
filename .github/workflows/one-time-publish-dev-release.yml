@@ -1,0 +1,81 @@
+name: One-time publish HCF Dev prerelease
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/one-time-publish-dev-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish-dev-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Publish v1.1-hf1-a1 prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG='v1.1-hf1-a1'
+          TITLE="Harley's Clan Forum v1.1-hf1-a1 DEV"
+          cat > "$RUNNER_TEMP/release-notes.md" <<'EOF'
+          ## Harley's Clan Forum — Dev Hotfix Alpha
+
+          **Version:** `v1.1-hf1-a1`
+          **Android versionCode:** `100000102`
+          **Internal build:** `120`
+          **Package:** `com.harleytg.forum.dev`
+          **Branch:** `dev`
+          **Patch:** `FGS-Crash-Fix`
+
+          ### Changes
+          - Fixes the Android 14 `ForegroundServiceDidNotStartInTimeException` crash in `HcfNotifications.InstantNotificationService`.
+          - Network-available and screen-on events now request an immediate local sync on the already-running foreground service instead of starting the service again.
+          - Introduces the compact Dev/Beta/RC version format: `v1.1-hf1-a1`, `v1.1-hf1-a2`, `v1.1-hf1-rc1`, `v1.1-hf2-a1`, etc.
+          - Keeps Android `versionCode` strictly increasing for install/update ordering.
+          - Uses the generic Dev release validation workflow and passed the full Java/resource compile/package gate.
+
+          ### Signing / verification
+          **Beta signer SHA-256:**
+          `93:D4:9B:F9:A8:77:C7:CF:B1:B3:7F:90:64:BD:95:5C:D6:7B:D7:DD:8D:B7:3A:9E:3F:76:6B:59:C4:BC:CE:63`
+
+          **Signed APK SHA-256:**
+          `38d5304ad52556cf34552b13889892a66e288276bd0c7e71d24b63128d2e519c`
+
+          **APK Signature Schemes:** v2 + v3, with detached v4 `.idsig` generated for this build.
+
+          ### Build source
+          Release validation source commit: `dcc0637c0e5ad933dbc621fa1856613745719893`
+          Release-gate run: `33241056054`
+
+          > This is a Development/Beta prerelease and is not the Stable channel.
+          EOF
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$TITLE" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" \
+              --target dev \
+              --prerelease
+          else
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$TITLE" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" \
+              --target dev \
+              --prerelease
+          fi
+
+          printf '%s  %s\n' \
+            '38d5304ad52556cf34552b13889892a66e288276bd0c7e71d24b63128d2e519c' \
+            'HCF-Beta-v1.1-hf1-a1.apk' > "$RUNNER_TEMP/SHA256SUMS.txt"
+          gh release upload "$TAG" "$RUNNER_TEMP/SHA256SUMS.txt" --repo "$GITHUB_REPOSITORY" --clobber
