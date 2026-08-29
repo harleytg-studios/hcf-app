@@ -4376,6 +4376,7 @@ final class HcfSubActivities {
         private static final int REQUEST_NOTIFICATIONS = 901;
         private static final int UPDATE_INSTALL_PERMISSION_REQUEST = 2410;
         private static final String TARGET_TAG_PREFIX = "hcf_setting:";
+        public static final String EXTRA_SETTINGS_SECTION = "hcf_settings_section";
 
         private UpdateChecker.Release availableRelease;
         private TextView cookieStatus;
@@ -4432,11 +4433,26 @@ final class HcfSubActivities {
                 getWindow().setNavigationBarColor(bg);
                 setContentView(buildUi());
                 handleInstallIntent(getIntent());
+                openRequestedSettingsSection(getIntent());
                 AppLogger.info(this, "settings_open", BuildInfo.VERSION);
             } catch (Throwable error) {
                 AppLogger.crash(this, error);
                 showSettingsRecovery(error);
             }
+        }
+
+        @Override
+        protected void onNewIntent(Intent intent) {
+            super.onNewIntent(intent);
+            setIntent(intent);
+            handleInstallIntent(intent);
+            openRequestedSettingsSection(intent);
+        }
+
+        private void openRequestedSettingsSection(Intent intent) {
+            if (intent == null) return;
+            String requested = intent.getStringExtra(EXTRA_SETTINGS_SECTION);
+            if ("widget".equals(requested)) showSettingsSection("widget");
         }
 
         @Override
@@ -4652,6 +4668,10 @@ final class HcfSubActivities {
                 new SettingTarget("widget_show_last_updated", "Show last updated time", "widget refresh updated timestamp time", "widget", "widget_appearance"),
                 new SettingTarget("widget_default_tap_action", "Default widget tap", "widget tap open forum notifications settings action", "widget", "widget_appearance"),
                 new SettingTarget("refresh_widget_now", "Refresh Home-screen Widget", "widget refresh reload home screen", "widget", "widget_appearance"),
+                new SettingTarget("widget_background_opacity", "Background opacity", "widget transparency opacity appearance", "widget", "widget_appearance"),
+                new SettingTarget("widget_text_size", "Widget text size", "widget text font size appearance", "widget", "widget_appearance"),
+                new SettingTarget("widget_notification_preview", "Show last notification preview", "widget notification preview message", "widget", "widget_preview"),
+                new SettingTarget("widget_auto_refresh", "Automatic widget refresh", "widget refresh interval schedule", "widget", "widget_refresh"),
                 new SettingTarget("auto_failover", "Automatically use backup if primary fails", "server backup failover routing", "forum_data", "connection_routing"),
                 new SettingTarget("host_health_status", "Host Health", "primary backup server online offline latency health active host", "forum_data", "host_health"),
                 new SettingTarget("test_host_health", "Test Both Forum Hosts", "primary backup server test latency health", "forum_data", "host_health"),
@@ -4780,11 +4800,7 @@ final class HcfSubActivities {
 
         private void showSettingsSection(String section) {
             if (section == null) section = "";
-            if ("widget".equals(section)) {
-      startActivity(new Intent(this, HcfWidget.SettingsActivity.class));
-      return;
-  }
-  currentSettingsSection = section;
+            currentSettingsSection = section;
             if (settingsContent == null) return;
             settingsContent.removeAllViews();
             updateSettingsHeader(settingsSectionName(section), settingsSectionSubtitle(section));
@@ -4805,7 +4821,10 @@ final class HcfSubActivities {
                     settingsContent.addView(connectedSettingsPanel("Appearance & Performance", "Theme, interface and rendering preferences", interfaceCard(), shouldExpand("appearance_performance", true)));
                     break;
                 case "widget":
-                    settingsContent.addView(connectedSettingsPanel("Widget Appearance", "Theme source and home-screen widget controls", widgetCard(), shouldExpand("widget_appearance", true)));
+                    settingsContent.addView(connectedSettingsPanel("Widget Appearance", "Theme, identity, layout, opacity and text size", widgetCard(), shouldExpand("widget_appearance", true)));
+                    settingsContent.addView(connectedSettingsPanel("Notification Preview", "Widget preview and notification-history shortcuts", widgetPreviewCard(), shouldExpand("widget_preview", false)));
+                    settingsContent.addView(connectedSettingsPanel("Automatic Refresh", "Refresh schedule and current sync status", widgetRefreshCard(), shouldExpand("widget_refresh", false)));
+                    settingsContent.addView(connectedSettingsPanel("Tap Behavior", "Default action when the widget body is tapped", widgetTapCard(), shouldExpand("widget_tap", false)));
                     break;
                 case "forum_data":
                     settingsContent.addView(connectedSettingsPanel("Connection & Routing", "Primary/backup forum routing and link handling", connectionCard(), shouldExpand("connection_routing", true)));
@@ -5533,30 +5552,20 @@ final class HcfSubActivities {
                 prefs.edit().putBoolean(AppPrefs.WIDGET_FOLLOW_APP_THEME, checked).apply();
                 HcfWidget.refreshAll(this);
                 AppLogger.info(this, "setting_widget_theme_source", checked ? "app" : "phone");
-                Toast.makeText(this,
-                        checked
-                                ? "Home-screen widget now follows the HCF app theme."
-                                : "Home-screen widget now follows the Android phone theme.",
-                        Toast.LENGTH_SHORT).show();
-                showSettingsSection("widget");
             });
             card.addView(follow);
-
             card.addView(text(
-                    "When on, the widget uses HCF's selected Light, Dark, AMOLED, or resolved Auto theme even when the phone/launcher uses the opposite theme. Turn it off only if you want the widget to follow Android's phone theme instead.",
+                    "Uses HCF Light, Dark, AMOLED, or resolved Auto theme. Turn this off only if you want the widget to follow Android's phone theme instead.",
                     10, getColor(R.color.hcf_muted)));
 
-            final boolean showConnectedUsername = prefs.getBoolean(HcfWidget.PREF_SHOW_CONNECTED_USERNAME, true);
-            Switch connectedUsername = target(toggle("Show connected @username", showConnectedUsername), "widget_show_connected_username");
+            Switch connectedUsername = target(toggle("Show connected @username",
+                    prefs.getBoolean(HcfWidget.PREF_SHOW_CONNECTED_USERNAME, true)), "widget_show_connected_username");
             connectedUsername.setOnCheckedChangeListener((button, checked) -> {
                 prefs.edit().putBoolean(HcfWidget.PREF_SHOW_CONNECTED_USERNAME, checked).apply();
                 HcfWidget.refreshAll(this);
                 AppLogger.info(this, "setting_widget_connected_username", checked ? "shown" : "hidden");
             });
             card.addView(connectedUsername);
-            card.addView(text(
-                    "When on, signed-in widgets show the connected forum identity as @username next to the cached notification state. No username is shown while signed out.",
-                    10, getColor(R.color.hcf_muted)));
 
             Switch showUnread = target(toggle("Show unread count",
                     prefs.getBoolean(HcfWidget.PREF_SHOW_UNREAD_COUNT, true)), "widget_show_unread_count");
@@ -5576,7 +5585,7 @@ final class HcfSubActivities {
             });
             card.addView(compactWidget);
             card.addView(text(
-                    "Compact mode hides the large widget logo and title so the connected identity/status gets more room. Quick actions stay available.",
+                    "Compact mode hides the large widget logo and title so identity and notification status get more room.",
                     10, getColor(R.color.hcf_muted)));
 
             Switch showUpdated = target(toggle("Show last updated time",
@@ -5588,38 +5597,197 @@ final class HcfSubActivities {
             });
             card.addView(showUpdated);
 
-            final String currentTap = prefs.getString(HcfWidget.PREF_DEFAULT_TAP_ACTION, HcfWidget.TAP_FORUM);
-            final String currentTapLabel = HcfWidget.TAP_NOTIFICATIONS.equals(currentTap)
-                    ? "Notifications" : HcfWidget.TAP_SETTINGS.equals(currentTap) ? "App Settings" : "Forum";
-            Button defaultTap = target(actionButton("Default widget tap: " + currentTapLabel, null),
+            int opacity = Math.max(20, Math.min(100, prefs.getInt(HcfWidget.PREF_BACKGROUND_ALPHA, 96)));
+            Button opacityButton = target(actionButton("Background opacity: " + opacity + "%", null), "widget_background_opacity");
+            opacityButton.setOnClickListener(v -> showWidgetOpacityDialog(opacityButton));
+            card.addView(opacityButton);
+
+            int textSize = Math.max(10, Math.min(18, prefs.getInt(HcfWidget.PREF_TEXT_SIZE_SP, 12)));
+            Button textSizeButton = target(actionButton("Widget text size: " + textSize + " sp", null), "widget_text_size");
+            textSizeButton.setOnClickListener(v -> showWidgetTextSizeDialog(textSizeButton));
+            card.addView(textSizeButton);
+            return card;
+        }
+
+        private View widgetPreviewCard() {
+            LinearLayout card = card();
+            Switch preview = target(toggle("Show last notification preview",
+                    prefs.getBoolean(HcfWidget.PREF_SHOW_LAST_NOTIFICATION_PREVIEW, true)), "widget_notification_preview");
+            preview.setOnCheckedChangeListener((button, checked) -> {
+                prefs.edit().putBoolean(HcfWidget.PREF_SHOW_LAST_NOTIFICATION_PREVIEW, checked).apply();
+                HcfWidget.refreshAll(this);
+                AppLogger.info(this, "setting_widget_notification_preview", checked ? "shown" : "hidden");
+            });
+            card.addView(preview);
+            card.addView(text(
+                    "The widget preview is separate from the app's local notification-history privacy setting.",
+                    10, getColor(R.color.hcf_muted)));
+            card.addView(actionButton("Notification History Settings", v -> showSettingsSection("notifications")));
+            card.addView(actionButton("Open Notification History", v ->
+                    startActivity(new Intent(this, HcfWidget.NotificationHistoryActivity.class))));
+            return card;
+        }
+
+        private View widgetRefreshCard() {
+            LinearLayout card = card();
+            TextView status = target(text(widgetRefreshSummary(), 11, getColor(R.color.hcf_meta)), "widget_refresh_status");
+            status.setBackgroundResource(R.drawable.quick_action_background);
+            status.setPadding(dp(14), dp(11), dp(14), dp(11));
+            card.addView(status);
+
+            int minutes = Math.max(0, prefs.getInt(HcfWidget.PREF_REFRESH_INTERVAL_MIN, 30));
+            Button interval = target(actionButton("Automatic refresh: " + widgetRefreshLabel(minutes), null), "widget_auto_refresh");
+            interval.setOnClickListener(v -> showWidgetRefreshDialog(interval, status));
+            card.addView(interval);
+            card.addView(target(actionButton("Refresh Home-screen Widget", v -> {
+                HcfWidget.refreshAll(this);
+                try { HcfNotifications.InstantNotificationService.requestImmediateSync(this); }
+                catch (Throwable ignored) {}
+                status.setText(widgetRefreshSummary());
+                AppLogger.info(this, "widget_refresh", "settings");
+                Toast.makeText(this, "Home-screen widget refreshed.", Toast.LENGTH_SHORT).show();
+            }), "refresh_widget_now"));
+            return card;
+        }
+
+        private View widgetTapCard() {
+            LinearLayout card = card();
+            String currentTap = prefs.getString(HcfWidget.PREF_DEFAULT_TAP_ACTION, HcfWidget.TAP_FORUM);
+            Button defaultTap = target(actionButton("Default widget tap: " + widgetTapLabel(currentTap), null),
                     "widget_default_tap_action");
             defaultTap.setOnClickListener(v -> {
-                final String[] labels = {"Forum", "Notifications", "App Settings"};
-                String savedTap = prefs.getString(HcfWidget.PREF_DEFAULT_TAP_ACTION, HcfWidget.TAP_FORUM);
-                int selected = HcfWidget.TAP_NOTIFICATIONS.equals(savedTap) ? 1
-                        : HcfWidget.TAP_SETTINGS.equals(savedTap) ? 2 : 0;
+                final String[] labels = {"Forum home", "Notifications", "Latest Discussions", "Profile", "Widget settings"};
+                final String[] values = {HcfWidget.TAP_FORUM, HcfWidget.TAP_NOTIFICATIONS, HcfWidget.TAP_LATEST, HcfWidget.TAP_PROFILE, HcfWidget.TAP_SETTINGS};
+                String saved = prefs.getString(HcfWidget.PREF_DEFAULT_TAP_ACTION, HcfWidget.TAP_FORUM);
+                int selected = 0;
+                for (int i = 0; i < values.length; i++) if (values[i].equals(saved)) selected = i;
                 new AlertDialog.Builder(this)
                         .setTitle("Default widget tap")
                         .setSingleChoiceItems(labels, selected, (dialog, which) -> {
-                            String value = which == 1 ? HcfWidget.TAP_NOTIFICATIONS
-                                    : which == 2 ? HcfWidget.TAP_SETTINGS : HcfWidget.TAP_FORUM;
-                            prefs.edit().putString(HcfWidget.PREF_DEFAULT_TAP_ACTION, value).apply();
+                            prefs.edit().putString(HcfWidget.PREF_DEFAULT_TAP_ACTION, values[which]).apply();
                             HcfWidget.refreshAll(this);
                             defaultTap.setText("Default widget tap: " + labels[which]);
-                            AppLogger.info(this, "setting_widget_default_tap", value);
+                            AppLogger.info(this, "setting_widget_default_tap", values[which]);
                             dialog.dismiss();
                         })
                         .setNegativeButton("Cancel", null)
                         .show();
             });
             card.addView(defaultTap);
-
-            card.addView(target(actionButton("Refresh Home-screen Widget", v -> {
-                HcfWidget.refreshAll(this);
-                AppLogger.info(this, "widget_refresh", "settings");
-                Toast.makeText(this, "Home-screen widget refreshed.", Toast.LENGTH_SHORT).show();
-            }), "refresh_widget_now"));
+            card.addView(text(
+                    "This controls tapping the main widget body. The visible quick-action buttons keep their own destinations.",
+                    10, getColor(R.color.hcf_muted)));
             return card;
+        }
+
+        private void showWidgetOpacityDialog(final Button button) {
+            final int current = Math.max(20, Math.min(100, prefs.getInt(HcfWidget.PREF_BACKGROUND_ALPHA, 96)));
+            LinearLayout box = new LinearLayout(this);
+            box.setOrientation(LinearLayout.VERTICAL);
+            box.setPadding(dp(22), dp(8), dp(22), 0);
+            TextView value = text(current + "% background opacity", 12, getColor(R.color.hcf_muted));
+            box.addView(value);
+            android.widget.SeekBar seek = new android.widget.SeekBar(this);
+            seek.setMax(80);
+            seek.setProgress(current - 20);
+            box.addView(seek, new LinearLayout.LayoutParams(-1, -2));
+            final int[] selected = {current};
+            seek.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+                @Override public void onProgressChanged(android.widget.SeekBar bar, int progress, boolean fromUser) {
+                    selected[0] = progress + 20;
+                    value.setText(selected[0] + "% background opacity");
+                }
+                @Override public void onStartTrackingTouch(android.widget.SeekBar bar) {}
+                @Override public void onStopTrackingTouch(android.widget.SeekBar bar) {}
+            });
+            new AlertDialog.Builder(this)
+                    .setTitle("Widget background opacity")
+                    .setView(box)
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Save", (dialog, which) -> {
+                        prefs.edit().putInt(HcfWidget.PREF_BACKGROUND_ALPHA, selected[0]).apply();
+                        HcfWidget.refreshAll(this);
+                        button.setText("Background opacity: " + selected[0] + "%");
+                        AppLogger.info(this, "setting_widget_background_opacity", Integer.toString(selected[0]));
+                    })
+                    .show();
+        }
+
+        private void showWidgetTextSizeDialog(final Button button) {
+            final int current = Math.max(10, Math.min(18, prefs.getInt(HcfWidget.PREF_TEXT_SIZE_SP, 12)));
+            LinearLayout box = new LinearLayout(this);
+            box.setOrientation(LinearLayout.VERTICAL);
+            box.setPadding(dp(22), dp(8), dp(22), 0);
+            TextView value = text(current + " sp base text size", 12, getColor(R.color.hcf_muted));
+            box.addView(value);
+            android.widget.SeekBar seek = new android.widget.SeekBar(this);
+            seek.setMax(8);
+            seek.setProgress(current - 10);
+            box.addView(seek, new LinearLayout.LayoutParams(-1, -2));
+            final int[] selected = {current};
+            seek.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+                @Override public void onProgressChanged(android.widget.SeekBar bar, int progress, boolean fromUser) {
+                    selected[0] = progress + 10;
+                    value.setText(selected[0] + " sp base text size");
+                }
+                @Override public void onStartTrackingTouch(android.widget.SeekBar bar) {}
+                @Override public void onStopTrackingTouch(android.widget.SeekBar bar) {}
+            });
+            new AlertDialog.Builder(this)
+                    .setTitle("Widget text size")
+                    .setView(box)
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Save", (dialog, which) -> {
+                        prefs.edit().putInt(HcfWidget.PREF_TEXT_SIZE_SP, selected[0]).apply();
+                        HcfWidget.refreshAll(this);
+                        button.setText("Widget text size: " + selected[0] + " sp");
+                        AppLogger.info(this, "setting_widget_text_size", Integer.toString(selected[0]));
+                    })
+                    .show();
+        }
+
+        private void showWidgetRefreshDialog(final Button button, final TextView status) {
+            final int[] values = {0, 15, 30, 60, 120};
+            final String[] labels = {"Off", "Every 15 minutes", "Every 30 minutes", "Every hour", "Every 2 hours"};
+            int saved = Math.max(0, prefs.getInt(HcfWidget.PREF_REFRESH_INTERVAL_MIN, 30));
+            int selected = 0;
+            for (int i = 0; i < values.length; i++) if (values[i] == saved) selected = i;
+            new AlertDialog.Builder(this)
+                    .setTitle("Automatic widget refresh")
+                    .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                        prefs.edit().putInt(HcfWidget.PREF_REFRESH_INTERVAL_MIN, values[which]).apply();
+                        HcfWidget.scheduleAutomaticRefresh(this);
+                        HcfWidget.refreshAll(this);
+                        button.setText("Automatic refresh: " + widgetRefreshLabel(values[which]));
+                        status.setText(widgetRefreshSummary());
+                        AppLogger.info(this, "setting_widget_refresh_interval", Integer.toString(values[which]));
+                        dialog.dismiss();
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+        }
+
+        private String widgetRefreshLabel(int minutes) {
+            if (minutes <= 0) return "Off";
+            if (minutes == 60) return "Every hour";
+            if (minutes == 120) return "Every 2 hours";
+            return "Every " + minutes + " minutes";
+        }
+
+        private String widgetRefreshSummary() {
+            int minutes = Math.max(0, prefs.getInt(HcfWidget.PREF_REFRESH_INTERVAL_MIN, 30));
+            long last = Math.max(0L, prefs.getLong(HcfWidget.PREF_LAST_REALTIME_SYNC_MS, 0L));
+            String interval = minutes <= 0 ? "Auto refresh off" : "Auto refresh every " + minutes + " min";
+            if (last <= 0L) return interval + " • waiting for first sync";
+            return interval + " • last sync " + android.text.format.DateFormat.getTimeFormat(this).format(new Date(last));
+        }
+
+        private String widgetTapLabel(String value) {
+            if (HcfWidget.TAP_NOTIFICATIONS.equals(value)) return "Notifications";
+            if (HcfWidget.TAP_LATEST.equals(value)) return "Latest Discussions";
+            if (HcfWidget.TAP_PROFILE.equals(value)) return "Profile";
+            if (HcfWidget.TAP_SETTINGS.equals(value)) return "Widget settings";
+            return "Forum home";
         }
 
         private View interfaceCard() {

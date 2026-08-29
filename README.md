@@ -30,7 +30,7 @@ The `dev` branch is the shared Development → Beta → RC testing line. Human-f
 
 ## HCF Notifications home-screen widget
 
-App Settings → Home-screen Widget now opens the complete native widget settings screen, including transparency, text size, notification preview/history privacy, retention, automatic refresh, and tap behavior. Back returns to App Settings.
+App Settings → Home-screen Widget now uses the same native HCF subsettings UI as the other App Settings categories. Widget Appearance, Notification Preview, Automatic Refresh, and Tap Behavior are standard expandable settings panels; the widget gear button deep-links to this same section.
 
 The current dev line includes the resizable **HCF Notifications** Android App Widget. It displays the cached signed-in forum unread count from `hcf_app`, updates when the notification/session preferences change, and provides quick actions for Forum, Notifications, Reload, and App Settings. Widget rendering performs no direct network requests; Reload delegates to the existing HCF notification sync service and then refreshes the cached widget UI.
 

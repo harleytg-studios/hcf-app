@@ -124,7 +124,8 @@ for java_file in expected_java_files:
 require("URL-bar back button missing", 'android:id="@+id/urlBackButton"' in text(source / "res/layout/activity_main.xml"))
 require("widget app-theme preference missing", 'WIDGET_FOLLOW_APP_THEME = "widget_follow_app_theme"' in app_prefs)
 require("widget root settings category missing", '"Home-screen Widget"' in ui_source and '"Follow HCF app theme"' in ui_source)
-require("widget App Settings route missing", 'startActivity(new Intent(this, HcfWidget.SettingsActivity.class))' in ui_source)
+require("widget shared App Settings route missing", 'case "widget":' in ui_source and 'EXTRA_SETTINGS_SECTION = "hcf_settings_section"' in ui_source and 'HcfSubActivities.SettingsActivity.class' in widget_source)
+require("widget settings still detours to standalone UI", 'startActivity(new Intent(this, HcfWidget.SettingsActivity.class))' not in ui_source)
 require("widget app-theme renderer missing", 'ThemeManager.webColorScheme(context)' in widget_source and 'systemPhoneDark()' in widget_source)
 require("widget theme changes do not refresh widget", 'AppPrefs.APP_THEME.equals(key)' in widget_source and 'AppPrefs.WIDGET_FOLLOW_APP_THEME.equals(key)' in widget_source)
 for widget_key in ("WIDGET_SHOW_CONNECTED_USERNAME", "WIDGET_SHOW_UNREAD_COUNT", "WIDGET_COMPACT_MODE", "WIDGET_SHOW_LAST_UPDATED", "WIDGET_DEFAULT_TAP_ACTION"):

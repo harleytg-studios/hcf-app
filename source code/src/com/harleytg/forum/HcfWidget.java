@@ -1051,8 +1051,9 @@ public final class HcfWidget {
     }
 
     private static PendingIntent settingsPendingIntent(Context context) {
-        Intent intent = new Intent(context, SettingsActivity.class);
+        Intent intent = new Intent(context, HcfSubActivities.SettingsActivity.class);
         intent.setAction("com.harleytg.forum.dev.action.HCF_WIDGET_SETTINGS");
+        intent.putExtra(HcfSubActivities.SettingsActivity.EXTRA_SETTINGS_SECTION, "widget");
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         return PendingIntent.getActivity(context, REQUEST_SETTINGS, intent, PENDING_INTENT_FLAGS);
     }
