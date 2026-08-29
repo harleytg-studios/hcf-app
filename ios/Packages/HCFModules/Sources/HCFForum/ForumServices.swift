@@ -144,11 +144,9 @@ public final class ForumSessionManager {
 public actor ForumAPIClient {
     public static let shared = ForumAPIClient()
     private let http: HTTPClient
-    private let session: ForumSessionManager
 
-    public init(http: HTTPClient = .shared, session: ForumSessionManager = .shared) {
+    public init(http: HTTPClient = .shared) {
         self.http = http
-        self.session = session
     }
 
     public func unreadCount(host: String, userID: String) async throws -> Int {
@@ -229,7 +227,7 @@ public actor ForumAPIClient {
 
     public func currentCSRFToken(host: String) async throws -> String {
         let base = try trustedBase(host)
-        let cookie = await session.cookieHeader(for: host)
+        let cookie = await ForumSessionManager.shared.cookieHeader(for: host)
         guard !cookie.isEmpty else { throw HCFError.notAuthenticated }
         let response = try await http.request(
             base,
@@ -252,7 +250,7 @@ public actor ForumAPIClient {
     }
 
     private func authenticatedRequest(_ url: URL, host: String) async throws -> HCFHTTPResponse {
-        let cookie = await session.cookieHeader(for: host)
+        let cookie = await ForumSessionManager.shared.cookieHeader(for: host)
         let headers = [
             "Accept": "application/vnd.api+json, application/json",
             "Cache-Control": "no-cache, max-age=0",
@@ -263,7 +261,7 @@ public actor ForumAPIClient {
     }
 
     private func mutate(_ url: URL, host: String, payload: [String: Any], methodOverridePatch: Bool) async throws -> Int {
-        let cookie = await session.cookieHeader(for: host)
+        let cookie = await ForumSessionManager.shared.cookieHeader(for: host)
         guard !cookie.isEmpty else { throw HCFError.notAuthenticated }
         let csrf = try await currentCSRFToken(host: host)
         let body = try JSONSerialization.data(withJSONObject: payload)
