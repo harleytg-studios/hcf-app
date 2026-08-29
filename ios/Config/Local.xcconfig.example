@@ -1,0 +1,12 @@
+// Copy to Local.xcconfig. This file is intentionally ignored by Git.
+HCF_DEVELOPMENT_TEAM = YOUR_TEAM_ID
+
+// Optional private TestFlight link, if you use one.
+HCF_TESTFLIGHT_URL =
+
+// Preferred production moderation transport. This endpoint owns the Discord
+// credential server-side; the credential itself never ships in the app.
+HCF_OBSERVATION_PROXY_URL =
+
+// For private/internal builds only, you may add:
+// SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) HCF_INTERNAL_DISTRIBUTION
