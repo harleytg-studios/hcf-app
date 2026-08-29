@@ -39,7 +39,7 @@ jobs:
         working-directory: ios
         run: xcodegen generate
 
-      - name: Apply preview actor-isolation compatibility patch
+      - name: Apply preview SwiftUI compatibility patch
         working-directory: ios
         run: |
           python3 - <<'PY'
@@ -49,6 +49,8 @@ jobs:
           text = path.read_text()
 
           replacements = {
+              '    public let preferences: PreferencesStore':
+              '    @Published public var preferences: PreferencesStore',
               '    public init(preferences: PreferencesStore = .init()) { self.preferences = preferences }':
               '    public init(preferences: PreferencesStore? = nil) { self.preferences = preferences ?? PreferencesStore() }',
               '    public init(model: HCFAppModel = .init()) { _model = StateObject(wrappedValue: model) }':
@@ -57,7 +59,7 @@ jobs:
 
           for old, new in replacements.items():
               if old not in text:
-                  raise SystemExit(f'Expected initializer not found: {old}')
+                  raise SystemExit(f'Expected source not found: {old}')
               text = text.replace(old, new)
 
           path.write_text(text)
