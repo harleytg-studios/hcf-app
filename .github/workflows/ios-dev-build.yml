@@ -39,6 +39,30 @@ jobs:
         working-directory: ios
         run: xcodegen generate
 
+      - name: Apply preview actor-isolation compatibility patch
+        working-directory: ios
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Packages/HCFModules/Sources/HCFUI/HCFUI.swift')
+          text = path.read_text()
+
+          replacements = {
+              '    public init(preferences: PreferencesStore = .init()) { self.preferences = preferences }':
+              '    public init(preferences: PreferencesStore? = nil) { self.preferences = preferences ?? PreferencesStore() }',
+              '    public init(model: HCFAppModel = .init()) { _model = StateObject(wrappedValue: model) }':
+              '    @MainActor public init(model: HCFAppModel? = nil) { _model = StateObject(wrappedValue: model ?? HCFAppModel()) }',
+          }
+
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'Expected initializer not found: {old}')
+              text = text.replace(old, new)
+
+          path.write_text(text)
+          PY
+
       - name: Build for iOS Simulator
         working-directory: ios
         run: |
