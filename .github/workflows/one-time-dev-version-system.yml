@@ -27,7 +27,6 @@ jobs:
           from pathlib import Path
           import re
 
-          ROOT = Path('.')
           VERSION = '1.1-hf1-a1'
           VERSION_TAG = 'v' + VERSION
           VERSION_CODE = 100000102
@@ -37,16 +36,16 @@ jobs:
           def read(path):
               return Path(path).read_text(encoding='utf-8')
 
-          def write(path, text):
-              Path(path).write_text(text, encoding='utf-8')
+          def write(path, value):
+              Path(path).write_text(value, encoding='utf-8')
 
           def sub_once(text, pattern, replacement, label):
-              out, count = re.subn(pattern, replacement, text, count=1, flags=re.M)
+              updated, count = re.subn(pattern, replacement, text, count=1, flags=re.M)
               if count != 1:
                   raise SystemExit(f'{label}: expected 1 replacement, got {count}')
-              return out
+              return updated
 
-          manifest_path = ROOT / 'source code/AndroidManifest.xml'
+          manifest_path = Path('source code/AndroidManifest.xml')
           manifest = read(manifest_path)
           manifest = sub_once(manifest, r'android:versionCode="\d+"', f'android:versionCode="{VERSION_CODE}"', 'manifest versionCode')
           manifest = sub_once(manifest, r'android:versionName="[^"]+"', f'android:versionName="{VERSION} ({VERSION_CODE})"', 'manifest versionName')
@@ -54,56 +53,58 @@ jobs:
           manifest = sub_once(manifest, r'(<meta-data android:name="com\.harleytg\.APP_VERSION_CODE" android:value=")\d+("/>)', rf'\g<1>{VERSION_CODE}\g<2>', 'manifest APP_VERSION_CODE')
           write(manifest_path, manifest)
 
-          core_path = ROOT / 'source code/src/com/harleytg/forum/HcfCore.java'
+          core_path = Path('source code/src/com/harleytg/forum/HcfCore.java')
           core = read(core_path)
-          replacements = {
-              r'^    static final String APK_FILE_NAME = ".*";$': f'    static final String APK_FILE_NAME = "HCF-Beta-{VERSION_TAG}.apk";',
-              r'^    static final String DEVELOPMENT_BUILD_LABEL = ".*";$': f'    static final String DEVELOPMENT_BUILD_LABEL = "Harley\'s Clan Forum {VERSION_TAG} [Development / Beta / RC]";',
-              r'^    static final int INTERNAL_BUILD = \d+;$': f'    static final int INTERNAL_BUILD = {INTERNAL_BUILD};',
-              r'^    static final String META_LINE = ".*";$': f'    static final String META_LINE = "{VERSION_TAG} • Hotfix 1 • Alpha 1";',
-              r'^    static final String USER_AGENT_MARKER = ".*";$': f'    static final String USER_AGENT_MARKER = "HarleysClanForumApp/{VERSION} Build/{VERSION_CODE}";',
-              r'^    static final String VERSION = ".*";$': f'    static final String VERSION = "{VERSION}";',
-              r'^    static final int VERSION_CODE = \d+;$': f'    static final int VERSION_CODE = {VERSION_CODE};',
-              r'^    static final String VERSION_BUILD_LINE = .*;$': '    static final String VERSION_BUILD_LINE = "v" + VERSION + " • Hotfix 1 • Alpha 1 • Build " + VERSION_CODE;',
-              r'^    static final String VERSION_CODE_SCHEME = ".*";$': '    static final String VERSION_CODE_SCHEME = "dev-hotfix-alpha-v1";',
-              r'^    static final String VERSION_TAG = ".*";$': f'    static final String VERSION_TAG = "{VERSION_TAG}";',
+          string_values = {
+              'APK_FILE_NAME': f'HCF-Beta-{VERSION_TAG}.apk',
+              'DEVELOPMENT_BUILD_LABEL': f"Harley's Clan Forum {VERSION_TAG} [Development / Beta / RC]",
+              'META_LINE': f'{VERSION_TAG} • Hotfix 1 • Alpha 1',
+              'USER_AGENT_MARKER': f'HarleysClanForumApp/{VERSION} Build/{VERSION_CODE}',
+              'VERSION': VERSION,
+              'VERSION_CODE_SCHEME': 'dev-hotfix-alpha-v1',
+              'VERSION_TAG': VERSION_TAG,
           }
-          for pattern, replacement in replacements.items():
-              core = sub_once(core, pattern, replacement, f'BuildInfo {pattern}')
-          if 'static final String PATCH_NAME =' in core:
-              core = sub_once(core, r'^    static final String PATCH_NAME = ".*";$', f'    static final String PATCH_NAME = "{PATCH_NAME}";', 'BuildInfo PATCH_NAME')
-          else:
-              core = core.replace(
-                  f'    static final String META_LINE = "{VERSION_TAG} • Hotfix 1 • Alpha 1";\n',
-                  f'    static final String META_LINE = "{VERSION_TAG} • Hotfix 1 • Alpha 1";\n'
-                  f'    static final String PATCH_NAME = "{PATCH_NAME}";\n'
-                  f'    static final String RELEASE_STAGE = "Hotfix Alpha";\n',
-                  1,
-              )
+          for key, value in string_values.items():
+              core = sub_once(core, rf'^    static final String {key} = ".*";$', f'    static final String {key} = "{value}";', f'BuildInfo {key}')
+          core = sub_once(core, r'^    static final int INTERNAL_BUILD = \d+;$', f'    static final int INTERNAL_BUILD = {INTERNAL_BUILD};', 'BuildInfo INTERNAL_BUILD')
+          core = sub_once(core, r'^    static final int VERSION_CODE = \d+;$', f'    static final int VERSION_CODE = {VERSION_CODE};', 'BuildInfo VERSION_CODE')
+          core = sub_once(core, r'^    static final String VERSION_BUILD_LINE = .*;$', '    static final String VERSION_BUILD_LINE = "v" + VERSION + " • Hotfix 1 • Alpha 1 • Build " + VERSION_CODE;', 'BuildInfo VERSION_BUILD_LINE')
+          if 'static final String PATCH_NAME =' not in core:
+              needle = f'    static final String META_LINE = "{VERSION_TAG} • Hotfix 1 • Alpha 1";\n'
+              addition = needle + f'    static final String PATCH_NAME = "{PATCH_NAME}";\n    static final String RELEASE_STAGE = "Hotfix Alpha";\n'
+              if needle not in core:
+                  raise SystemExit('BuildInfo META_LINE insertion point missing')
+              core = core.replace(needle, addition, 1)
           write(core_path, core)
 
-          build_path = ROOT / 'source code/build-release.sh'
+          build_path = Path('source code/build-release.sh')
           build = read(build_path)
-          build = build.replace('    output_name="HCF-Beta-v${version_code}.apk"', '    output_name="$buildinfo_apk_name"', 1)
+          old_output = '    output_name="HCF-Beta-v${version_code}.apk"'
+          if old_output not in build:
+              raise SystemExit('Dev build output naming rule missing')
+          build = build.replace(old_output, '    output_name="$buildinfo_apk_name"', 1)
           write(build_path, build)
 
-          verifier_path = ROOT / '.github/scripts/verify-release-readiness.py'
+          verifier_path = Path('.github/scripts/verify-release-readiness.py')
           verifier = read(verifier_path)
           verifier = sub_once(verifier, r'^EXPECTED_VERSION_CODE = \d+$', f'EXPECTED_VERSION_CODE = {VERSION_CODE}', 'verifier versionCode')
           verifier = sub_once(verifier, r'^EXPECTED_INTERNAL_BUILD = \d+$', f'EXPECTED_INTERNAL_BUILD = {INTERNAL_BUILD}', 'verifier internalBuild')
-          if 'EXPECTED_VERSION =' in verifier:
-              verifier = sub_once(verifier, r'^EXPECTED_VERSION = ".*"$', f'EXPECTED_VERSION = "{VERSION}"', 'verifier version')
-          else:
+          if 'EXPECTED_VERSION =' not in verifier:
               verifier = verifier.replace(f'EXPECTED_VERSION_CODE = {VERSION_CODE}\n', f'EXPECTED_VERSION_CODE = {VERSION_CODE}\nEXPECTED_VERSION = "{VERSION}"\n', 1)
+          else:
+              verifier = sub_once(verifier, r'^EXPECTED_VERSION = ".*"$', f'EXPECTED_VERSION = "{VERSION}"', 'verifier version')
           verifier = sub_once(verifier, r'^require\("wrong versionName", .*$','require("wrong versionName", name_match.group(1) == f"{EXPECTED_VERSION} ({version_code})")', 'verifier versionName rule')
           verifier = sub_once(verifier, r'^require\("BuildInfo APK name mismatch", .*$','require("BuildInfo APK name mismatch", f\'HCF-Beta-v{EXPECTED_VERSION}.apk\' in build_info)', 'verifier APK name rule')
           verifier = sub_once(verifier, r'^require\("canonical v100000101 workflow missing", .*$','require("canonical Dev workflow missing", any(path.name == "build-dev.yml" for path in workflows))', 'verifier workflow rule')
-          marker = 'require("BuildInfo user agent mismatch", f"Build/{version_code}" in build_info)\n'
+          ua_rule = 'require("BuildInfo user agent mismatch", f"Build/{version_code}" in build_info)\n'
           if 'BuildInfo version tag mismatch' not in verifier:
-              verifier = verifier.replace(marker, marker + 'require("BuildInfo version tag mismatch", f\'VERSION_TAG = "v{EXPECTED_VERSION}"\' in build_info)\nrequire("BuildInfo version scheme mismatch", \'VERSION_CODE_SCHEME = "dev-hotfix-alpha-v1"\' in build_info)\n', 1)
+              extra = 'require("BuildInfo version tag mismatch", f\'VERSION_TAG = "v{EXPECTED_VERSION}"\' in build_info)\nrequire("BuildInfo version scheme mismatch", \'VERSION_CODE_SCHEME = "dev-hotfix-alpha-v1"\' in build_info)\n'
+              if ua_rule not in verifier:
+                  raise SystemExit('verifier user-agent rule insertion point missing')
+              verifier = verifier.replace(ua_rule, ua_rule + extra, 1)
           write(verifier_path, verifier)
 
-          readme_path = ROOT / 'README.md'
+          readme_path = Path('README.md')
           readme = read(readme_path)
           readme = sub_once(readme, r'^- Version name: `[^`]+`$', f'- Version name: `{VERSION} ({VERSION_CODE})`', 'README version name')
           readme = sub_once(readme, r'^- Version code: `\d+`$', f'- Version code: `{VERSION_CODE}`', 'README version code')
@@ -113,120 +114,51 @@ jobs:
           readme = readme.replace('v100000101 adds the resizable **HCF Notifications** Android App Widget.', 'The current dev line includes the resizable **HCF Notifications** Android App Widget.', 1)
           readme = readme.replace('The v100000101 workflow compiles', 'The generic Dev release workflow compiles', 1)
           readme = readme.replace('v100000101 uses a backend-free manual moderation design:', 'The current dev build uses a backend-free manual moderation design:', 1)
-          version_section = f'''## Dev version system
-
-The `dev` branch is the shared Development → Beta → RC testing line. Human-facing versions use a compact suffix while Android `versionCode` remains a strictly increasing install/update number.
-
-- Normal development: `v1.1-a1`, `v1.1-a2`, `v1.1-b1`, `v1.1-rc1`
-- Hotfix development: `v1.1-hf1-a1`, `v1.1-hf1-a2`, `v1.1-hf1-rc1`
-- Next hotfix train: `v1.1-hf2-a1`
-- Stable promotion may drop the dev suffix and use the stable branch's release version.
-- Current dev build: `{VERSION_TAG}` / Android versionCode `{VERSION_CODE}`.
-
-Use `python3 'source code/ci/bump-dev-version.py'` for future dev-version bumps so the manifest, BuildInfo, release verifier, and README stay synchronized.
-
-'''
           if '## Dev version system' not in readme:
-              readme = readme.replace('## HCF Notifications home-screen widget\n', version_section + '## HCF Notifications home-screen widget\n', 1)
+              lines = [
+                  '## Dev version system',
+                  '',
+                  'The `dev` branch is the shared Development → Beta → RC testing line. Human-facing versions use a compact suffix while Android `versionCode` remains a strictly increasing install/update number.',
+                  '',
+                  '- Normal development: `v1.1-a1`, `v1.1-a2`, `v1.1-b1`, `v1.1-rc1`',
+                  '- Hotfix development: `v1.1-hf1-a1`, `v1.1-hf1-a2`, `v1.1-hf1-rc1`',
+                  '- Next hotfix train: `v1.1-hf2-a1`',
+                  '- Stable promotion may drop the dev suffix and use the stable branch release version.',
+                  f'- Current dev build: `{VERSION_TAG}` / Android versionCode `{VERSION_CODE}`.',
+                  '',
+                  'Future dev bumps should keep the version tag, Android versionCode, internal build, manifest, BuildInfo, verifier, and README synchronized.',
+                  '',
+              ]
+              section = '\n'.join(lines) + '\n'
+              readme = readme.replace('## HCF Notifications home-screen widget\n', section + '## HCF Notifications home-screen widget\n', 1)
           write(readme_path, readme)
 
-          helper_path = ROOT / 'source code/ci/bump-dev-version.py'
-          helper_path.parent.mkdir(parents=True, exist_ok=True)
-          helper_path.write_text(r'''#!/usr/bin/env python3
-"""Bump the compact HCF dev-branch version consistently across source metadata."""
-from pathlib import Path
-import argparse
-import re
-
-ROOT = Path(__file__).resolve().parents[2]
-
-
-def sub_once(text, pattern, replacement, label):
-    out, count = re.subn(pattern, replacement, text, count=1, flags=re.M)
-    if count != 1:
-        raise SystemExit(f"{label}: expected 1 replacement, got {count}")
-    return out
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--base", required=True, help="Base version, e.g. 1.1")
-    parser.add_argument("--hotfix", type=int, default=0, help="Hotfix train number; 0 for normal dev")
-    parser.add_argument("--stage", choices=("a", "b", "rc"), required=True)
-    parser.add_argument("--stage-number", type=int, required=True)
-    parser.add_argument("--version-code", type=int, required=True)
-    parser.add_argument("--internal-build", type=int, required=True)
-    parser.add_argument("--patch", default="Development")
-    args = parser.parse_args()
-    if args.stage_number < 1 or args.version_code < 1 or args.internal_build < 1 or args.hotfix < 0:
-        raise SystemExit("Version/build numbers must be positive (hotfix may be 0).")
-
-    middle = f"-hf{args.hotfix}" if args.hotfix else ""
-    version = f"{args.base}{middle}-{args.stage}{args.stage_number}"
-    tag = "v" + version
-    stage_label = {"a": "Alpha", "b": "Beta", "rc": "RC"}[args.stage]
-    release_stage = (f"Hotfix {args.hotfix} • " if args.hotfix else "") + f"{stage_label} {args.stage_number}"
-
-    manifest_path = ROOT / "source code/AndroidManifest.xml"
-    manifest = manifest_path.read_text(encoding="utf-8")
-    manifest = sub_once(manifest, r'android:versionCode="\d+"', f'android:versionCode="{args.version_code}"', "manifest versionCode")
-    manifest = sub_once(manifest, r'android:versionName="[^"]+"', f'android:versionName="{version} ({args.version_code})"', "manifest versionName")
-    manifest = sub_once(manifest, r'(<meta-data android:name="com\.harleytg\.APP_VERSION" android:value=")[^"]+("/>)', rf'\g<1>{version} ({args.version_code})\g<2>', "manifest APP_VERSION")
-    manifest = sub_once(manifest, r'(<meta-data android:name="com\.harleytg\.APP_VERSION_CODE" android:value=")\d+("/>)', rf'\g<1>{args.version_code}\g<2>', "manifest APP_VERSION_CODE")
-    manifest_path.write_text(manifest, encoding="utf-8")
-
-    core_path = ROOT / "source code/src/com/harleytg/forum/HcfCore.java"
-    core = core_path.read_text(encoding="utf-8")
-    values = {
-        "APK_FILE_NAME": f"HCF-Beta-{tag}.apk",
-        "DEVELOPMENT_BUILD_LABEL": f"Harley's Clan Forum {tag} [Development / Beta / RC]",
-        "META_LINE": f"{tag} • {release_stage}",
-        "PATCH_NAME": args.patch,
-        "RELEASE_STAGE": release_stage,
-        "USER_AGENT_MARKER": f"HarleysClanForumApp/{version} Build/{args.version_code}",
-        "VERSION": version,
-        "VERSION_CODE_SCHEME": "dev-hotfix-alpha-v1" if args.hotfix else "dev-compact-stage-v1",
-        "VERSION_TAG": tag,
-    }
-    for key, value in values.items():
-        core = sub_once(core, rf'^    static final String {key} = ".*";$', f'    static final String {key} = "{value}";', f"BuildInfo {key}")
-    core = sub_once(core, r'^    static final int INTERNAL_BUILD = \d+;$', f'    static final int INTERNAL_BUILD = {args.internal_build};', "BuildInfo INTERNAL_BUILD")
-    core = sub_once(core, r'^    static final int VERSION_CODE = \d+;$', f'    static final int VERSION_CODE = {args.version_code};', "BuildInfo VERSION_CODE")
-    core = sub_once(core, r'^    static final String VERSION_BUILD_LINE = .*;$', f'    static final String VERSION_BUILD_LINE = "v" + VERSION + " • {release_stage} • Build " + VERSION_CODE;', "BuildInfo VERSION_BUILD_LINE")
-    core_path.write_text(core, encoding="utf-8")
-
-    verifier_path = ROOT / ".github/scripts/verify-release-readiness.py"
-    verifier = verifier_path.read_text(encoding="utf-8")
-    verifier = sub_once(verifier, r'^EXPECTED_VERSION_CODE = \d+$', f'EXPECTED_VERSION_CODE = {args.version_code}', "verifier versionCode")
-    verifier = sub_once(verifier, r'^EXPECTED_VERSION = ".*"$', f'EXPECTED_VERSION = "{version}"', "verifier version")
-    verifier = sub_once(verifier, r'^EXPECTED_INTERNAL_BUILD = \d+$', f'EXPECTED_INTERNAL_BUILD = {args.internal_build}', "verifier internalBuild")
-    verifier_path.write_text(verifier, encoding="utf-8")
-
-    readme_path = ROOT / "README.md"
-    readme = readme_path.read_text(encoding="utf-8")
-    readme = sub_once(readme, r'^- Version name: `[^`]+`$', f'- Version name: `{version} ({args.version_code})`', "README version name")
-    readme = sub_once(readme, r'^- Version tag: `[^`]+`$', f'- Version tag: `{tag}`', "README version tag")
-    readme = sub_once(readme, r'^- Patch: `[^`]+`$', f'- Patch: `{args.patch}`', "README patch")
-    readme = sub_once(readme, r'^- Version code: `\d+`$', f'- Version code: `{args.version_code}`', "README version code")
-    readme = sub_once(readme, r'^- Internal build: `\d+`$', f'- Internal build: `{args.internal_build}`', "README internal build")
-    readme = re.sub(r'- Current dev build: `v[^`]+` / Android versionCode `\d+`\.', f'- Current dev build: `{tag}` / Android versionCode `{args.version_code}`.', readme, count=1)
-    readme_path.write_text(readme, encoding="utf-8")
-
-    print(f"Updated HCF dev version to {tag} ({args.version_code}), internal build {args.internal_build}, patch {args.patch}")
-
-
-if __name__ == "__main__":
-    main()
-''', encoding='utf-8')
-
-          old_workflow = ROOT / '.github/workflows/build-dev-v100000101.yml'
-          new_workflow = ROOT / '.github/workflows/build-dev.yml'
+          old_workflow = Path('.github/workflows/build-dev-v100000101.yml')
+          new_workflow = Path('.github/workflows/build-dev.yml')
           workflow = read(old_workflow)
           workflow = workflow.replace('name: HCF Beta v100000101 Release Gate', 'name: HCF Beta Dev Release Gate', 1)
           workflow = workflow.replace("      - '.github/workflows/build-dev-v100000101.yml'", "      - '.github/workflows/build-dev.yml'", 1)
-          checkout = '''      - name: Checkout Dev source\n        uses: actions/checkout@v4\n'''
-          load_identity = '''\n      - name: Load build identity\n        shell: bash\n        run: |\n          set -euo pipefail\n          HCF_VERSION_CODE="$(sed -n 's/.*android:versionCode="\\([0-9][0-9]*\\)".*/\\1/p' 'source code/AndroidManifest.xml' | head -1)"\n          HCF_VERSION_NAME="$(sed -n 's/.*android:versionName="\\([^"]*\\)".*/\\1/p' 'source code/AndroidManifest.xml' | head -1)"\n          HCF_VERSION_TAG="$(sed -n 's/.*VERSION_TAG = "\\([^"]*\\)";.*/\\1/p' 'source code/src/com/harleytg/forum/HcfCore.java' | head -1)"\n          test -n "$HCF_VERSION_CODE"\n          test -n "$HCF_VERSION_NAME"\n          test -n "$HCF_VERSION_TAG"\n          echo "HCF_VERSION_CODE=$HCF_VERSION_CODE" >> "$GITHUB_ENV"\n          echo "HCF_VERSION_NAME=$HCF_VERSION_NAME" >> "$GITHUB_ENV"\n          echo "HCF_VERSION_TAG=$HCF_VERSION_TAG" >> "$GITHUB_ENV"\n'''
+          checkout = '      - name: Checkout Dev source\n        uses: actions/checkout@v4\n'
+          identity_lines = [
+              '',
+              '      - name: Load build identity',
+              '        shell: bash',
+              '        run: |',
+              '          set -euo pipefail',
+              '          HCF_VERSION_CODE="$(sed -n \'s/.*android:versionCode="\\([0-9][0-9]*\\)".*/\\1/p\' \'source code/AndroidManifest.xml\' | head -1)"',
+              '          HCF_VERSION_NAME="$(sed -n \'s/.*android:versionName="\\([^"]*\\)".*/\\1/p\' \'source code/AndroidManifest.xml\' | head -1)"',
+              '          HCF_VERSION_TAG="$(sed -n \'s/.*VERSION_TAG = "\\([^"]*\\)";.*/\\1/p\' \'source code/src/com/harleytg/forum/HcfCore.java\' | head -1)"',
+              '          test -n "$HCF_VERSION_CODE"',
+              '          test -n "$HCF_VERSION_NAME"',
+              '          test -n "$HCF_VERSION_TAG"',
+              '          echo "HCF_VERSION_CODE=$HCF_VERSION_CODE" >> "$GITHUB_ENV"',
+              '          echo "HCF_VERSION_NAME=$HCF_VERSION_NAME" >> "$GITHUB_ENV"',
+              '          echo "HCF_VERSION_TAG=$HCF_VERSION_TAG" >> "$GITHUB_ENV"',
+          ]
+          load_identity = '\n'.join(identity_lines) + '\n'
           if 'Load build identity' not in workflow:
+              if checkout not in workflow:
+                  raise SystemExit('workflow checkout insertion point missing')
               workflow = workflow.replace(checkout, checkout + load_identity, 1)
           workflow = workflow.replace('WORK="$RUNNER_TEMP/hcf-beta-v100000101"', 'WORK="$RUNNER_TEMP/hcf-beta-${HCF_VERSION_TAG}"', 1)
           workflow = workflow.replace('OUT="$GITHUB_WORKSPACE/out-v100000101"', 'OUT="$GITHUB_WORKSPACE/out-${HCF_VERSION_TAG}"', 1)
