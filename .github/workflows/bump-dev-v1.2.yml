@@ -29,6 +29,8 @@ jobs:
 
           manifest = Path('source code/AndroidManifest.xml')
           core = Path('source code/src/com/harleytg/forum/HcfCore.java')
+          verifier = Path('.github/scripts/verify-release-readiness.py')
+          readme = Path('README.md')
 
           def replace_exact(path, old, new):
               text = path.read_text(encoding='utf-8')
@@ -56,6 +58,19 @@ jobs:
           ]
           for old, new in replacements:
               replace_exact(core, old, new)
+
+          verifier_replacements = [
+              ('EXPECTED_VERSION_CODE = 100000105', 'EXPECTED_VERSION_CODE = 100000106'),
+              ('EXPECTED_VERSION = "1.1-hf2-a1"', 'EXPECTED_VERSION = "1.2-a1"'),
+              ('EXPECTED_INTERNAL_BUILD = 123', 'EXPECTED_INTERNAL_BUILD = 124'),
+              ('VERSION_CODE_SCHEME = "dev-hotfix-alpha-v1"', 'VERSION_CODE_SCHEME = "dev-alpha-v1"'),
+              ('BASE_VERSION = "1.1"', 'BASE_VERSION = "1.2"'),
+          ]
+          for old, new in verifier_replacements:
+              replace_exact(verifier, old, new)
+
+          replace_exact(readme, 'Version code: `100000105`', 'Version code: `100000106`')
+          replace_exact(readme, 'Internal build: `123`', 'Internal build: `124`')
           PY
 
       - name: Remove one-time workflow before validation
