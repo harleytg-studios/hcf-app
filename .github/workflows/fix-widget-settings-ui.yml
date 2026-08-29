@@ -22,6 +22,11 @@ jobs:
       - name: Apply shared subsettings UI patch
         run: python3 .github/scripts/fix-widget-settings-ui.py
 
+      - name: Remove one-time patch tooling
+        run: |
+          rm -f .github/workflows/fix-widget-settings-ui.yml
+          rm -f .github/scripts/fix-widget-settings-ui.py
+
       - name: Validate release/source checks
         run: python3 .github/scripts/verify-release-readiness.py
 
@@ -34,10 +39,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "source code/src/com/harleytg/forum/HcfUI.java" \
-                  "source code/src/com/harleytg/forum/HcfWidget.java" \
-                  ".github/scripts/verify-release-readiness.py" \
-                  "README.md" \
-                  "source code/ci/widget-settings-subscreen.txt"
+          git add -A
           git commit -m "Use standard subsettings UI for widget settings"
           git push origin HEAD:dev
