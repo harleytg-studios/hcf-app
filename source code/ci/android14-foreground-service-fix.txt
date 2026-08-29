@@ -1,0 +1,7 @@
+Android 14 foreground service self-restart crash fix
+
+The InstantNotificationService no longer restarts itself with startForegroundService()
+from network-available or screen-on callbacks. Those events now schedule an immediate
+sync on the already-running foreground service.
+
+Primary fix commit: eaf5000173151860d9a8b03b7d21c5d5bf12db9f
