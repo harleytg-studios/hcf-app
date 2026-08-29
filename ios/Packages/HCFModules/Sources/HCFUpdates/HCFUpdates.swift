@@ -137,7 +137,7 @@ public actor HCFUpdateChecker {
         }
     }
 
-    public func preferredInstallURL(for result: HCFUpdateResult) -> URL? {
+    public nonisolated func preferredInstallURL(for result: HCFUpdateResult) -> URL? {
         // iOS distribution remains under Apple control. TestFlight is preferred;
         // GitHub is used for version discovery/release notes only.
         HCFBuildInfo.testFlightURL ?? result.releaseURL
