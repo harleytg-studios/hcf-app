@@ -6,9 +6,9 @@ import re
 import sys
 
 
-EXPECTED_VERSION_CODE = 100000102
-EXPECTED_VERSION = "1.1-hf1-a1"
-EXPECTED_INTERNAL_BUILD = 120
+EXPECTED_VERSION_CODE = 100000103
+EXPECTED_VERSION = "1.1-hf1-a2"
+EXPECTED_INTERNAL_BUILD = 121
 EXPECTED_PACKAGE = "com.harleytg.forum.dev"
 EXPECTED_SIGNER = "93:D4:9B:F9:A8:77:C7:CF:B1:B3:7F:90:64:BD:95:5C:D6:7B:D7:DD:8D:B7:3A:9E:3F:76:6B:59:C4:BC:CE:63"
 
@@ -112,6 +112,7 @@ for java_file in expected_java_files:
 require("URL-bar back button missing", 'android:id="@+id/urlBackButton"' in text(source / "res/layout/activity_main.xml"))
 require("widget app-theme preference missing", 'WIDGET_FOLLOW_APP_THEME = "widget_follow_app_theme"' in app_prefs)
 require("widget root settings category missing", '"Home-screen Widget"' in ui_source and '"Follow HCF app theme"' in ui_source)
+require("widget App Settings route missing", 'startActivity(new Intent(this, HcfWidget.SettingsActivity.class))' in ui_source)
 require("widget app-theme renderer missing", 'ThemeManager.webColorScheme(context)' in widget_source and 'systemPhoneDark()' in widget_source)
 require("widget theme changes do not refresh widget", 'AppPrefs.APP_THEME.equals(key)' in widget_source and 'AppPrefs.WIDGET_FOLLOW_APP_THEME.equals(key)' in widget_source)
 for widget_key in ("WIDGET_SHOW_CONNECTED_USERNAME", "WIDGET_SHOW_UNREAD_COUNT", "WIDGET_COMPACT_MODE", "WIDGET_SHOW_LAST_UPDATED", "WIDGET_DEFAULT_TAP_ACTION"):

@@ -4589,7 +4589,7 @@ final class HcfSubActivities {
             addSettingsCategory(list, "Account & Security", "Forum identity, profile and account controls", "account_security");
             addSettingsCategory(list, "Notifications", "Required alerts, silent background alerts and notification tools", "notifications");
             addSettingsCategory(list, "Appearance & Performance", "Theme, interface density and performance", "appearance");
-            addSettingsCategory(list, "Home-screen Widget", "Theme, identity, content, layout and actions", "widget");
+            addSettingsCategory(list, "Home-screen Widget", "Appearance, refresh, preview, history and tap behavior", "widget");
             addSettingsCategory(list, "Forum & Site Data", "Server routing, links, cookies and local site data", "forum_data");
             addSettingsCategory(list, "Advanced & About", "App permissions, updates, recovery, telemetry, developer tools and build information", "advanced");
         }
@@ -4780,7 +4780,11 @@ final class HcfSubActivities {
 
         private void showSettingsSection(String section) {
             if (section == null) section = "";
-            currentSettingsSection = section;
+            if ("widget".equals(section)) {
+      startActivity(new Intent(this, HcfWidget.SettingsActivity.class));
+      return;
+  }
+  currentSettingsSection = section;
             if (settingsContent == null) return;
             settingsContent.removeAllViews();
             updateSettingsHeader(settingsSectionName(section), settingsSectionSubtitle(section));

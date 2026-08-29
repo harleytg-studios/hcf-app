@@ -7,11 +7,11 @@ Development/Beta branch for the Harley's Clan Forum Android app.
 - App name: **Harley's Clan Forum [Beta]**
 - Branch: `dev`
 - Android package: `com.harleytg.forum.dev`
-- Version name: `1.1-hf1-a1 (100000102)`
-- Version tag: `v1.1-hf1-a1`
-- Patch: `FGS-Crash-Fix`
-- Version code: `100000102`
-- Internal build: `120`
+- Version name: `1.1-hf1-a2 (100000103)`
+- Version tag: `v1.1-hf1-a2`
+- Patch: `Widget-Settings-Subscreen`
+- Version code: `100000103`
+- Internal build: `121`
 - Minimum SDK: `26`
 - Target SDK: `34`
 - Source directory: [`source code/`](./source%20code)
@@ -24,9 +24,11 @@ The `dev` branch is the shared Development → Beta → RC testing line. Human-f
 - Hotfix development: `v1.1-hf1-a1`, `v1.1-hf1-a2`, `v1.1-hf1-rc1`
 - Next hotfix train: `v1.1-hf2-a1`
 - Stable promotion may drop the dev suffix and use the stable branch release version.
-- Current dev build: `v1.1-hf1-a1` / Android versionCode `100000102`.
+- Current dev build: `v1.1-hf1-a2` / Android versionCode `100000103`.
 
 ## HCF Notifications home-screen widget
+
+App Settings → Home-screen Widget now opens the complete native widget settings screen, including transparency, text size, notification preview/history privacy, retention, automatic refresh, and tap behavior. Back returns to App Settings.
 
 The current dev line includes the resizable **HCF Notifications** Android App Widget. It displays the cached signed-in forum unread count from `hcf_app`, updates when the notification/session preferences change, and provides quick actions for Forum, Notifications, Reload, and App Settings. Widget rendering performs no direct network requests; Reload delegates to the existing HCF notification sync service and then refreshes the cached widget UI.
 
