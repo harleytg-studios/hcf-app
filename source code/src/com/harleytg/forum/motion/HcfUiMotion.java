@@ -20,6 +20,7 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.Switch;
+import android.widget.TextView;
 
 import java.lang.reflect.Field;
 import java.util.WeakHashMap;
@@ -138,6 +139,11 @@ public final class HcfUiMotion {
         attachPressScale(activity.findViewById(R.id.reloadButton));
         attachPressScale(activity.findViewById(R.id.copyUrlButton));
         attachPressScale(activity.findViewById(R.id.urlHomeButton));
+
+        View logo = activity.findViewById(R.id.appHeaderLogo);
+        if (logo != null && logo.isClickable()) {
+            attachPressScale(logo, 0.97f, 65L, 145L);
+        }
     }
 
     private static void applySettingsMotion(final Activity activity) {
@@ -161,8 +167,12 @@ public final class HcfUiMotion {
                 if (activity.isFinishing() || activity.isDestroyed()) return;
                 if (section.isEmpty()) {
                     ViewGroup categories = findSettingsCategoryList(content);
-                    if (categories != null) UiMotion.fadeInChildren(categories, 28L);
+                    if (categories != null) {
+                        UiMotion.softReveal(categories);
+                        UiMotion.fadeInChildren(categories, 28L);
+                    }
                 } else {
+                    UiMotion.softReveal(content);
                     UiMotion.fadeInChildren(content, 30L);
                 }
             }
@@ -173,13 +183,13 @@ public final class HcfUiMotion {
         if (view == null || view instanceof WebView) return;
 
         if (view instanceof ImageButton) {
-            attachPressScale(view, 0.96f, 70L, 140L);
+            attachPressScale(view, 0.96f, 70L, 145L);
         } else if (view instanceof Switch) {
-            attachPressScale(view, 0.965f, 65L, 150L);
+            attachPressScale(view, 0.955f, 60L, 165L);
         } else if (view instanceof Button) {
-            attachPressScale(view, 0.975f, 70L, 140L);
+            attachPressScale(view, 0.972f, 70L, 150L);
         } else if (!(view instanceof EditText) && view.isClickable()) {
-            attachPressScale(view, 0.985f, 65L, 130L);
+            attachPressScale(view, 0.982f, 65L, 140L);
         }
 
         if (!(view instanceof ViewGroup)) return;
@@ -258,11 +268,16 @@ public final class HcfUiMotion {
 final class UiMotion {
     static final float DEFAULT_PRESS_SCALE = 0.96f;
     static final long DEFAULT_PRESS_IN_MS = 70L;
-    static final long DEFAULT_RELEASE_MS = 140L;
+    static final long DEFAULT_RELEASE_MS = 145L;
 
-    private static final long CHILD_ENTER_MS = 180L;
+    private static final long CHILD_ENTER_MS = 195L;
+    private static final long SOFT_REVEAL_MS = 165L;
     private static final long MAX_STAGGER_DELAY_MS = 220L;
     private static final int CHILD_RISE_DP = 6;
+    private static final int SOFT_REVEAL_RISE_DP = 4;
+    private static final int INDICATOR_SHIFT_DP = 2;
+    private static final float CHILD_START_SCALE = 0.992f;
+    private static final float CONTAINER_START_SCALE = 0.996f;
 
     private UiMotion() {}
 
@@ -287,6 +302,7 @@ final class UiMotion {
                     touched.animate().cancel();
                     touched.setAlpha(1.0f);
                     touched.setTranslationY(0.0f);
+                    animateTrailingIndicator(touched, true);
                     touched.animate()
                             .scaleX(pressedScale)
                             .scaleY(pressedScale)
@@ -298,17 +314,38 @@ final class UiMotion {
                         || action == MotionEvent.ACTION_CANCEL
                         || action == MotionEvent.ACTION_OUTSIDE) {
                     touched.animate().cancel();
+                    animateTrailingIndicator(touched, false);
                     touched.animate()
                             .scaleX(1.0f)
                             .scaleY(1.0f)
                             .setStartDelay(0L)
                             .setDuration(releaseDuration)
-                            .setInterpolator(new OvershootInterpolator(0.7f))
+                            .setInterpolator(new OvershootInterpolator(0.75f))
                             .start();
                 }
                 return false;
             }
         });
+    }
+
+    static void softReveal(View view) {
+        if (view == null || view.getVisibility() != View.VISIBLE) return;
+
+        int rise = dp(view.getContext(), SOFT_REVEAL_RISE_DP);
+        view.animate().cancel();
+        view.setAlpha(0.94f);
+        view.setTranslationY(rise);
+        view.setScaleX(CONTAINER_START_SCALE);
+        view.setScaleY(CONTAINER_START_SCALE);
+        view.animate()
+                .alpha(1.0f)
+                .translationY(0.0f)
+                .scaleX(1.0f)
+                .scaleY(1.0f)
+                .setStartDelay(0L)
+                .setDuration(SOFT_REVEAL_MS)
+                .setInterpolator(new DecelerateInterpolator())
+                .start();
     }
 
     static void fadeInChildren(ViewGroup parent, long staggerMs) {
@@ -326,15 +363,67 @@ final class UiMotion {
             child.animate().cancel();
             child.setAlpha(0.0f);
             child.setTranslationY(rise);
+            child.setScaleX(CHILD_START_SCALE);
+            child.setScaleY(CHILD_START_SCALE);
             child.animate()
                     .alpha(1.0f)
                     .translationY(0.0f)
+                    .scaleX(1.0f)
+                    .scaleY(1.0f)
                     .setStartDelay(delay)
                     .setDuration(CHILD_ENTER_MS)
                     .setInterpolator(new DecelerateInterpolator())
                     .start();
             animatedIndex++;
         }
+    }
+
+    private static void animateTrailingIndicator(View root, boolean pressed) {
+        View indicator = trailingIndicator(root);
+        if (indicator == null) return;
+
+        indicator.animate().cancel();
+        if (pressed) {
+            indicator.animate()
+                    .translationX(dp(root.getContext(), INDICATOR_SHIFT_DP))
+                    .alpha(0.82f)
+                    .setStartDelay(0L)
+                    .setDuration(75L)
+                    .setInterpolator(new DecelerateInterpolator())
+                    .start();
+        } else {
+            indicator.animate()
+                    .translationX(0.0f)
+                    .alpha(1.0f)
+                    .setStartDelay(0L)
+                    .setDuration(145L)
+                    .setInterpolator(new OvershootInterpolator(0.65f))
+                    .start();
+        }
+    }
+
+    private static View trailingIndicator(View root) {
+        if (!(root instanceof ViewGroup)) return null;
+        ViewGroup group = (ViewGroup) root;
+
+        for (int i = group.getChildCount() - 1; i >= 0; i--) {
+            View child = group.getChildAt(i);
+            if (child == null || child.getVisibility() != View.VISIBLE) continue;
+            if (!(child instanceof TextView)) return null;
+
+            CharSequence value = ((TextView) child).getText();
+            String text = value == null ? "" : value.toString().trim();
+            if ("›".equals(text)
+                    || ">".equals(text)
+                    || "⌄".equals(text)
+                    || "⌃".equals(text)
+                    || "∨".equals(text)
+                    || "∧".equals(text)) {
+                return child;
+            }
+            return null;
+        }
+        return null;
     }
 
     private static int dp(Context context, int value) {
