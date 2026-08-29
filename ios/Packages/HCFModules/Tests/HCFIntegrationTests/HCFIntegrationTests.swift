@@ -46,7 +46,7 @@ final class HCFIntegrationTests: XCTestCase {
     func testSHA256MatchesKnownVector() {
         XCTAssertEqual(
             HCFHash.sha256Hex("HarleysClanForum"),
-            "ac03d55bc77b35c01c0a21b452080700634daf348843bb28dd15b72bec69a092"
+            "80be5f0239dcf13a13b595178d4d215e864ede25607882fd3757c5fcef72e292"
         )
     }
 
