@@ -1,0 +1,5 @@
+#include "Dev.xcconfig"
+
+// Archive/TestFlight builds use the production APNs environment supplied by
+// the App Store provisioning profile. Keep Debug builds on development APNs.
+APS_ENVIRONMENT = production
