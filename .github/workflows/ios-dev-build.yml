@@ -35,6 +35,30 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Prepare preview assets
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          SRC="../source code/res/drawable-nodpi-v4/htg_app_logo.png"
+          test -f "$SRC"
+          mkdir -p HarleysClanForum/Resources/Assets.xcassets/AppIcon.appiconset
+          mkdir -p HarleysClanForum/Resources/Assets.xcassets/HTGLogo.imageset
+          /usr/bin/sips -z 1024 1024 "$SRC" --out HarleysClanForum/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png >/dev/null
+          cp "$SRC" HarleysClanForum/Resources/Assets.xcassets/HTGLogo.imageset/HTGLogo.png
+
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('project.yml')
+          text = path.read_text()
+          marker = '    preBuildScripts:\n      - name: Sync HCF logo assets'
+          if marker in text:
+              start = text.index(marker)
+              end_marker = '\n\n  HCFWidgetExtension:'
+              end = text.index(end_marker, start)
+              text = text[:start] + text[end:]
+              path.write_text(text)
+          PY
+
       - name: Generate Xcode project
         working-directory: ios
         run: xcodegen generate
