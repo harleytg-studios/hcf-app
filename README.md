@@ -7,13 +7,13 @@ Development/Beta branch for the Harley's Clan Forum Android app.
 - App name: **Harley's Clan Forum [Beta]**
 - Branch: `dev`
 - Android package: `com.harleytg.forum.dev`
-- Version name: `1.1-hf1-a3 (100000104)`
+- Version name: `1.1-hf2-a1 (100000105)`
 - Product version: `1.1`
 - Channel label: `Beta / Development Build`
-- Version tag: `v1.1-hf1-a3`
-- Patch: `Build-Label-About`
-- Version code: `100000104`
-- Internal build: `122`
+- Version tag: `v1.1-hf2-a1`
+- Patch: `Hotfix-2`
+- Version code: `100000105`
+- Internal build: `123`
 - Minimum SDK: `26`
 - Target SDK: `34`
 - Source directory: [`source code/`](./source%20code)
@@ -26,7 +26,7 @@ The `dev` branch is the shared Development → Beta → RC testing line. Human-f
 - Hotfix development: `v1.1-hf1-a1`, `v1.1-hf1-a2`, `v1.1-hf1-rc1`
 - Next hotfix train: `v1.1-hf2-a1`
 - Stable promotion may drop the dev suffix and use the stable branch release version.
-- Current dev build: `v1.1-hf1-a3` / Android versionCode `100000104`.
+- Current dev build: `v1.1-hf2-a1` / Android versionCode `100000105`.
 
 ## HCF Notifications home-screen widget
 
