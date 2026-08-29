@@ -50,7 +50,7 @@ jobs:
           core = core_path.read_text(encoding='utf-8')
           values = {
               'APK_FILE_NAME': f'HCF-Beta-{VERSION_TAG}.apk',
-              'DEVELOPMENT_BUILD_LABEL': 'Beta / Development Build',
+              'BUILD_TAG': 'Beta / Development Build',
               'META_LINE': f'{VERSION_TAG} • Hotfix 2 • Alpha 1',
               'PATCH_NAME': 'Hotfix-2',
               'RELEASE_STAGE': 'Hotfix Alpha',
@@ -61,9 +61,10 @@ jobs:
           }
           for key, value in values.items():
               core = sub_once(core, rf'^    static final String {key} = ".*";$', f'    static final String {key} = "{value}";', f'BuildInfo {key}')
+          core = sub_once(core, r'^    static final String DEVELOPMENT_BUILD_LABEL = .*;$', f'    static final String DEVELOPMENT_BUILD_LABEL = "{VERSION_TAG} ({VERSION_CODE}) • " + BUILD_TAG;', 'BuildInfo DEVELOPMENT_BUILD_LABEL')
           core = sub_once(core, r'^    static final int INTERNAL_BUILD = \d+;$', f'    static final int INTERNAL_BUILD = {INTERNAL_BUILD};', 'BuildInfo INTERNAL_BUILD')
           core = sub_once(core, r'^    static final int VERSION_CODE = \d+;$', f'    static final int VERSION_CODE = {VERSION_CODE};', 'BuildInfo VERSION_CODE')
-          core = sub_once(core, r'^    static final String VERSION_BUILD_LINE = .*;$', '    static final String VERSION_BUILD_LINE = "v" + VERSION + " • Beta / Development Build • Build " + VERSION_CODE;', 'BuildInfo VERSION_BUILD_LINE')
+          core = sub_once(core, r'^    static final String VERSION_BUILD_LINE = .*;$', '    static final String VERSION_BUILD_LINE = "v" + VERSION + " (" + VERSION_CODE + ") • " + BUILD_TAG;', 'BuildInfo VERSION_BUILD_LINE')
           core_path.write_text(core, encoding='utf-8')
 
           verifier_path = Path('.github/scripts/verify-release-readiness.py')
