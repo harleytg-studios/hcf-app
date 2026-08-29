@@ -8,6 +8,18 @@ public struct HCFWidgetEntry: TimelineEntry, Sendable {
     public init(date: Date = .now, snapshot: WidgetSnapshot) { self.date = date; self.snapshot = snapshot }
 }
 
+private enum HCFWidgetCache {
+    static let snapshotKey = "ios_widget_snapshot_v1"
+
+    static func snapshot() -> WidgetSnapshot {
+        let defaults = UserDefaults(suiteName: HCFBuildInfo.appGroupID) ?? .standard
+        guard let data = defaults.data(forKey: snapshotKey) else { return .init() }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return (try? decoder.decode(WidgetSnapshot.self, from: data)) ?? .init()
+    }
+}
+
 public struct HCFWidgetProvider: TimelineProvider {
     public init() {}
 
@@ -16,20 +28,15 @@ public struct HCFWidgetProvider: TimelineProvider {
     }
 
     public func getSnapshot(in context: Context, completion: @escaping (HCFWidgetEntry) -> Void) {
-        Task {
-            let snapshot = await SharedContainerStore.shared.widgetSnapshot()
-            completion(.init(snapshot: snapshot))
-        }
+        completion(.init(snapshot: HCFWidgetCache.snapshot()))
     }
 
     public func getTimeline(in context: Context, completion: @escaping (Timeline<HCFWidgetEntry>) -> Void) {
-        Task {
-            let snapshot = await SharedContainerStore.shared.widgetSnapshot()
-            let defaults = UserDefaults(suiteName: HCFBuildInfo.appGroupID) ?? .standard
-            let minutes = max(15, defaults.object(forKey: PreferencesStore.Key.widgetRefreshInterval) as? Int ?? 30)
-            let next = Calendar.current.date(byAdding: .minute, value: minutes, to: .now) ?? .now.addingTimeInterval(TimeInterval(minutes * 60))
-            completion(Timeline(entries: [.init(snapshot: snapshot)], policy: .after(next)))
-        }
+        let snapshot = HCFWidgetCache.snapshot()
+        let defaults = UserDefaults(suiteName: HCFBuildInfo.appGroupID) ?? .standard
+        let minutes = max(15, defaults.object(forKey: PreferencesStore.Key.widgetRefreshInterval) as? Int ?? 30)
+        let next = Calendar.current.date(byAdding: .minute, value: minutes, to: .now) ?? .now.addingTimeInterval(TimeInterval(minutes * 60))
+        completion(Timeline(entries: [.init(snapshot: snapshot)], policy: .after(next)))
     }
 }
 
@@ -62,11 +69,19 @@ private struct HCFWidgetPalette {
     let panel: Color
     let text: Color
     let secondary: Color
-    let accent = Color(red: 0, green: 184 / 255, blue: 240 / 255)
+    let accent = Color(red: 0, green: 184.0 / 255.0, blue: 240.0 / 255.0)
 
     init(mode: HCFThemeMode, alpha: Int, environment: ColorScheme) {
-        let opacity = Double(min(100, max(20, alpha))) / 100
+        let opacity = Double(min(100, max(20, alpha))) / 100.0
+        let resolved: HCFThemeMode
         switch mode {
+        case .system, .followForum:
+            resolved = environment == .dark ? .dark : .light
+        default:
+            resolved = mode
+        }
+
+        switch resolved {
         case .light:
             background = Color.white.opacity(opacity)
             panel = Color.black.opacity(0.06)
@@ -78,12 +93,15 @@ private struct HCFWidgetPalette {
             text = .white
             secondary = Color.white.opacity(0.68)
         case .dark:
-            background = Color(red: 13 / 255, green: 16 / 255, blue: 20 / 255).opacity(opacity)
+            background = Color(red: 13.0 / 255.0, green: 16.0 / 255.0, blue: 20.0 / 255.0).opacity(opacity)
             panel = Color.white.opacity(0.07)
-            text = Color(red: 232 / 255, green: 248 / 255, blue: 1)
-            secondary = Color(red: 174 / 255, green: 187 / 255, blue: 194 / 255)
+            text = Color(red: 232.0 / 255.0, green: 248.0 / 255.0, blue: 1)
+            secondary = Color(red: 174.0 / 255.0, green: 187.0 / 255.0, blue: 194.0 / 255.0)
         case .system, .followForum:
-            self.init(mode: environment == .dark ? .dark : .light, alpha: alpha, environment: environment)
+            background = Color.white.opacity(opacity)
+            panel = Color.black.opacity(0.06)
+            text = .black
+            secondary = Color.black.opacity(0.62)
         }
     }
 }
