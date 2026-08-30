@@ -1,5 +1,7 @@
 package com.harleytg.forum.dev;
 
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.app.Application;
 import android.content.ContentProvider;
@@ -13,7 +15,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.view.animation.DecelerateInterpolator;
-import android.view.animation.OvershootInterpolator;
 import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.EditText;
@@ -22,6 +23,7 @@ import android.widget.LinearLayout;
 import android.widget.Switch;
 import android.widget.TextView;
 
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.util.WeakHashMap;
 
@@ -52,7 +54,13 @@ public final class HcfUiMotion {
 
             registered = true;
             ((Application) appContext).registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
-                @Override public void onActivityCreated(Activity activity, Bundle state) {}
+                @Override
+                public void onActivityCreated(Activity activity, Bundle state) {
+                    // Install before the first draw where possible. This keeps the
+                    // default-collapsed Settings state from flashing open first.
+                    install(activity);
+                }
+
                 @Override public void onActivityStarted(Activity activity) {}
 
                 @Override
@@ -128,7 +136,7 @@ public final class HcfUiMotion {
             }
         }
 
-        // Requirement: returning to a Settings page starts with every subsection closed.
+        // Returning to a Settings page starts with every subsection closed.
         synchronized (LAST_SETTINGS_SECTION) {
             LAST_SETTINGS_SECTION.remove(activity);
         }
@@ -146,7 +154,7 @@ public final class HcfUiMotion {
 
         View logo = activity.findViewById(R.id.appHeaderLogo);
         if (logo != null && logo.isClickable()) {
-            attachPressScale(logo, 0.97f, 65L, 145L);
+            attachPressScale(logo, 0.985f, 75L, 110L);
         }
     }
 
@@ -168,28 +176,21 @@ public final class HcfUiMotion {
         if (!changed) return;
 
         // Normal section navigation always starts completely collapsed. A direct
-        // Settings-search target remains the only exception so the target can be
-        // revealed and scrolled to by the existing search/deep-link code.
+        // Settings-search target is the only exception so the target can still be
+        // revealed by the existing search/deep-link behavior.
         if (!section.isEmpty() && pendingSettingKey.isEmpty()) {
             collapseAllConnectedPanelsImmediate(content);
         }
 
-        content.post(new Runnable() {
-            @Override
-            public void run() {
-                if (activity.isFinishing() || activity.isDestroyed()) return;
-                if (section.isEmpty()) {
-                    ViewGroup categories = findSettingsCategoryList(content);
-                    if (categories != null) {
-                        UiMotion.softReveal(categories);
-                        UiMotion.fadeInChildren(categories, 28L);
-                    }
-                } else {
-                    UiMotion.softReveal(content);
-                    UiMotion.fadeInChildren(content, 30L);
-                }
-            }
-        });
+        // Run the entrance motion directly after the hierarchy changes. The old
+        // implementation animated the container and children at the same time,
+        // which made touch feedback cancel or fight the entrance transition.
+        if (section.isEmpty()) {
+            ViewGroup categories = findSettingsCategoryList(content);
+            if (categories != null) UiMotion.fadeInChildren(categories, 18L);
+        } else {
+            UiMotion.fadeInChildren(content, 20L);
+        }
     }
 
     /** Registers direct Settings accordion headers without replacing their native click listeners. */
@@ -221,8 +222,6 @@ public final class HcfUiMotion {
         View body = panel.getChildAt(1);
 
         if (action == MotionEvent.ACTION_DOWN) {
-            // Stable collapsed panels are GONE. Capture intent before the native
-            // click toggles its private isExpanded state.
             synchronized (ACCORDION_WILL_OPEN) {
                 ACCORDION_WILL_OPEN.put(header, body.getVisibility() != View.VISIBLE);
             }
@@ -244,14 +243,17 @@ public final class HcfUiMotion {
         }
         if (!opening) return;
 
-        // Run after the native header click. The newly opened panel remains open;
-        // any sibling that was open is asked to use its own native collapse logic.
+        // This runs after the native header click. Only close siblings if the
+        // touched panel actually opened; a cancelled/outside tap must not close
+        // the panel the user was already reading.
         header.post(new Runnable() {
             @Override
             public void run() {
                 View parent = header.getParent() instanceof View ? (View) header.getParent() : null;
                 ViewGroup openedPanel = parent instanceof ViewGroup ? connectedPanel(parent) : null;
                 if (openedPanel == null) return;
+                View openedBody = openedPanel.getChildAt(1);
+                if (openedBody.getVisibility() != View.VISIBLE) return;
                 collapseOtherConnectedPanels(content, openedPanel);
             }
         });
@@ -269,7 +271,7 @@ public final class HcfUiMotion {
 
             View arrow = trailingIndicator(header);
             // Fully expanded native panels settle at 90 degrees. Avoid toggling a
-            // sibling that is already in the middle of its own close animation.
+            // sibling already in the middle of its own close animation.
             if (arrow != null && arrow.getRotation() < 65.0f) continue;
             header.performClick();
         }
@@ -285,8 +287,8 @@ public final class HcfUiMotion {
             View body = panel.getChildAt(1);
             if (body.getVisibility() != View.VISIBLE) continue;
 
-            // Use the panel's native click once so its private isExpanded[] state is
-            // synchronized, then snap the initial close before the next frame.
+            // Use the panel's native click once so its private isExpanded[] state
+            // remains synchronized, then snap the initial close before draw.
             header.performClick();
             finalizeCollapsedPanel(header, body);
         }
@@ -326,13 +328,13 @@ public final class HcfUiMotion {
         if (view == null || view instanceof WebView) return;
 
         if (view instanceof ImageButton) {
-            attachPressScale(view, 0.96f, 70L, 145L);
+            attachPressScale(view, 0.980f, 75L, 110L);
         } else if (view instanceof Switch) {
-            attachPressScale(view, 0.955f, 60L, 165L);
+            attachPressScale(view, 0.985f, 75L, 115L);
         } else if (view instanceof Button) {
-            attachPressScale(view, 0.972f, 70L, 150L);
+            attachPressScale(view, 0.988f, 75L, 115L);
         } else if (!(view instanceof EditText) && view.isClickable()) {
-            attachPressScale(view, 0.982f, 65L, 140L);
+            attachPressScale(view, 0.992f, 75L, 115L);
         }
 
         if (!(view instanceof ViewGroup)) return;
@@ -431,18 +433,17 @@ public final class HcfUiMotion {
 }
 
 final class UiMotion {
-    static final float DEFAULT_PRESS_SCALE = 0.96f;
-    static final long DEFAULT_PRESS_IN_MS = 70L;
-    static final long DEFAULT_RELEASE_MS = 145L;
+    static final float DEFAULT_PRESS_SCALE = 0.980f;
+    static final long DEFAULT_PRESS_IN_MS = 75L;
+    static final long DEFAULT_RELEASE_MS = 110L;
 
-    private static final long CHILD_ENTER_MS = 195L;
-    private static final long SOFT_REVEAL_MS = 165L;
-    private static final long MAX_STAGGER_DELAY_MS = 220L;
-    private static final int CHILD_RISE_DP = 6;
-    private static final int SOFT_REVEAL_RISE_DP = 4;
-    private static final int INDICATOR_SHIFT_DP = 2;
-    private static final float CHILD_START_SCALE = 0.992f;
-    private static final float CONTAINER_START_SCALE = 0.996f;
+    private static final long CHILD_ENTER_MS = 175L;
+    private static final long MAX_STAGGER_DELAY_MS = 120L;
+    private static final int CHILD_RISE_DP = 4;
+
+    // Entrance motion uses independent ObjectAnimators so a user's press-scale
+    // animation cannot cancel alpha/translation while the row is still appearing.
+    private static final WeakHashMap<View, WeakReference<AnimatorSet>> ENTER_ANIMATORS = new WeakHashMap<>();
 
     private UiMotion() {}
 
@@ -453,7 +454,7 @@ final class UiMotion {
     static void attachPressScale(final View view, float scale, long pressInMs, long releaseMs) {
         if (view == null) return;
 
-        final float pressedScale = Math.max(0.85f, Math.min(1.0f, scale));
+        final float pressedScale = Math.max(0.90f, Math.min(1.0f, scale));
         final long pressDuration = Math.max(0L, pressInMs);
         final long releaseDuration = Math.max(0L, releaseMs);
 
@@ -467,9 +468,6 @@ final class UiMotion {
 
                 if (action == MotionEvent.ACTION_DOWN) {
                     touched.animate().cancel();
-                    touched.setAlpha(1.0f);
-                    touched.setTranslationY(0.0f);
-                    animateTrailingIndicator(touched, true);
                     touched.animate()
                             .scaleX(pressedScale)
                             .scaleY(pressedScale)
@@ -481,38 +479,17 @@ final class UiMotion {
                         || action == MotionEvent.ACTION_CANCEL
                         || action == MotionEvent.ACTION_OUTSIDE) {
                     touched.animate().cancel();
-                    animateTrailingIndicator(touched, false);
                     touched.animate()
                             .scaleX(1.0f)
                             .scaleY(1.0f)
                             .setStartDelay(0L)
                             .setDuration(releaseDuration)
-                            .setInterpolator(new OvershootInterpolator(0.75f))
+                            .setInterpolator(new DecelerateInterpolator())
                             .start();
                 }
                 return false;
             }
         });
-    }
-
-    static void softReveal(View view) {
-        if (view == null || view.getVisibility() != View.VISIBLE) return;
-
-        int rise = dp(view.getContext(), SOFT_REVEAL_RISE_DP);
-        view.animate().cancel();
-        view.setAlpha(0.94f);
-        view.setTranslationY(rise);
-        view.setScaleX(CONTAINER_START_SCALE);
-        view.setScaleY(CONTAINER_START_SCALE);
-        view.animate()
-                .alpha(1.0f)
-                .translationY(0.0f)
-                .scaleX(1.0f)
-                .scaleY(1.0f)
-                .setStartDelay(0L)
-                .setDuration(SOFT_REVEAL_MS)
-                .setInterpolator(new DecelerateInterpolator())
-                .start();
     }
 
     static void fadeInChildren(ViewGroup parent, long staggerMs) {
@@ -527,70 +504,35 @@ final class UiMotion {
             if (child == null || child.getVisibility() != View.VISIBLE) continue;
 
             long delay = Math.min(MAX_STAGGER_DELAY_MS, safeStagger * animatedIndex);
-            child.animate().cancel();
+            cancelEntrance(child);
+
             child.setAlpha(0.0f);
             child.setTranslationY(rise);
-            child.setScaleX(CHILD_START_SCALE);
-            child.setScaleY(CHILD_START_SCALE);
-            child.animate()
-                    .alpha(1.0f)
-                    .translationY(0.0f)
-                    .scaleX(1.0f)
-                    .scaleY(1.0f)
-                    .setStartDelay(delay)
-                    .setDuration(CHILD_ENTER_MS)
-                    .setInterpolator(new DecelerateInterpolator())
-                    .start();
+
+            ObjectAnimator alpha = ObjectAnimator.ofFloat(child, View.ALPHA, 0.0f, 1.0f);
+            ObjectAnimator translation = ObjectAnimator.ofFloat(child, View.TRANSLATION_Y, rise, 0.0f);
+            AnimatorSet set = new AnimatorSet();
+            set.playTogether(alpha, translation);
+            set.setStartDelay(delay);
+            set.setDuration(CHILD_ENTER_MS);
+            set.setInterpolator(new DecelerateInterpolator());
+
+            synchronized (ENTER_ANIMATORS) {
+                ENTER_ANIMATORS.put(child, new WeakReference<>(set));
+            }
+            set.start();
             animatedIndex++;
         }
     }
 
-    private static void animateTrailingIndicator(View root, boolean pressed) {
-        View indicator = trailingIndicator(root);
-        if (indicator == null) return;
-
-        indicator.animate().cancel();
-        if (pressed) {
-            indicator.animate()
-                    .translationX(dp(root.getContext(), INDICATOR_SHIFT_DP))
-                    .alpha(0.82f)
-                    .setStartDelay(0L)
-                    .setDuration(75L)
-                    .setInterpolator(new DecelerateInterpolator())
-                    .start();
-        } else {
-            indicator.animate()
-                    .translationX(0.0f)
-                    .alpha(1.0f)
-                    .setStartDelay(0L)
-                    .setDuration(145L)
-                    .setInterpolator(new OvershootInterpolator(0.65f))
-                    .start();
+    private static void cancelEntrance(View view) {
+        if (view == null) return;
+        WeakReference<AnimatorSet> reference;
+        synchronized (ENTER_ANIMATORS) {
+            reference = ENTER_ANIMATORS.remove(view);
         }
-    }
-
-    private static View trailingIndicator(View root) {
-        if (!(root instanceof ViewGroup)) return null;
-        ViewGroup group = (ViewGroup) root;
-
-        for (int i = group.getChildCount() - 1; i >= 0; i--) {
-            View child = group.getChildAt(i);
-            if (child == null || child.getVisibility() != View.VISIBLE) continue;
-            if (!(child instanceof TextView)) return null;
-
-            CharSequence value = ((TextView) child).getText();
-            String text = value == null ? "" : value.toString().trim();
-            if ("›".equals(text)
-                    || ">".equals(text)
-                    || "⌄".equals(text)
-                    || "⌃".equals(text)
-                    || "∨".equals(text)
-                    || "∧".equals(text)) {
-                return child;
-            }
-            return null;
-        }
-        return null;
+        AnimatorSet set = reference == null ? null : reference.get();
+        if (set != null) set.cancel();
     }
 
     private static int dp(Context context, int value) {
