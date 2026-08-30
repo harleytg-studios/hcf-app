@@ -57,8 +57,10 @@
         <provider android:name="com.harleytg.forum.dev.HcfSessionPersistence$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.sessionpersistence" android:initOrder="110"/>
         <provider android:name="com.harleytg.forum.dev.HcfAppLinksConfig$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.applinksconfig" android:initOrder="100"/>
         <provider android:name="com.harleytg.forum.dev.HcfDiscordObservation$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.discordobservation" android:initOrder="90"/>
+        <!-- Central native animation policy used by all app animation owners. -->
+        <provider android:name="com.harleytg.forum.dev.HcfMotionSystem$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.motionsystem" android:initOrder="86"/>
         <provider android:name="com.harleytg.forum.dev.HcfSettingsImportUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.settingstransfer" android:initOrder="85"/>
-        <!-- Native-only chrome and App Settings micro-motion bootstrap. -->
+        <!-- Native-only chrome motion bootstrap. Settings is excluded here. -->
         <provider android:name="com.harleytg.forum.dev.HcfUiMotion$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.uimotion" android:initOrder="84"/>
         <!-- Keeps Notification History inside App Settings > Notifications. -->
         <provider android:name="com.harleytg.forum.dev.HcfNotificationHistoryUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.notificationhistoryui" android:initOrder="83"/>
