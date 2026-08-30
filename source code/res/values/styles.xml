@@ -4,6 +4,7 @@
         <item name="android:windowBackground">@drawable/splash_background</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:alertDialogTheme">@style/Theme.HCF.Dialog.Alert</item>
+        <item name="android:windowAnimationStyle">@style/HcfWindowAnimation</item>
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">@color/hcf_cyan</item>
         <item name="android:statusBarColor">@color/hcf_bg</item>
@@ -15,10 +16,21 @@
         <item name="android:textColorSecondary">@color/hcf_muted</item>
         <item name="android:colorBackground">@color/hcf_panel</item>
         <item name="android:windowBackground">@drawable/dialog_background</item>
+        <item name="android:windowAnimationStyle">@style/HcfDialogWindowAnimation</item>
         <item name="android:windowMinWidthMajor">88%</item>
         <item name="android:windowMinWidthMinor">88%</item>
         <item name="android:colorAccent">@color/hcf_cyan_bright</item>
         <item name="android:buttonBarButtonStyle">@style/HcfDialogButton</item>
+    </style>
+    <style name="HcfWindowAnimation" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/hcf_activity_enter</item>
+        <item name="android:activityOpenExitAnimation">@anim/hcf_activity_exit</item>
+        <item name="android:activityCloseEnterAnimation">@anim/hcf_activity_pop_enter</item>
+        <item name="android:activityCloseExitAnimation">@anim/hcf_activity_pop_exit</item>
+    </style>
+    <style name="HcfDialogWindowAnimation" parent="@android:style/Animation.Dialog">
+        <item name="android:windowEnterAnimation">@anim/hcf_dialog_enter</item>
+        <item name="android:windowExitAnimation">@anim/hcf_dialog_exit</item>
     </style>
     <style name="HcfDialogButton" parent="@android:style/Widget.Material.Button.Borderless">
         <item name="android:textColor">@color/hcf_cyan_bright</item>
