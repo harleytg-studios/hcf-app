@@ -21,20 +21,21 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.Switch;
-import android.widget.TextView;
 
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.util.WeakHashMap;
 
 /**
- * Installs lightweight native-only motion and Settings accordion behavior without
- * touching forum WebView content.
+ * Lightweight native-only motion plus Settings accordion coordination.
+ * Forum WebView content is intentionally excluded.
  */
 public final class HcfUiMotion {
-    private static final String SETTINGS_ACTIVITY = "com.harleytg.forum.dev.HcfSubActivities$SettingsActivity";
+    private static final String SETTINGS_ACTIVITY =
+            "com.harleytg.forum.dev.HcfSubActivities$SettingsActivity";
 
-    private static final WeakHashMap<Activity, ViewTreeObserver.OnGlobalLayoutListener> SETTINGS_OBSERVERS = new WeakHashMap<>();
+    private static final WeakHashMap<Activity, ViewTreeObserver.OnGlobalLayoutListener>
+            SETTINGS_OBSERVERS = new WeakHashMap<>();
     private static final WeakHashMap<Activity, String> LAST_SETTINGS_SECTION = new WeakHashMap<>();
     private static final WeakHashMap<View, Boolean> MOTION_ATTACHED = new WeakHashMap<>();
     private static final WeakHashMap<View, ViewGroup> ACCORDION_HEADERS = new WeakHashMap<>();
@@ -53,34 +54,33 @@ public final class HcfUiMotion {
             if (registered || !(appContext instanceof Application)) return true;
 
             registered = true;
-            ((Application) appContext).registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
-                @Override
-                public void onActivityCreated(Activity activity, Bundle state) {
-                    // Install before the first draw where possible. This keeps the
-                    // default-collapsed Settings state from flashing open first.
-                    install(activity);
-                }
+            ((Application) appContext).registerActivityLifecycleCallbacks(
+                    new Application.ActivityLifecycleCallbacks() {
+                        @Override
+                        public void onActivityCreated(Activity activity, Bundle state) {
+                            install(activity);
+                        }
 
-                @Override public void onActivityStarted(Activity activity) {}
+                        @Override public void onActivityStarted(Activity activity) {}
 
-                @Override
-                public void onActivityResumed(Activity activity) {
-                    install(activity);
-                }
+                        @Override
+                        public void onActivityResumed(Activity activity) {
+                            install(activity);
+                        }
 
-                @Override
-                public void onActivityPaused(Activity activity) {
-                    removeSettingsObserver(activity, false);
-                }
+                        @Override
+                        public void onActivityPaused(Activity activity) {
+                            removeSettingsObserver(activity);
+                        }
 
-                @Override public void onActivityStopped(Activity activity) {}
-                @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) {}
+                        @Override public void onActivityStopped(Activity activity) {}
+                        @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) {}
 
-                @Override
-                public void onActivityDestroyed(Activity activity) {
-                    removeSettingsObserver(activity, true);
-                }
-            });
+                        @Override
+                        public void onActivityDestroyed(Activity activity) {
+                            removeSettingsObserver(activity);
+                        }
+                    });
             return true;
         }
 
@@ -101,18 +101,18 @@ public final class HcfUiMotion {
 
         synchronized (SETTINGS_OBSERVERS) {
             if (SETTINGS_OBSERVERS.containsKey(activity)) return;
-
-            final View root = activity.getWindow() == null ? null : activity.getWindow().getDecorView();
+            final View root = activity.getWindow() == null
+                    ? null : activity.getWindow().getDecorView();
             if (root == null) return;
 
-            ViewTreeObserver.OnGlobalLayoutListener listener = new ViewTreeObserver.OnGlobalLayoutListener() {
-                @Override
-                public void onGlobalLayout() {
-                    if (activity.isFinishing() || activity.isDestroyed()) return;
-                    applySettingsMotion(activity);
-                }
-            };
-
+            ViewTreeObserver.OnGlobalLayoutListener listener =
+                    new ViewTreeObserver.OnGlobalLayoutListener() {
+                        @Override
+                        public void onGlobalLayout() {
+                            if (activity.isFinishing() || activity.isDestroyed()) return;
+                            applySettingsMotion(activity);
+                        }
+                    };
             ViewTreeObserver observer = root.getViewTreeObserver();
             if (!observer.isAlive()) return;
             observer.addOnGlobalLayoutListener(listener);
@@ -120,14 +120,13 @@ public final class HcfUiMotion {
         }
     }
 
-    private static void removeSettingsObserver(Activity activity, boolean destroyed) {
+    private static void removeSettingsObserver(Activity activity) {
         if (activity == null) return;
 
         ViewTreeObserver.OnGlobalLayoutListener listener;
         synchronized (SETTINGS_OBSERVERS) {
             listener = SETTINGS_OBSERVERS.remove(activity);
         }
-
         if (listener != null && activity.getWindow() != null) {
             View root = activity.getWindow().getDecorView();
             if (root != null) {
@@ -136,7 +135,7 @@ public final class HcfUiMotion {
             }
         }
 
-        // Returning to a Settings page starts with every subsection closed.
+        // Returning to a Settings category must start with every subsection closed.
         synchronized (LAST_SETTINGS_SECTION) {
             LAST_SETTINGS_SECTION.remove(activity);
         }
@@ -144,7 +143,6 @@ public final class HcfUiMotion {
 
     private static void attachChrome(Activity activity) {
         if (activity == null) return;
-
         attachPressScale(activity.findViewById(R.id.drawerButton));
         attachPressScale(activity.findViewById(R.id.headerNotificationsButton));
         attachPressScale(activity.findViewById(R.id.urlBackButton));
@@ -158,15 +156,15 @@ public final class HcfUiMotion {
         }
     }
 
-    private static void applySettingsMotion(final Activity activity) {
-        final ViewGroup content = readViewGroupField(activity, "settingsContent");
+    private static void applySettingsMotion(Activity activity) {
+        ViewGroup content = readViewGroupField(activity, "settingsContent");
         if (content == null) return;
 
         installAccordionBehavior(content);
         attachInteractiveTree(content);
 
-        final String section = safe(readStringField(activity, "currentSettingsSection"));
-        final String pendingSettingKey = safe(readStringField(activity, "pendingSettingKey"));
+        String section = safe(readStringField(activity, "currentSettingsSection"));
+        String pendingSettingKey = safe(readStringField(activity, "pendingSettingKey"));
         boolean changed;
         synchronized (LAST_SETTINGS_SECTION) {
             String previous = LAST_SETTINGS_SECTION.get(activity);
@@ -175,16 +173,12 @@ public final class HcfUiMotion {
         }
         if (!changed) return;
 
-        // Normal section navigation always starts completely collapsed. A direct
-        // Settings-search target is the only exception so the target can still be
-        // revealed by the existing search/deep-link behavior.
+        // Normal navigation starts fully collapsed. Search/deep-link navigation may
+        // open the exact target panel so the existing scroll-to-setting behavior works.
         if (!section.isEmpty() && pendingSettingKey.isEmpty()) {
             collapseAllConnectedPanelsImmediate(content);
         }
 
-        // Run the entrance motion directly after the hierarchy changes. The old
-        // implementation animated the container and children at the same time,
-        // which made touch feedback cancel or fight the entrance transition.
         if (section.isEmpty()) {
             ViewGroup categories = findSettingsCategoryList(content);
             if (categories != null) UiMotion.fadeInChildren(categories, 18L);
@@ -193,7 +187,6 @@ public final class HcfUiMotion {
         }
     }
 
-    /** Registers direct Settings accordion headers without replacing their native click listeners. */
     private static void installAccordionBehavior(ViewGroup content) {
         if (content == null) return;
         for (int i = 0; i < content.getChildCount(); i++) {
@@ -206,7 +199,10 @@ public final class HcfUiMotion {
         }
     }
 
-    /** Called by the shared touch-motion listener; native OnClick still receives the event. */
+    /**
+     * Runs from the shared touch listener while allowing the panel's native click
+     * listener to keep ownership of its expand/collapse animation and state.
+     */
     static void handleAccordionTouch(final View header, int action) {
         if (header == null) return;
 
@@ -243,20 +239,22 @@ public final class HcfUiMotion {
         }
         if (!opening) return;
 
-        // This runs after the native header click. Only close siblings if the
-        // touched panel actually opened; a cancelled/outside tap must not close
-        // the panel the user was already reading.
-        header.post(new Runnable() {
+        // Wait one frame so the touched panel's native OnClick has completed. Once
+        // it is visibly open, every other visible sibling is closed. No arrow-angle
+        // heuristic is used: that heuristic was what allowed two panels to remain open.
+        header.postDelayed(new Runnable() {
             @Override
             public void run() {
-                View parent = header.getParent() instanceof View ? (View) header.getParent() : null;
-                ViewGroup openedPanel = parent instanceof ViewGroup ? connectedPanel(parent) : null;
+                View parent = header.getParent() instanceof View
+                        ? (View) header.getParent() : null;
+                ViewGroup openedPanel = parent instanceof ViewGroup
+                        ? connectedPanel(parent) : null;
                 if (openedPanel == null) return;
                 View openedBody = openedPanel.getChildAt(1);
                 if (openedBody.getVisibility() != View.VISIBLE) return;
                 collapseOtherConnectedPanels(content, openedPanel);
             }
-        });
+        }, 16L);
     }
 
     private static void collapseOtherConnectedPanels(ViewGroup content, ViewGroup keepOpen) {
@@ -265,15 +263,25 @@ public final class HcfUiMotion {
             ViewGroup panel = connectedPanel(content.getChildAt(i));
             if (panel == null || panel == keepOpen) continue;
 
-            View header = panel.getChildAt(0);
-            View body = panel.getChildAt(1);
+            final View header = panel.getChildAt(0);
+            final View body = panel.getChildAt(1);
             if (body.getVisibility() != View.VISIBLE) continue;
 
-            View arrow = trailingIndicator(header);
-            // Fully expanded native panels settle at 90 degrees. Avoid toggling a
-            // sibling already in the middle of its own close animation.
-            if (arrow != null && arrow.getRotation() < 65.0f) continue;
+            // Let the native panel listener synchronize its private isExpanded state
+            // and run the normal close animation.
             header.performClick();
+
+            // Defensive visual cleanup only after the native close animation should
+            // have completed. This prevents a stale VISIBLE body from leaving two
+            // subsections open without sacrificing the normal smooth close motion.
+            header.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (body.getVisibility() == View.VISIBLE) {
+                        finalizeCollapsedPanel(header, body);
+                    }
+                }
+            }, 190L);
         }
     }
 
@@ -287,8 +295,6 @@ public final class HcfUiMotion {
             View body = panel.getChildAt(1);
             if (body.getVisibility() != View.VISIBLE) continue;
 
-            // Use the panel's native click once so its private isExpanded[] state
-            // remains synchronized, then snap the initial close before draw.
             header.performClick();
             finalizeCollapsedPanel(header, body);
         }
@@ -362,7 +368,8 @@ public final class HcfUiMotion {
     }
 
     private static void attachPressScale(View view) {
-        attachPressScale(view, UiMotion.DEFAULT_PRESS_SCALE, UiMotion.DEFAULT_PRESS_IN_MS, UiMotion.DEFAULT_RELEASE_MS);
+        attachPressScale(view, UiMotion.DEFAULT_PRESS_SCALE,
+                UiMotion.DEFAULT_PRESS_IN_MS, UiMotion.DEFAULT_RELEASE_MS);
     }
 
     private static void attachPressScale(View view, float scale, long pressInMs, long releaseMs) {
@@ -415,8 +422,8 @@ public final class HcfUiMotion {
         for (int i = group.getChildCount() - 1; i >= 0; i--) {
             View child = group.getChildAt(i);
             if (child == null || child.getVisibility() != View.VISIBLE) continue;
-            if (!(child instanceof TextView)) return null;
-            CharSequence value = ((TextView) child).getText();
+            if (!(child instanceof android.widget.TextView)) return null;
+            CharSequence value = ((android.widget.TextView) child).getText();
             String text = value == null ? "" : value.toString().trim();
             if ("›".equals(text)
                     || ">".equals(text)
@@ -441,15 +448,10 @@ final class UiMotion {
     private static final long MAX_STAGGER_DELAY_MS = 120L;
     private static final int CHILD_RISE_DP = 4;
 
-    // Entrance motion uses independent ObjectAnimators so a user's press-scale
-    // animation cannot cancel alpha/translation while the row is still appearing.
-    private static final WeakHashMap<View, WeakReference<AnimatorSet>> ENTER_ANIMATORS = new WeakHashMap<>();
+    private static final WeakHashMap<View, WeakReference<AnimatorSet>> ENTER_ANIMATORS =
+            new WeakHashMap<>();
 
     private UiMotion() {}
-
-    static void attachPressScale(View view) {
-        attachPressScale(view, DEFAULT_PRESS_SCALE, DEFAULT_PRESS_IN_MS, DEFAULT_RELEASE_MS);
-    }
 
     static void attachPressScale(final View view, float scale, long pressInMs, long releaseMs) {
         if (view == null) return;
@@ -505,12 +507,12 @@ final class UiMotion {
 
             long delay = Math.min(MAX_STAGGER_DELAY_MS, safeStagger * animatedIndex);
             cancelEntrance(child);
-
             child.setAlpha(0.0f);
             child.setTranslationY(rise);
 
             ObjectAnimator alpha = ObjectAnimator.ofFloat(child, View.ALPHA, 0.0f, 1.0f);
-            ObjectAnimator translation = ObjectAnimator.ofFloat(child, View.TRANSLATION_Y, rise, 0.0f);
+            ObjectAnimator translation = ObjectAnimator.ofFloat(
+                    child, View.TRANSLATION_Y, rise, 0.0f);
             AnimatorSet set = new AnimatorSet();
             set.playTogether(alpha, translation);
             set.setStartDelay(delay);
