@@ -40,7 +40,7 @@ public final class HcfNotificationHistoryUi {
             "com.harleytg.forum.dev.HcfSubActivities$SettingsActivity";
     private static final String HISTORY_PREF = "native_notification_history_json";
     private static final String TARGET_HISTORY = "hcf_setting:open_notification_history";
-    private static final String INLINE_TAG = "hcf_notification_history_inline";
+    private static final String INLINE_MARKER = "hcf_notification_history_inline";
     private static final String CLEAR_TAG = "hcf_notification_history_clear";
     private static final String ROUTE_TAG = "hcf_notification_history_route";
 
@@ -137,14 +137,14 @@ public final class HcfNotificationHistoryUi {
             if (body instanceof ViewGroup) embedHistory(activity, (ViewGroup) body);
         }
 
-        // The widget-preview subsetting used to launch the old standalone history
+        // Widget-preview shortcuts used to launch the old standalone history
         // activity. Keep the shortcut, but route it back to the Notifications
         // accordion so there is one UI owner for notification history.
         rerouteStandaloneButtons(activity, content, historyPanel);
     }
 
     private static void embedHistory(final Activity activity, ViewGroup body) {
-        if (findTaggedView(body, INLINE_TAG) != null) return;
+        if (findContentDescription(body, INLINE_MARKER) != null) return;
 
         Button openButton = findButton(body, "Open Notification History");
         if (openButton == null) return;
@@ -154,10 +154,9 @@ public final class HcfNotificationHistoryUi {
 
         final LinearLayout list = new LinearLayout(activity);
         list.setOrientation(LinearLayout.VERTICAL);
-        list.setTag(INLINE_TAG);
+        list.setContentDescription(INLINE_MARKER);
         // Settings search for the old "Open Notification History" target now lands
         // directly on the inline history content instead of a launcher button.
-        list.setContentDescription("Notification history list");
         list.setTag(TARGET_HISTORY);
 
         int buttonIndex = parent.indexOfChild(openButton);
@@ -378,13 +377,14 @@ public final class HcfNotificationHistoryUi {
         return null;
     }
 
-    private static View findTaggedView(View root, Object tag) {
-        if (root == null || tag == null) return null;
-        if (tag.equals(root.getTag())) return root;
+    private static View findContentDescription(View root, String value) {
+        if (root == null || value == null) return null;
+        CharSequence description = root.getContentDescription();
+        if (description != null && value.equals(description.toString())) return root;
         if (root instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) root;
             for (int i = 0; i < group.getChildCount(); i++) {
-                View found = findTaggedView(group.getChildAt(i), tag);
+                View found = findContentDescription(group.getChildAt(i), value);
                 if (found != null) return found;
             }
         }
