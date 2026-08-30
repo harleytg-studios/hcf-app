@@ -89,7 +89,6 @@ def wrap_balanced_call(text: str, method: str, wrapper: str, stats_field: str,
             i += 1
 
         if depth != 0:
-            # Malformed/unexpected source: preserve the rest rather than corrupt it.
             out.append(text[expr_start:])
             break
 
@@ -132,7 +131,8 @@ def normalize_java(path: pathlib.Path, stats: Stats) -> None:
     text = replace_interpolators(text, stats)
 
     # Wrap every explicit Animator/ViewPropertyAnimator duration, including nested
-    # Math.max/Math.min expressions and variable-based durations.
+    # Math.max/Math.min expressions and variable-based durations. Existing callers
+    # named motionDuration* are already routed through the app's performance policy.
     text = wrap_balanced_call(
         text, "setDuration", "HcfMotionSystem.duration", "durations", stats,
         skip_contains=("motionDuration",),
@@ -153,6 +153,19 @@ def normalize_java(path: pathlib.Path, stats: Stats) -> None:
         stats.files_changed += 1
 
 
+def count_central_duration_sites(text: str) -> int:
+    count = text.count(".setDuration(HcfMotionSystem.duration(")
+    # Both function calls such as setDuration(motionDuration(180L)) and already
+    # resolved local variables such as setDuration(motionDuration2) are central.
+    count += len(re.findall(
+        r"\.setDuration\(\s*motionDuration(?:\w*)?\s*\(", text
+    ))
+    count += len(re.findall(
+        r"\.setDuration\(\s*motionDuration\w*\s*\)", text
+    ))
+    return count
+
+
 def audit(root: pathlib.Path, stats: Stats) -> None:
     java_root = root / "src"
     legacy_interpolator = re.compile(
@@ -171,10 +184,7 @@ def audit(root: pathlib.Path, stats: Stats) -> None:
         if legacy_interpolator.search(text):
             remaining_legacy.append(str(path.relative_to(root)))
         duration_sites += text.count(".setDuration(")
-        normalized_sites += text.count(".setDuration(HcfMotionSystem.duration(")
-        # motionDuration variables are central too because its implementation above
-        # is redirected to HcfMotionSystem.duration().
-        normalized_sites += len(re.findall(r"\.setDuration\(\s*motionDuration\w*\s*\)", text))
+        normalized_sites += count_central_duration_sites(text)
 
     if remaining_legacy:
         raise SystemExit("Legacy interpolators remain after overhaul: " + ", ".join(remaining_legacy))
@@ -193,7 +203,7 @@ def audit(root: pathlib.Path, stats: Stats) -> None:
     print(f"  Repeat-count sites normalized: {stats.repeats}")
     print(f"  Legacy interpolators replaced: {stats.interpolators}")
     print(f"  Existing motionDuration helpers redirected: {stats.motion_duration_methods}")
-    print(f"  Audited setDuration sites: {duration_sites}/{duration_sites}")
+    print(f"  Audited central duration sites: {normalized_sites}/{duration_sites}")
 
 
 def main() -> None:
