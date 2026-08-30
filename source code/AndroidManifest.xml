@@ -60,6 +60,8 @@
         <provider android:name="com.harleytg.forum.dev.HcfSettingsImportUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.settingstransfer" android:initOrder="85"/>
         <!-- Native-only chrome and App Settings micro-motion bootstrap. -->
         <provider android:name="com.harleytg.forum.dev.HcfUiMotion$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.uimotion" android:initOrder="84"/>
+        <!-- Keeps Notification History inside App Settings > Notifications. -->
+        <provider android:name="com.harleytg.forum.dev.HcfNotificationHistoryUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.notificationhistoryui" android:initOrder="83"/>
         <activity android:name="com.harleytg.forum.dev.HcfForum$WelcomeActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfForum$SetupActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSettingsImportUi$TransferActivity" android:exported="false"/>
