@@ -9,6 +9,7 @@ on:
       - 'README.md'
       - '.github/scripts/apply-onboarding-account.py'
       - '.github/scripts/apply-onboarding-live-session.py'
+      - '.github/scripts/apply-motion-overhaul.py'
       - '.github/scripts/verify-hcf-alerts-ui.py'
       - '.github/scripts/verify-hcf-notifications-v2.py'
       - '.github/scripts/verify-release-readiness.py'
@@ -164,6 +165,14 @@ jobs:
           ! grep -Fq 'https://discordapp.com/api/webhooks/' "$GEN_DIR/HcfDiscordSecret.java"
           echo "Encrypted Discord webhook binding generated for this build only."
 
+      - name: Normalize all native animation paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/apply-motion-overhaul.py 'source code' | tee "$RUNNER_TEMP/hcf-motion-audit.txt"
+          grep -Fq 'HCF full native motion overhaul applied' "$RUNNER_TEMP/hcf-motion-audit.txt"
+          grep -Fq 'HCF_MOTION_SYSTEM_V4_ALL_NATIVE' 'source code/src/com/harleytg/forum/motion/HcfMotionSystem.java'
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
@@ -184,6 +193,7 @@ jobs:
           WORK="$RUNNER_TEMP/hcf-beta-${HCF_VERSION_TAG}"
           OUT="$GITHUB_WORKSPACE/out-${HCF_VERSION_TAG}"
           mkdir -p "$WORK/gen" "$WORK/classes" "$WORK/dex" "$OUT"
+          cp "$RUNNER_TEMP/hcf-motion-audit.txt" "$OUT/MOTION-AUDIT.txt"
 
           "$BT/aapt" package -f -m \
             -J "$WORK/gen" \
@@ -225,6 +235,7 @@ jobs:
           grep -Fq 'hcf_silent_alerts_v2' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'hcf_test_alerts_v2' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'HcfDiscordSecret' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'HCF_MOTION_SYSTEM_V4_ALL_NATIVE' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'configs/ban-list.json' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'HcfWidget' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'service-context' "$OUT/DEX-STRINGS.txt"
