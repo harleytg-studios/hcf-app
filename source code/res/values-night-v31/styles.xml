@@ -4,6 +4,7 @@
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">@color/hcf_cyan</item>
         <item name="android:alertDialogTheme">@style/Theme.HCF.Dialog.Alert</item>
+        <item name="android:windowAnimationStyle">@style/HcfWindowAnimation</item>
         <item name="android:statusBarColor">@color/hcf_bg</item>
         <item name="android:navigationBarColor">@color/hcf_bg</item>
         <item name="android:windowLightStatusBar">false</item>
