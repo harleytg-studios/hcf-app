@@ -4,6 +4,7 @@
         <item name="android:windowBackground">@drawable/splash_background</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:alertDialogTheme">@style/Theme.HCF.Dialog.Alert</item>
+        <item name="android:windowAnimationStyle">@style/HcfWindowAnimation</item>
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">@color/hcf_cyan</item>
         <item name="android:statusBarColor">@color/hcf_bg</item>
@@ -15,6 +16,7 @@
         <item name="android:textColorSecondary">@color/hcf_muted</item>
         <item name="android:colorBackground">@color/hcf_panel</item>
         <item name="android:windowBackground">@drawable/dialog_background</item>
+        <item name="android:windowAnimationStyle">@style/HcfDialogWindowAnimation</item>
         <item name="android:windowMinWidthMajor">88%</item>
         <item name="android:windowMinWidthMinor">88%</item>
         <item name="android:colorAccent">@color/hcf_cyan_bright</item>
