@@ -257,7 +257,6 @@ public final class HcfUiMotion {
     }
 
     private static void animateNamedSurfaces(Activity activity, MotionProfile profile) {
-        // Main-shell/status surfaces. Each effect runs only on hidden -> visible.
         reveal(activity, "welcomeBanner", Effect.SLIDE_FROM_TOP, 190L, 4, profile);
         reveal(activity, "connectionBanner", Effect.SLIDE_FROM_TOP, 190L, 4, profile);
         reveal(activity, "safeModeBanner", Effect.SLIDE_FROM_TOP, 195L, 4, profile);
@@ -265,8 +264,6 @@ public final class HcfUiMotion {
         reveal(activity, "statusOverlay", Effect.FADE, 180L, 0, profile);
         reveal(activity, "bottomNav", Effect.RISE, 205L, 5, profile);
         reveal(activity, "pageProgress", Effect.FADE, 135L, 0, profile);
-
-        // Native status chips/badges get a compact emphasized reveal.
         reveal(activity, "liveStatusBadge", Effect.POP, 180L, 0, profile);
         reveal(activity, "headerNotificationCountBadge", Effect.POP, 175L, 0, profile);
         reveal(activity, "hostBadge", Effect.POP, 165L, 0, profile);
@@ -306,8 +303,6 @@ public final class HcfUiMotion {
         boolean justShown = transitionedToShown(drawer, shown);
         if (!justShown || !profile.enabled) return;
 
-        // The drawer panel already owns its horizontal slide. Animate only its rows
-        // so panel translation never fights the motion system.
         UiMotion.staggerChildren((ViewGroup) drawer,
                 profile.dpDistance(3), profile.duration(185L),
                 profile.duration(13L), profile.maxStagger(95L));
@@ -382,7 +377,6 @@ public final class HcfUiMotion {
             PRESS_ATTACHED.put(view, Boolean.TRUE);
         }
         if (!profile.enabled) return;
-        // Never replace an existing state animator from the view/theme.
         if (view.getStateListAnimator() != null) return;
         UiMotion.attachPressStateAnimator(view, profile.pressScale(fullScale),
                 profile.duration(78L), profile.duration(145L));
@@ -408,11 +402,12 @@ public final class HcfUiMotion {
         return shown && !Boolean.TRUE.equals(previous);
     }
 
+    /** Temporary animation alpha does not change logical visibility. */
     private static boolean isEffectivelyVisible(View view) {
         if (view == null || view.getVisibility() != View.VISIBLE) return false;
         View current = view;
         while (current != null) {
-            if (current.getVisibility() != View.VISIBLE || current.getAlpha() <= 0.0f) return false;
+            if (current.getVisibility() != View.VISIBLE) return false;
             Object parent = current.getParent();
             current = parent instanceof View ? (View) parent : null;
         }
@@ -566,7 +561,6 @@ final class UiMotion {
         catch (Throwable ignored) { return true; }
     }
 
-    /** Legacy touch-scale API retained for any runtime helper that still calls it. */
     static void attachPressScale(final View view, final float scale,
                                  final long pressInMs, final long releaseMs) {
         if (view == null) return;
@@ -592,7 +586,6 @@ final class UiMotion {
         });
     }
 
-    /** Press feedback without replacing OnTouchListener / OnClickListener. */
     static void attachPressStateAnimator(View view, float pressedScale,
                                          long pressMs, long releaseMs) {
         if (view == null || !animationsEnabled()) return;
@@ -728,7 +721,6 @@ final class UiMotion {
         }
     }
 
-    // Compatibility aliases used by older helpers.
     static void fadeInChildren(ViewGroup parent, long staggerMs) {
         staggerChildren(parent, 3, 180L, staggerMs, 90L);
     }
