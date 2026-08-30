@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@interpolator/hcf_motion_emphasized">
+    <alpha android:fromAlpha="0.96" android:toAlpha="1.0" android:duration="175"/>
+    <translate android:fromYDelta="-4dp" android:toYDelta="0dp" android:duration="175"/>
+</set>
