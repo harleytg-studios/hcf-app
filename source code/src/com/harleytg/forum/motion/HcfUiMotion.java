@@ -25,13 +25,18 @@ import android.widget.TextView;
 import java.lang.reflect.Field;
 import java.util.WeakHashMap;
 
-/** Installs lightweight native-only motion without touching forum WebView content. */
+/**
+ * Installs lightweight native-only motion and Settings accordion behavior without
+ * touching forum WebView content.
+ */
 public final class HcfUiMotion {
     private static final String SETTINGS_ACTIVITY = "com.harleytg.forum.dev.HcfSubActivities$SettingsActivity";
 
     private static final WeakHashMap<Activity, ViewTreeObserver.OnGlobalLayoutListener> SETTINGS_OBSERVERS = new WeakHashMap<>();
     private static final WeakHashMap<Activity, String> LAST_SETTINGS_SECTION = new WeakHashMap<>();
     private static final WeakHashMap<View, Boolean> MOTION_ATTACHED = new WeakHashMap<>();
+    private static final WeakHashMap<View, ViewGroup> ACCORDION_HEADERS = new WeakHashMap<>();
+    private static final WeakHashMap<View, Boolean> ACCORDION_WILL_OPEN = new WeakHashMap<>();
 
     private static boolean registered;
 
@@ -123,10 +128,9 @@ public final class HcfUiMotion {
             }
         }
 
-        if (destroyed) {
-            synchronized (LAST_SETTINGS_SECTION) {
-                LAST_SETTINGS_SECTION.remove(activity);
-            }
+        // Requirement: returning to a Settings page starts with every subsection closed.
+        synchronized (LAST_SETTINGS_SECTION) {
+            LAST_SETTINGS_SECTION.remove(activity);
         }
     }
 
@@ -150,9 +154,11 @@ public final class HcfUiMotion {
         final ViewGroup content = readViewGroupField(activity, "settingsContent");
         if (content == null) return;
 
+        installAccordionBehavior(content);
         attachInteractiveTree(content);
 
         final String section = safe(readStringField(activity, "currentSettingsSection"));
+        final String pendingSettingKey = safe(readStringField(activity, "pendingSettingKey"));
         boolean changed;
         synchronized (LAST_SETTINGS_SECTION) {
             String previous = LAST_SETTINGS_SECTION.get(activity);
@@ -160,6 +166,13 @@ public final class HcfUiMotion {
             if (changed) LAST_SETTINGS_SECTION.put(activity, section);
         }
         if (!changed) return;
+
+        // Normal section navigation always starts completely collapsed. A direct
+        // Settings-search target remains the only exception so the target can be
+        // revealed and scrolled to by the existing search/deep-link code.
+        if (!section.isEmpty() && pendingSettingKey.isEmpty()) {
+            collapseAllConnectedPanelsImmediate(content);
+        }
 
         content.post(new Runnable() {
             @Override
@@ -177,6 +190,136 @@ public final class HcfUiMotion {
                 }
             }
         });
+    }
+
+    /** Registers direct Settings accordion headers without replacing their native click listeners. */
+    private static void installAccordionBehavior(ViewGroup content) {
+        if (content == null) return;
+        for (int i = 0; i < content.getChildCount(); i++) {
+            ViewGroup panel = connectedPanel(content.getChildAt(i));
+            if (panel == null) continue;
+            View header = panel.getChildAt(0);
+            synchronized (ACCORDION_HEADERS) {
+                ACCORDION_HEADERS.put(header, content);
+            }
+        }
+    }
+
+    /** Called by the shared touch-motion listener; native OnClick still receives the event. */
+    static void handleAccordionTouch(final View header, int action) {
+        if (header == null) return;
+
+        final ViewGroup content;
+        synchronized (ACCORDION_HEADERS) {
+            content = ACCORDION_HEADERS.get(header);
+        }
+        if (content == null) return;
+
+        View parent = header.getParent() instanceof View ? (View) header.getParent() : null;
+        ViewGroup panel = parent instanceof ViewGroup ? connectedPanel(parent) : null;
+        if (panel == null) return;
+        View body = panel.getChildAt(1);
+
+        if (action == MotionEvent.ACTION_DOWN) {
+            // Stable collapsed panels are GONE. Capture intent before the native
+            // click toggles its private isExpanded state.
+            synchronized (ACCORDION_WILL_OPEN) {
+                ACCORDION_WILL_OPEN.put(header, body.getVisibility() != View.VISIBLE);
+            }
+            return;
+        }
+
+        if (action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_OUTSIDE) {
+            synchronized (ACCORDION_WILL_OPEN) {
+                ACCORDION_WILL_OPEN.remove(header);
+            }
+            return;
+        }
+
+        if (action != MotionEvent.ACTION_UP) return;
+
+        final boolean opening;
+        synchronized (ACCORDION_WILL_OPEN) {
+            opening = Boolean.TRUE.equals(ACCORDION_WILL_OPEN.remove(header));
+        }
+        if (!opening) return;
+
+        // Run after the native header click. The newly opened panel remains open;
+        // any sibling that was open is asked to use its own native collapse logic.
+        header.post(new Runnable() {
+            @Override
+            public void run() {
+                View parent = header.getParent() instanceof View ? (View) header.getParent() : null;
+                ViewGroup openedPanel = parent instanceof ViewGroup ? connectedPanel(parent) : null;
+                if (openedPanel == null) return;
+                collapseOtherConnectedPanels(content, openedPanel);
+            }
+        });
+    }
+
+    private static void collapseOtherConnectedPanels(ViewGroup content, ViewGroup keepOpen) {
+        if (content == null) return;
+        for (int i = 0; i < content.getChildCount(); i++) {
+            ViewGroup panel = connectedPanel(content.getChildAt(i));
+            if (panel == null || panel == keepOpen) continue;
+
+            View header = panel.getChildAt(0);
+            View body = panel.getChildAt(1);
+            if (body.getVisibility() != View.VISIBLE) continue;
+
+            View arrow = trailingIndicator(header);
+            // Fully expanded native panels settle at 90 degrees. Avoid toggling a
+            // sibling that is already in the middle of its own close animation.
+            if (arrow != null && arrow.getRotation() < 65.0f) continue;
+            header.performClick();
+        }
+    }
+
+    private static void collapseAllConnectedPanelsImmediate(ViewGroup content) {
+        if (content == null) return;
+        for (int i = 0; i < content.getChildCount(); i++) {
+            ViewGroup panel = connectedPanel(content.getChildAt(i));
+            if (panel == null) continue;
+
+            View header = panel.getChildAt(0);
+            View body = panel.getChildAt(1);
+            if (body.getVisibility() != View.VISIBLE) continue;
+
+            // Use the panel's native click once so its private isExpanded[] state is
+            // synchronized, then snap the initial close before the next frame.
+            header.performClick();
+            finalizeCollapsedPanel(header, body);
+        }
+    }
+
+    private static void finalizeCollapsedPanel(View header, View body) {
+        if (header == null || body == null) return;
+        header.animate().cancel();
+        body.animate().cancel();
+        body.setVisibility(View.GONE);
+        body.setAlpha(0.0f);
+        body.setScaleY(0.96f);
+        header.setBackgroundResource(R.drawable.settings_section_header_collapsed);
+
+        View arrow = trailingIndicator(header);
+        if (arrow != null) {
+            arrow.animate().cancel();
+            arrow.setRotation(0.0f);
+            arrow.setTranslationX(0.0f);
+            arrow.setAlpha(1.0f);
+        }
+    }
+
+    private static ViewGroup connectedPanel(View candidate) {
+        if (!(candidate instanceof ViewGroup)) return null;
+        ViewGroup panel = (ViewGroup) candidate;
+        if (panel.getChildCount() != 2) return null;
+
+        View header = panel.getChildAt(0);
+        View body = panel.getChildAt(1);
+        if (!(header instanceof LinearLayout) || !header.isClickable()) return null;
+        if (!(body instanceof LinearLayout)) return null;
+        return panel;
     }
 
     private static void attachInteractiveTree(View view) {
@@ -263,6 +406,28 @@ public final class HcfUiMotion {
     private static String safe(String value) {
         return value == null ? "" : value.trim();
     }
+
+    private static View trailingIndicator(View root) {
+        if (!(root instanceof ViewGroup)) return null;
+        ViewGroup group = (ViewGroup) root;
+        for (int i = group.getChildCount() - 1; i >= 0; i--) {
+            View child = group.getChildAt(i);
+            if (child == null || child.getVisibility() != View.VISIBLE) continue;
+            if (!(child instanceof TextView)) return null;
+            CharSequence value = ((TextView) child).getText();
+            String text = value == null ? "" : value.toString().trim();
+            if ("›".equals(text)
+                    || ">".equals(text)
+                    || "⌄".equals(text)
+                    || "⌃".equals(text)
+                    || "∨".equals(text)
+                    || "∧".equals(text)) {
+                return child;
+            }
+            return null;
+        }
+        return null;
+    }
 }
 
 final class UiMotion {
@@ -298,6 +463,8 @@ final class UiMotion {
                 if (touched == null || event == null || !touched.isEnabled()) return false;
 
                 int action = event.getActionMasked();
+                HcfUiMotion.handleAccordionTouch(touched, action);
+
                 if (action == MotionEvent.ACTION_DOWN) {
                     touched.animate().cancel();
                     touched.setAlpha(1.0f);
