@@ -66,6 +66,8 @@
         <provider android:name="com.harleytg.forum.dev.HcfNotificationHistoryUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.notificationhistoryui" android:initOrder="83"/>
         <!-- Final Settings state owner: prevents open/closed flashes and scaleY flicker. -->
         <provider android:name="com.harleytg.forum.dev.HcfSettingsStableUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.settingsstableui" android:initOrder="82"/>
+        <!-- Preserve the current Settings category/subsetting across Activity recreation. -->
+        <provider android:name="com.harleytg.forum.dev.HcfSettingsNavigationState$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.settingsnavigationstate" android:initOrder="81"/>
         <activity android:name="com.harleytg.forum.dev.HcfForum$WelcomeActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfForum$SetupActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSettingsImportUi$TransferActivity" android:exported="false"/>
