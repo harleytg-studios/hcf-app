@@ -33,15 +33,16 @@ import java.lang.reflect.Field;
 import java.util.WeakHashMap;
 
 /**
- * Full-system native motion plus Settings accordion coordination.
+ * Full-system native motion plus stable Settings accordion coordination.
  *
- * Design rules:
- * - never animate or traverse the forum WebView;
- * - entrance alpha/translation is kept separate from press-scale feedback;
- * - motion passes are frame-throttled so layout-heavy screens do not continuously
- *   rescan the whole native hierarchy;
- * - Android's disabled-animation preference is respected;
- * - Settings keeps one subsetting open at a time and starts normal navigation closed.
+ * Settings deliberately uses a calmer motion profile than the rest of the app:
+ * - section/page changes use alpha only, never container translation;
+ * - accordion headers never scale while their body is changing height;
+ * - accordion body children do not run a second reveal on top of native expansion;
+ * - when another panel opens, the old sibling settles before the new native open;
+ * - no hidden panel keeps alpha/scale transforms that can jump on the next open.
+ *
+ * The forum WebView is always excluded.
  */
 public final class HcfUiMotion {
     private static final String SETTINGS_ACTIVITY =
@@ -73,28 +74,19 @@ public final class HcfUiMotion {
             registered = true;
             ((Application) appContext).registerActivityLifecycleCallbacks(
                     new Application.ActivityLifecycleCallbacks() {
-                        @Override
-                        public void onActivityCreated(Activity activity, Bundle state) {
+                        @Override public void onActivityCreated(Activity activity, Bundle state) {
                             install(activity);
                         }
-
                         @Override public void onActivityStarted(Activity activity) {}
-
-                        @Override
-                        public void onActivityResumed(Activity activity) {
+                        @Override public void onActivityResumed(Activity activity) {
                             install(activity);
                         }
-
-                        @Override
-                        public void onActivityPaused(Activity activity) {
+                        @Override public void onActivityPaused(Activity activity) {
                             removeActivityObserver(activity, false);
                         }
-
                         @Override public void onActivityStopped(Activity activity) {}
                         @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) {}
-
-                        @Override
-                        public void onActivityDestroyed(Activity activity) {
+                        @Override public void onActivityDestroyed(Activity activity) {
                             removeActivityObserver(activity, true);
                         }
                     });
@@ -112,7 +104,6 @@ public final class HcfUiMotion {
 
     private static void install(final Activity activity) {
         if (activity == null || activity.isFinishing()) return;
-
         attachChrome(activity);
         scheduleMotionPass(activity);
 
@@ -124,8 +115,7 @@ public final class HcfUiMotion {
 
             ViewTreeObserver.OnGlobalLayoutListener listener =
                     new ViewTreeObserver.OnGlobalLayoutListener() {
-                        @Override
-                        public void onGlobalLayout() {
+                        @Override public void onGlobalLayout() {
                             if (activity.isFinishing() || activity.isDestroyed()) return;
                             scheduleMotionPass(activity);
                         }
@@ -137,7 +127,7 @@ public final class HcfUiMotion {
         }
     }
 
-    /** Coalesces repeated global-layout callbacks into at most one motion pass per frame. */
+    /** Coalesce repeated global-layout callbacks into one native motion pass per frame. */
     private static void scheduleMotionPass(final Activity activity) {
         if (activity == null || activity.isFinishing() || activity.getWindow() == null) return;
         synchronized (MOTION_PASS_PENDING) {
@@ -151,8 +141,7 @@ public final class HcfUiMotion {
             return;
         }
         root.postOnAnimation(new Runnable() {
-            @Override
-            public void run() {
+            @Override public void run() {
                 synchronized (MOTION_PASS_PENDING) { MOTION_PASS_PENDING.remove(activity); }
                 if (activity.isFinishing() || activity.isDestroyed()) return;
                 attachChrome(activity);
@@ -176,20 +165,10 @@ public final class HcfUiMotion {
                 if (observer.isAlive()) observer.removeOnGlobalLayoutListener(listener);
             }
         }
-
-        synchronized (MOTION_PASS_PENDING) {
-            MOTION_PASS_PENDING.remove(activity);
-        }
-
-        // Returning to a Settings category must start with every subsection closed.
-        synchronized (LAST_SETTINGS_SECTION) {
-            LAST_SETTINGS_SECTION.remove(activity);
-        }
-
+        synchronized (MOTION_PASS_PENDING) { MOTION_PASS_PENDING.remove(activity); }
+        synchronized (LAST_SETTINGS_SECTION) { LAST_SETTINGS_SECTION.remove(activity); }
         if (destroyed) {
-            synchronized (ACTIVITY_ENTERED) {
-                ACTIVITY_ENTERED.remove(activity);
-            }
+            synchronized (ACTIVITY_ENTERED) { ACTIVITY_ENTERED.remove(activity); }
         }
     }
 
@@ -204,16 +183,16 @@ public final class HcfUiMotion {
 
         View logo = activity.findViewById(R.id.appHeaderLogo);
         if (logo != null && logo.isClickable()) {
-            attachPressScale(logo, 0.990f, 70L, 120L);
+            attachPressScale(logo, 0.992f, 65L, 115L);
         }
     }
 
-    /** Applies low-conflict native motion throughout every app Activity. */
     private static void applySystemMotion(Activity activity) {
         if (activity == null || activity.getWindow() == null) return;
 
+        boolean settings = isSettingsActivity(activity);
         View contentRoot = activity.findViewById(android.R.id.content);
-        if (contentRoot != null) attachInteractiveTree(contentRoot);
+        if (contentRoot != null) attachInteractiveTree(contentRoot, settings);
 
         boolean firstEntrance;
         synchronized (ACTIVITY_ENTERED) {
@@ -222,7 +201,7 @@ public final class HcfUiMotion {
         }
 
         if (firstEntrance && UiMotion.animationsEnabled()) {
-            if (isSettingsActivity(activity)) {
+            if (settings) {
                 animateSettingsHeaderEntrance(activity);
             } else {
                 View topBar = findNamedView(activity, "topAppBar");
@@ -230,7 +209,6 @@ public final class HcfUiMotion {
                 if (topBar != null || urlBar != null) {
                     if (topBar != null) UiMotion.enterView(topBar, -3, 175L, 0L);
                     if (urlBar != null) UiMotion.enterView(urlBar, -3, 190L, 22L);
-
                     View startup = findNamedView(activity, "startupStateContainer");
                     if (startup != null && isEffectivelyVisible(startup)) {
                         UiMotion.enterView(startup, 4, 205L, 38L);
@@ -239,7 +217,6 @@ public final class HcfUiMotion {
                     ViewGroup group = (ViewGroup) contentRoot;
                     if (group.getChildCount() > 0) {
                         View page = group.getChildAt(0);
-                        // Do not move an ancestor containing the forum WebView either.
                         if (!(page instanceof WebView) && !containsWebView(page)) {
                             UiMotion.enterView(page, 5, 205L, 0L);
                         }
@@ -248,7 +225,6 @@ public final class HcfUiMotion {
             }
         }
 
-        // Animate only when these native surfaces transition hidden -> visible.
         animateDrawerIfShown(activity);
         animateTransientIfShown(activity, "welcomeBanner", -4, 185L);
         animateTransientIfShown(activity, "errorShell", 5, 205L);
@@ -261,25 +237,23 @@ public final class HcfUiMotion {
         animatePopIfShown(activity, "headerNotificationCountBadge");
     }
 
+    /** Settings header uses alpha only so it never appears to shift against the list. */
     private static void animateSettingsHeaderEntrance(Activity activity) {
         View title = readViewField(activity, "headerTitleView");
         View subtitle = readViewField(activity, "headerSubtitleView");
         View back = readViewField(activity, "headerBackButton");
-        if (back != null) UiMotion.enterView(back, -2, 160L, 0L);
-        if (title != null) UiMotion.enterView(title, -2, 180L, 12L);
-        if (subtitle != null) UiMotion.enterView(subtitle, -2, 190L, 28L);
+        if (back != null) UiMotion.fadeIn(back, 125L, 0L);
+        if (title != null) UiMotion.fadeIn(title, 145L, 10L);
+        if (subtitle != null) UiMotion.fadeIn(subtitle, 155L, 20L);
     }
 
     private static void animateDrawerIfShown(Activity activity) {
         View drawer = findNamedView(activity, "drawerPanel");
         if (!(drawer instanceof ViewGroup)) return;
         boolean shown = isEffectivelyVisible(drawer);
-        boolean justShown = visibilityTransitionedToShown(drawer, shown);
-        if (!justShown) return;
-
-        // Leave the drawer panel's own slide animation alone. Only its native
-        // contents receive a short stagger so there is no translation conflict.
-        UiMotion.fadeInChildren((ViewGroup) drawer, 12L, 175L, 3);
+        if (visibilityTransitionedToShown(drawer, shown)) {
+            UiMotion.fadeInChildren((ViewGroup) drawer, 10L, 165L, 2);
+        }
     }
 
     private static void animateTransientIfShown(
@@ -339,18 +313,20 @@ public final class HcfUiMotion {
 
     private static View findNamedView(Activity activity, String idName) {
         if (activity == null || idName == null || idName.isEmpty()) return null;
-        int id = activity.getResources().getIdentifier(
-                idName, "id", activity.getPackageName());
+        int id = activity.getResources().getIdentifier(idName, "id", activity.getPackageName());
         return id == 0 ? null : activity.findViewById(id);
     }
 
+    /**
+     * Settings is intentionally alpha-only at the page level. Accordion body motion
+     * remains owned exclusively by connectedSettingsPanel's native implementation.
+     */
     private static void applySettingsMotion(Activity activity) {
         ViewGroup content = readViewGroupField(activity, "settingsContent");
         if (content == null) return;
 
         installAccordionBehavior(content);
-        attachInteractiveTree(content);
-        animateOpenedAccordionContents(content);
+        attachInteractiveTree(content, true);
 
         String section = safe(readStringField(activity, "currentSettingsSection"));
         String pendingSettingKey = safe(readStringField(activity, "pendingSettingKey"));
@@ -362,8 +338,6 @@ public final class HcfUiMotion {
         }
         if (!changed) return;
 
-        // Normal navigation starts fully collapsed. Search/deep-link navigation may
-        // open the exact target panel so the existing scroll-to-setting behavior works.
         if (!section.isEmpty() && pendingSettingKey.isEmpty()) {
             collapseAllConnectedPanelsImmediate(content);
         }
@@ -371,23 +345,23 @@ public final class HcfUiMotion {
         if (!UiMotion.animationsEnabled()) return;
         if (section.isEmpty()) {
             ViewGroup categories = findSettingsCategoryList(content);
-            if (categories != null) UiMotion.fadeInChildren(categories, 14L, 190L, 4);
+            if (categories != null) UiMotion.fadeInChildrenAlpha(categories, 10L, 135L);
         } else {
-            UiMotion.fadeInChildren(content, 15L, 185L, 4);
+            fadeInSettingsHeaders(content);
         }
     }
 
-    /** Adds a subtle content reveal after each Settings accordion actually opens. */
-    private static void animateOpenedAccordionContents(ViewGroup content) {
+    /** Fade only the visible accordion headers; do not move the panel containers. */
+    private static void fadeInSettingsHeaders(ViewGroup content) {
         if (content == null) return;
+        int index = 0;
         for (int i = 0; i < content.getChildCount(); i++) {
             ViewGroup panel = connectedPanel(content.getChildAt(i));
             if (panel == null) continue;
-            View body = panel.getChildAt(1);
-            boolean shown = isEffectivelyVisible(body);
-            if (visibilityTransitionedToShown(body, shown) && body instanceof ViewGroup) {
-                UiMotion.fadeInChildren((ViewGroup) body, 7L, 150L, 2);
-            }
+            View header = panel.getChildAt(0);
+            if (header.getVisibility() != View.VISIBLE) continue;
+            UiMotion.fadeIn(header, 130L, Math.min(55L, index * 8L));
+            index++;
         }
     }
 
@@ -404,8 +378,9 @@ public final class HcfUiMotion {
     }
 
     /**
-     * Runs from the shared touch listener while allowing the panel's native click
-     * listener to keep ownership of its expand/collapse animation and state.
+     * ACTION_UP is delivered before the header's native click listener. If the
+     * touched panel is about to open, settle any currently-open sibling immediately
+     * first. This avoids two height-changing accordion animations fighting each other.
      */
     static void handleAccordionTouch(final View header, int action) {
         if (header == null) return;
@@ -429,9 +404,7 @@ public final class HcfUiMotion {
         }
 
         if (action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_OUTSIDE) {
-            synchronized (ACCORDION_WILL_OPEN) {
-                ACCORDION_WILL_OPEN.remove(header);
-            }
+            synchronized (ACCORDION_WILL_OPEN) { ACCORDION_WILL_OPEN.remove(header); }
             return;
         }
 
@@ -441,44 +414,18 @@ public final class HcfUiMotion {
         synchronized (ACCORDION_WILL_OPEN) {
             opening = Boolean.TRUE.equals(ACCORDION_WILL_OPEN.remove(header));
         }
-        if (!opening) return;
-
-        // Run on the next display frame so the touched panel's native click has
-        // completed before sibling state is evaluated.
-        header.postOnAnimation(new Runnable() {
-            @Override
-            public void run() {
-                View parent = header.getParent() instanceof View
-                        ? (View) header.getParent() : null;
-                ViewGroup openedPanel = parent instanceof ViewGroup
-                        ? connectedPanel(parent) : null;
-                if (openedPanel == null) return;
-                View openedBody = openedPanel.getChildAt(1);
-                if (openedBody.getVisibility() != View.VISIBLE) return;
-                collapseOtherConnectedPanels(content, openedPanel);
-            }
-        });
+        if (opening) collapseOtherConnectedPanelsImmediate(content, panel);
     }
 
-    private static void collapseOtherConnectedPanels(ViewGroup content, ViewGroup keepOpen) {
+    private static void collapseOtherConnectedPanelsImmediate(
+            ViewGroup content, ViewGroup keepOpen) {
         if (content == null) return;
         for (int i = 0; i < content.getChildCount(); i++) {
             ViewGroup panel = connectedPanel(content.getChildAt(i));
             if (panel == null || panel == keepOpen) continue;
-
-            final View header = panel.getChildAt(0);
-            final View body = panel.getChildAt(1);
-            if (body.getVisibility() != View.VISIBLE) continue;
-
-            header.performClick();
-            header.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    if (body.getVisibility() == View.VISIBLE) {
-                        finalizeCollapsedPanel(header, body);
-                    }
-                }
-            }, 220L);
+            View header = panel.getChildAt(0);
+            View body = panel.getChildAt(1);
+            if (body.getVisibility() == View.VISIBLE) finalizeCollapsedPanel(header, body);
         }
     }
 
@@ -487,23 +434,26 @@ public final class HcfUiMotion {
         for (int i = 0; i < content.getChildCount(); i++) {
             ViewGroup panel = connectedPanel(content.getChildAt(i));
             if (panel == null) continue;
-
             View header = panel.getChildAt(0);
             View body = panel.getChildAt(1);
-            if (body.getVisibility() != View.VISIBLE) continue;
-
-            header.performClick();
-            finalizeCollapsedPanel(header, body);
+            if (body.getVisibility() == View.VISIBLE) finalizeCollapsedPanel(header, body);
         }
     }
 
+    /** Hidden panels keep neutral transforms so reopening cannot jump from stale state. */
     private static void finalizeCollapsedPanel(View header, View body) {
         if (header == null || body == null) return;
         header.animate().cancel();
         body.animate().cancel();
+        UiMotion.cancelEntrance(body);
         body.setVisibility(View.GONE);
-        body.setAlpha(0.0f);
-        body.setScaleY(0.96f);
+        body.setAlpha(1.0f);
+        body.setScaleX(1.0f);
+        body.setScaleY(1.0f);
+        body.setTranslationX(0.0f);
+        body.setTranslationY(0.0f);
+        header.setScaleX(1.0f);
+        header.setScaleY(1.0f);
         header.setBackgroundResource(R.drawable.settings_section_header_collapsed);
 
         synchronized (LAST_EFFECTIVE_VISIBILITY) {
@@ -515,7 +465,10 @@ public final class HcfUiMotion {
             arrow.animate().cancel();
             arrow.setRotation(0.0f);
             arrow.setTranslationX(0.0f);
+            arrow.setTranslationY(0.0f);
             arrow.setAlpha(1.0f);
+            arrow.setScaleX(1.0f);
+            arrow.setScaleY(1.0f);
         }
     }
 
@@ -523,7 +476,6 @@ public final class HcfUiMotion {
         if (!(candidate instanceof ViewGroup)) return null;
         ViewGroup panel = (ViewGroup) candidate;
         if (panel.getChildCount() != 2) return null;
-
         View header = panel.getChildAt(0);
         View body = panel.getChildAt(1);
         if (!(header instanceof LinearLayout) || !header.isClickable()) return null;
@@ -531,26 +483,38 @@ public final class HcfUiMotion {
         return panel;
     }
 
+    private static boolean isAccordionHeader(View view) {
+        if (view == null) return false;
+        synchronized (ACCORDION_HEADERS) {
+            return ACCORDION_HEADERS.containsKey(view);
+        }
+    }
+
     /**
-     * Adds consistent low-amplitude press feedback to native controls only.
-     * Structural signatures keep repeated layout passes from recursively walking an
-     * unchanged hierarchy. WebView subtrees are never traversed.
+     * Native controls retain tactile feedback, but Settings uses extremely small
+     * scale amplitudes. Accordion headers are excluded entirely from scale feedback.
      */
-    private static void attachInteractiveTree(View view) {
+    private static void attachInteractiveTree(View view, boolean settingsMode) {
         if (view == null || view instanceof WebView) return;
 
-        if (view instanceof ImageButton) {
-            attachPressScale(view, 0.978f, 68L, 125L);
-        } else if (view instanceof Switch) {
-            attachPressScale(view, 0.990f, 70L, 130L);
-        } else if (view instanceof Button) {
-            attachPressScale(view, 0.992f, 70L, 125L);
-        } else if (!(view instanceof EditText)
-                && view instanceof TextView
-                && view.isClickable()) {
-            attachPressScale(view, 0.995f, 68L, 120L);
-        } else if (view instanceof LinearLayout && view.isClickable()) {
-            attachPressScale(view, 0.996f, 68L, 120L);
+        if (!isAccordionHeader(view)) {
+            if (view instanceof ImageButton) {
+                attachPressScale(view, settingsMode ? 0.992f : 0.978f,
+                        settingsMode ? 60L : 68L, settingsMode ? 105L : 125L);
+            } else if (view instanceof Switch) {
+                attachPressScale(view, settingsMode ? 0.997f : 0.990f,
+                        62L, settingsMode ? 105L : 130L);
+            } else if (view instanceof Button) {
+                attachPressScale(view, settingsMode ? 0.997f : 0.992f,
+                        62L, settingsMode ? 105L : 125L);
+            } else if (!(view instanceof EditText)
+                    && view instanceof TextView && view.isClickable()) {
+                attachPressScale(view, settingsMode ? 0.998f : 0.995f,
+                        60L, settingsMode ? 100L : 120L);
+            } else if (view instanceof LinearLayout && view.isClickable()) {
+                attachPressScale(view, settingsMode ? 0.998f : 0.996f,
+                        60L, settingsMode ? 100L : 120L);
+            }
         }
 
         if (!(view instanceof ViewGroup)) return;
@@ -562,7 +526,7 @@ public final class HcfUiMotion {
             TREE_SIGNATURES.put(group, Integer.valueOf(signature));
         }
         for (int i = 0; i < group.getChildCount(); i++) {
-            attachInteractiveTree(group.getChildAt(i));
+            attachInteractiveTree(group.getChildAt(i), settingsMode);
         }
     }
 
@@ -572,8 +536,7 @@ public final class HcfUiMotion {
         int count = group.getChildCount();
         result = 31 * result + count;
         for (int i = 0; i < count; i++) {
-            View child = group.getChildAt(i);
-            result = 31 * result + System.identityHashCode(child);
+            result = 31 * result + System.identityHashCode(group.getChildAt(i));
         }
         return result;
     }
@@ -583,7 +546,6 @@ public final class HcfUiMotion {
         for (int i = 0; i < content.getChildCount(); i++) {
             View child = content.getChildAt(i);
             if (!(child instanceof LinearLayout)) continue;
-
             ViewGroup group = (ViewGroup) child;
             int clickable = 0;
             for (int j = 0; j < group.getChildCount(); j++) {
@@ -658,12 +620,8 @@ public final class HcfUiMotion {
             if (!(child instanceof TextView)) return null;
             CharSequence value = ((TextView) child).getText();
             String text = value == null ? "" : value.toString().trim();
-            if ("›".equals(text)
-                    || ">".equals(text)
-                    || "⌄".equals(text)
-                    || "⌃".equals(text)
-                    || "∨".equals(text)
-                    || "∧".equals(text)) {
+            if ("›".equals(text) || ">".equals(text) || "⌄".equals(text)
+                    || "⌃".equals(text) || "∨".equals(text) || "∧".equals(text)) {
                 return child;
             }
             return null;
@@ -677,9 +635,9 @@ final class UiMotion {
     static final long DEFAULT_PRESS_IN_MS = 70L;
     static final long DEFAULT_RELEASE_MS = 125L;
 
-    private static final long CHILD_ENTER_MS = 185L;
-    private static final long MAX_STAGGER_DELAY_MS = 100L;
-    private static final int CHILD_RISE_DP = 4;
+    private static final long CHILD_ENTER_MS = 180L;
+    private static final long MAX_STAGGER_DELAY_MS = 90L;
+    private static final int CHILD_RISE_DP = 3;
 
     private static final TimeInterpolator EMPHASIZED_DECELERATE =
             new PathInterpolator(0.20f, 0.0f, 0.0f, 1.0f);
@@ -692,11 +650,8 @@ final class UiMotion {
     private UiMotion() {}
 
     static boolean animationsEnabled() {
-        try {
-            return ValueAnimator.areAnimatorsEnabled();
-        } catch (Throwable ignored) {
-            return true;
-        }
+        try { return ValueAnimator.areAnimatorsEnabled(); }
+        catch (Throwable ignored) { return true; }
     }
 
     static void attachPressScale(final View view, float scale, long pressInMs, long releaseMs) {
@@ -710,8 +665,7 @@ final class UiMotion {
         view.setOnTouchListener(new View.OnTouchListener() {
             private boolean visuallyPressed;
 
-            @Override
-            public boolean onTouch(View touched, MotionEvent event) {
+            @Override public boolean onTouch(View touched, MotionEvent event) {
                 if (touched == null || event == null || !touched.isEnabled()) return false;
 
                 int action = event.getActionMasked();
@@ -731,8 +685,7 @@ final class UiMotion {
                 } else if (action == MotionEvent.ACTION_MOVE) {
                     float x = event.getX();
                     float y = event.getY();
-                    boolean inside = x >= -edgeTolerance
-                            && y >= -edgeTolerance
+                    boolean inside = x >= -edgeTolerance && y >= -edgeTolerance
                             && x <= touched.getWidth() + edgeTolerance
                             && y <= touched.getHeight() + edgeTolerance;
                     if (!inside && visuallyPressed) {
@@ -757,11 +710,8 @@ final class UiMotion {
             View view, float targetScale, long duration, TimeInterpolator interpolator) {
         if (view == null) return;
         view.animate().cancel();
-        view.animate()
-                .scaleX(targetScale)
-                .scaleY(targetScale)
-                .setStartDelay(0L)
-                .setDuration(Math.max(1L, duration))
+        view.animate().scaleX(targetScale).scaleY(targetScale)
+                .setStartDelay(0L).setDuration(Math.max(1L, duration))
                 .setInterpolator(interpolator == null ? new DecelerateInterpolator() : interpolator)
                 .start();
     }
@@ -773,7 +723,6 @@ final class UiMotion {
         view.setScaleY(1.0f);
     }
 
-    /** Alpha/translation entrance that never touches scale used by press feedback. */
     static void enterView(View view, int offsetDp, long durationMs, long delayMs) {
         if (view == null || view.getVisibility() != View.VISIBLE) return;
         if (!animationsEnabled()) {
@@ -783,13 +732,11 @@ final class UiMotion {
         cancelEntrance(view);
 
         int offset = dp(view.getContext(), offsetDp);
-        float startTranslation = offset;
         view.setAlpha(0.0f);
-        view.setTranslationY(startTranslation);
+        view.setTranslationY(offset);
 
         ObjectAnimator alpha = ObjectAnimator.ofFloat(view, View.ALPHA, 0.0f, 1.0f);
-        ObjectAnimator translation = ObjectAnimator.ofFloat(
-                view, View.TRANSLATION_Y, startTranslation, 0.0f);
+        ObjectAnimator translation = ObjectAnimator.ofFloat(view, View.TRANSLATION_Y, offset, 0.0f);
         AnimatorSet set = new AnimatorSet();
         set.playTogether(alpha, translation);
         set.setStartDelay(Math.max(0L, delayMs));
@@ -805,6 +752,7 @@ final class UiMotion {
             return;
         }
         cancelEntrance(view);
+        view.setTranslationY(0.0f);
         view.setAlpha(0.0f);
         ObjectAnimator alpha = ObjectAnimator.ofFloat(view, View.ALPHA, 0.0f, 1.0f);
         AnimatorSet set = new AnimatorSet();
@@ -815,7 +763,6 @@ final class UiMotion {
         rememberAndStart(view, set);
     }
 
-    /** Small badge/status reveal. Reserved for non-clickable transient UI. */
     static void popIn(View view) {
         if (view == null || view.getVisibility() != View.VISIBLE) return;
         if (!animationsEnabled()) {
@@ -825,27 +772,21 @@ final class UiMotion {
             return;
         }
         cancelEntrance(view);
-
         view.setAlpha(0.0f);
-        view.setScaleX(0.965f);
-        view.setScaleY(0.965f);
+        view.setScaleX(0.970f);
+        view.setScaleY(0.970f);
 
         ObjectAnimator alpha = ObjectAnimator.ofFloat(view, View.ALPHA, 0.0f, 1.0f);
-        ObjectAnimator scaleX = ObjectAnimator.ofFloat(view, View.SCALE_X, 0.965f, 1.0f);
-        ObjectAnimator scaleY = ObjectAnimator.ofFloat(view, View.SCALE_Y, 0.965f, 1.0f);
+        ObjectAnimator scaleX = ObjectAnimator.ofFloat(view, View.SCALE_X, 0.970f, 1.0f);
+        ObjectAnimator scaleY = ObjectAnimator.ofFloat(view, View.SCALE_Y, 0.970f, 1.0f);
         AnimatorSet set = new AnimatorSet();
         set.playTogether(alpha, scaleX, scaleY);
-        set.setDuration(165L);
+        set.setDuration(160L);
         set.setInterpolator(EMPHASIZED_DECELERATE);
         rememberAndStart(view, set);
     }
 
-    static void fadeInChildren(ViewGroup parent, long staggerMs) {
-        fadeInChildren(parent, staggerMs, CHILD_ENTER_MS, CHILD_RISE_DP);
-    }
-
-    static void fadeInChildren(
-            ViewGroup parent, long staggerMs, long durationMs, int riseDp) {
+    static void fadeInChildren(ViewGroup parent, long staggerMs, long durationMs, int riseDp) {
         if (parent == null) return;
         if (!animationsEnabled()) {
             normalizeVisibleChildren(parent);
@@ -855,30 +796,44 @@ final class UiMotion {
         long safeStagger = Math.max(0L, staggerMs);
         int animatedIndex = 0;
         int rise = dp(parent.getContext(), riseDp);
-
         for (int i = 0; i < parent.getChildCount(); i++) {
             View child = parent.getChildAt(i);
-            if (child == null
-                    || child.getVisibility() != View.VISIBLE
-                    || child instanceof WebView
-                    || containsWebViewChild(child)) {
-                continue;
-            }
+            if (child == null || child.getVisibility() != View.VISIBLE
+                    || child instanceof WebView || containsWebViewChild(child)) continue;
 
             long delay = Math.min(MAX_STAGGER_DELAY_MS, safeStagger * animatedIndex);
             cancelEntrance(child);
             child.setAlpha(0.0f);
             child.setTranslationY(rise);
-
             ObjectAnimator alpha = ObjectAnimator.ofFloat(child, View.ALPHA, 0.0f, 1.0f);
-            ObjectAnimator translation = ObjectAnimator.ofFloat(
-                    child, View.TRANSLATION_Y, rise, 0.0f);
+            ObjectAnimator translation = ObjectAnimator.ofFloat(child, View.TRANSLATION_Y, rise, 0.0f);
             AnimatorSet set = new AnimatorSet();
             set.playTogether(alpha, translation);
             set.setStartDelay(delay);
             set.setDuration(Math.max(1L, durationMs));
             set.setInterpolator(EMPHASIZED_DECELERATE);
             rememberAndStart(child, set);
+            animatedIndex++;
+        }
+    }
+
+    /** Settings list entrance: alpha-only to prevent rows/panels appearing to jump. */
+    static void fadeInChildrenAlpha(ViewGroup parent, long staggerMs, long durationMs) {
+        if (parent == null) return;
+        if (!animationsEnabled()) {
+            normalizeVisibleChildren(parent);
+            return;
+        }
+
+        int animatedIndex = 0;
+        long safeStagger = Math.max(0L, staggerMs);
+        for (int i = 0; i < parent.getChildCount(); i++) {
+            View child = parent.getChildAt(i);
+            if (child == null || child.getVisibility() != View.VISIBLE
+                    || child instanceof WebView || containsWebViewChild(child)) continue;
+            child.setTranslationY(0.0f);
+            fadeIn(child, durationMs,
+                    Math.min(MAX_STAGGER_DELAY_MS, safeStagger * animatedIndex));
             animatedIndex++;
         }
     }
@@ -897,8 +852,7 @@ final class UiMotion {
         if (parent == null) return;
         for (int i = 0; i < parent.getChildCount(); i++) {
             View child = parent.getChildAt(i);
-            if (child == null || child.getVisibility() != View.VISIBLE) continue;
-            normalizeEntrance(child);
+            if (child != null && child.getVisibility() == View.VISIBLE) normalizeEntrance(child);
         }
     }
 
@@ -924,14 +878,13 @@ final class UiMotion {
                     catch (Throwable ignored) {}
                 }
             }
-
             @Override public void onAnimationEnd(Animator animation) { finish(); }
             @Override public void onAnimationCancel(Animator animation) { finish(); }
         });
         set.start();
     }
 
-    private static void cancelEntrance(View view) {
+    static void cancelEntrance(View view) {
         if (view == null) return;
         WeakReference<AnimatorSet> reference;
         synchronized (ENTER_ANIMATORS) {
