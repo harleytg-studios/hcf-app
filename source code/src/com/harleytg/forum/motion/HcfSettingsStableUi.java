@@ -35,6 +35,10 @@ import java.util.WeakHashMap;
  * collapsed state before content is shown, and owns accordion interaction using a
  * measured height animation only. No alpha/scale transform is used on accordion
  * bodies, so text and controls never blink or squash during open/close.
+ *
+ * Same-category setting refreshes are special: many HcfUI setting handlers rebuild
+ * their current category after saving a value. Those rebuilds must keep the exact
+ * subsetting open instead of making the user appear to navigate back one level.
  */
 public final class HcfSettingsStableUi {
     private static final String SETTINGS_ACTIVITY =
@@ -44,6 +48,8 @@ public final class HcfSettingsStableUi {
             OBSERVERS = new WeakHashMap<>();
     private static final WeakHashMap<Activity, Boolean> PASS_PENDING = new WeakHashMap<>();
     private static final WeakHashMap<Activity, Integer> CONTENT_SIGNATURE = new WeakHashMap<>();
+    private static final WeakHashMap<Activity, String> LAST_SECTION = new WeakHashMap<>();
+    private static final WeakHashMap<Activity, String> LAST_OPEN_PANEL = new WeakHashMap<>();
     private static final WeakHashMap<View, Boolean> PANEL_HEADERS = new WeakHashMap<>();
     private static final WeakHashMap<View, Boolean> NAV_HIDE_ATTACHED = new WeakHashMap<>();
     private static final WeakHashMap<View, ValueAnimator> HEIGHT_ANIMATORS = new WeakHashMap<>();
@@ -146,12 +152,23 @@ public final class HcfSettingsStableUi {
             }
         }
         synchronized (PASS_PENDING) { PASS_PENDING.remove(activity); }
-        if (destroyed) synchronized (CONTENT_SIGNATURE) { CONTENT_SIGNATURE.remove(activity); }
+        if (destroyed) {
+            synchronized (CONTENT_SIGNATURE) { CONTENT_SIGNATURE.remove(activity); }
+            synchronized (LAST_SECTION) { LAST_SECTION.remove(activity); }
+            synchronized (LAST_OPEN_PANEL) { LAST_OPEN_PANEL.remove(activity); }
+        }
     }
 
     private static void stabilize(Activity activity) {
         ViewGroup content = readViewGroupField(activity, "settingsContent");
         if (content == null) return;
+
+        String section = safe(readStringField(activity, "currentSettingsSection"));
+        String pendingKey = safe(readStringField(activity, "pendingSettingKey"));
+        String previousSection;
+        String previousOpenPanel;
+        synchronized (LAST_SECTION) { previousSection = safe(LAST_SECTION.get(activity)); }
+        synchronized (LAST_OPEN_PANEL) { previousOpenPanel = safe(LAST_OPEN_PANEL.get(activity)); }
 
         int signature = signature(content);
         boolean changed;
@@ -159,6 +176,11 @@ public final class HcfSettingsStableUi {
             Integer previous = CONTENT_SIGNATURE.put(activity, Integer.valueOf(signature));
             changed = previous == null || previous.intValue() != signature;
         }
+
+        boolean sameCategoryRefresh = changed
+                && !section.isEmpty()
+                && section.equals(previousSection)
+                && pendingKey.isEmpty();
 
         // Cancel page/category alpha fades from the generic motion layer. Settings
         // content should already be in its final state when it becomes visible.
@@ -169,16 +191,14 @@ public final class HcfSettingsStableUi {
         content.setTranslationX(0.0f);
         content.setTranslationY(0.0f);
 
-        String section = safe(readStringField(activity, "currentSettingsSection"));
-        String pendingKey = safe(readStringField(activity, "pendingSettingKey"));
-
         if (section.isEmpty()) {
             configureHomeNavigation(content);
         } else if (changed) {
-            // Only wire/settle panels when the category rebuilt. Re-running this
-            // during each layout tick would cancel the height animator that is
-            // intentionally causing those layout ticks.
-            configurePanels(content, pendingKey.isEmpty());
+            // A true category navigation starts collapsed. A rebuild of the same
+            // category after changing a setting restores the previously open panel
+            // synchronously, so the user never gets kicked back to category level.
+            String restorePanel = sameCategoryRefresh ? previousOpenPanel : "";
+            configurePanels(content, pendingKey.isEmpty(), restorePanel);
         }
 
         configureBackNavigation(activity, content);
@@ -188,11 +208,18 @@ public final class HcfSettingsStableUi {
         normalize(readViewField(activity, "headerTitleView"));
         normalize(readViewField(activity, "headerSubtitleView"));
         normalize(readViewField(activity, "headerBackButton"));
+
+        synchronized (LAST_SECTION) { LAST_SECTION.put(activity, section); }
+        synchronized (LAST_OPEN_PANEL) {
+            LAST_OPEN_PANEL.put(activity, section.isEmpty() ? "" : findOpenPanelTitle(content));
+        }
     }
 
     /** Normal category navigation must reveal only after all subsettings are closed. */
-    private static void configurePanels(final ViewGroup content, boolean forceClosed) {
+    private static void configurePanels(
+            final ViewGroup content, boolean forceClosed, String restorePanelTitle) {
         if (content == null) return;
+        String wanted = safe(restorePanelTitle);
         for (int i = 0; i < content.getChildCount(); i++) {
             final ViewGroup panel = connectedPanel(content.getChildAt(i));
             if (panel == null) continue;
@@ -203,7 +230,9 @@ public final class HcfSettingsStableUi {
             normalize(header);
             normalize(body);
 
-            if (forceClosed) settleClosed(header, body);
+            boolean restoreThisPanel = !wanted.isEmpty() && wanted.equals(panelTitle(header));
+            if (restoreThisPanel) settleOpen(header, body);
+            else if (forceClosed) settleClosed(header, body);
             else settleCurrent(header, body);
 
             // Replace both the old scale press-listener and the native scaleY
@@ -487,6 +516,41 @@ public final class HcfSettingsStableUi {
         if (!(header instanceof LinearLayout) || !header.isClickable()) return null;
         if (!(body instanceof LinearLayout)) return null;
         return panel;
+    }
+
+    private static String findOpenPanelTitle(ViewGroup content) {
+        if (content == null) return "";
+        for (int i = 0; i < content.getChildCount(); i++) {
+            ViewGroup panel = connectedPanel(content.getChildAt(i));
+            if (panel == null || panel.getChildCount() < 2) continue;
+            if (panel.getChildAt(1).getVisibility() != View.VISIBLE) continue;
+            String title = panelTitle(panel.getChildAt(0));
+            if (!title.isEmpty()) return title;
+        }
+        return "";
+    }
+
+    private static String panelTitle(View view) {
+        if (view == null) return "";
+        if (view instanceof TextView) {
+            String value = safe(String.valueOf(((TextView) view).getText()));
+            if (!value.isEmpty()
+                    && !"›".equals(value)
+                    && !">".equals(value)
+                    && !"⌄".equals(value)
+                    && !"⌃".equals(value)
+                    && !"∨".equals(value)
+                    && !"∧".equals(value)) {
+                return value;
+            }
+        }
+        if (!(view instanceof ViewGroup)) return "";
+        ViewGroup group = (ViewGroup) view;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            String value = panelTitle(group.getChildAt(i));
+            if (!value.isEmpty()) return value;
+        }
+        return "";
     }
 
     private static int signature(ViewGroup content) {
