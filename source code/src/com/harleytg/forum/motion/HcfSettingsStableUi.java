@@ -174,8 +174,11 @@ public final class HcfSettingsStableUi {
 
         if (section.isEmpty()) {
             configureHomeNavigation(content);
-        } else {
-            configurePanels(content, changed && pendingKey.isEmpty());
+        } else if (changed) {
+            // Only wire/settle panels when the category rebuilt. Re-running this
+            // during each layout tick would cancel the height animator that is
+            // intentionally causing those layout ticks.
+            configurePanels(content, pendingKey.isEmpty());
         }
 
         configureBackNavigation(activity, content);
