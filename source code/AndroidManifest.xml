@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    android:versionCode="100000121"
-    android:versionName="1.2 (100000121)"
+    android:versionCode="100000122"
+    android:versionName="1.2 (100000122)"
     android:compileSdkVersion="35"
     android:compileSdkVersionCodename="15"
     package="com.harleytg.forum.dev"
@@ -42,8 +42,8 @@
         android:appCategory="social">
         <meta-data android:name="com.harleytg.BRAND" android:value="Harley&apos;s Studios"/>
         <meta-data android:name="com.harleytg.BUILD_CHANNEL" android:value="dev"/>
-        <meta-data android:name="com.harleytg.APP_VERSION" android:value="1.2 (100000121)"/>
-        <meta-data android:name="com.harleytg.APP_VERSION_CODE" android:value="100000121"/>
+        <meta-data android:name="com.harleytg.APP_VERSION" android:value="1.2 (100000122)"/>
+        <meta-data android:name="com.harleytg.APP_VERSION_CODE" android:value="100000122"/>
         <meta-data android:name="com.harleytg.APP_TYPE" android:value="Native Android Application"/>
         <meta-data android:name="com.harleytg.SESSION_CLIENT" android:value="Harley&apos;s Clan Forum App"/>
         <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="true"/>
@@ -59,27 +59,19 @@
         <provider android:name="com.harleytg.forum.dev.HcfSessionPersistence$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.sessionpersistence" android:initOrder="110"/>
         <provider android:name="com.harleytg.forum.dev.HcfAppLinksConfig$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.applinksconfig" android:initOrder="100"/>
         <provider android:name="com.harleytg.forum.dev.HcfDiscordObservation$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.discordobservation" android:initOrder="90"/>
-        <!-- Central native animation policy used by all app animation owners. -->
         <provider android:name="com.harleytg.forum.dev.HcfMotionSystem$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.motionsystem" android:initOrder="86"/>
         <provider android:name="com.harleytg.forum.dev.HcfSettingsImportUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.settingstransfer" android:initOrder="85"/>
-        <!-- Native-only chrome motion bootstrap. Settings is excluded here. -->
         <provider android:name="com.harleytg.forum.dev.HcfUiMotion$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.uimotion" android:initOrder="84"/>
-        <!-- Keeps Notification History inside App Settings > Notifications. -->
         <provider android:name="com.harleytg.forum.dev.HcfNotificationHistoryUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.notificationhistoryui" android:initOrder="83"/>
-        <!-- Final Settings state owner: prevents open/closed flashes and scaleY flicker. -->
         <provider android:name="com.harleytg.forum.dev.HcfSettingsStableUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.settingsstableui" android:initOrder="82"/>
-        <!-- Preserve the current Settings category/subsetting across Activity recreation. -->
         <provider android:name="com.harleytg.forum.dev.HcfSettingsNavigationState$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.settingsnavigationstate" android:initOrder="81"/>
-        <!-- Adds native Two-Factor Authentication controls to Account & Security. -->
-        <provider android:name="com.harleytg.forum.dev.HcfAuthenticatorSettings$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.authenticatorsettings" android:initOrder="79"/>
+        <!-- Dedicated owner for Account & Security > Account Controls subsettings UI. -->
+        <provider android:name="com.harleytg.forum.dev.HcfSubsettingsUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.subsettingsui" android:initOrder="79"/>
         <activity android:name="com.harleytg.forum.dev.HcfForum$WelcomeActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfForum$SetupActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSettingsImportUi$TransferActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$SettingsActivity" android:exported="false"/>
-        <activity
-            android:name="com.harleytg.forum.dev.HcfAuthenticator$Activity"
-            android:exported="true"
-            android:launchMode="singleTop">
+        <activity android:name="com.harleytg.forum.dev.HcfAuthenticator$Activity" android:exported="true" android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
@@ -93,10 +85,7 @@
                 <data android:scheme="hcf-auth" android:host="open"/>
             </intent-filter>
         </activity>
-        <activity
-            android:name="com.harleytg.forum.dev.HcfAuthenticator$QrScannerActivity"
-            android:exported="false"
-            android:launchMode="singleTop"/>
+        <activity android:name="com.harleytg.forum.dev.HcfAuthenticator$QrScannerActivity" android:exported="false" android:launchMode="singleTop"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$LogsActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfForum$CookieManagerActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$IdentityActivity" android:exported="false"/>
@@ -150,12 +139,6 @@
         </receiver>
         <receiver android:name="com.harleytg.forum.dev.HcfWidget$RefreshReceiver" android:enabled="true" android:exported="false"/>
         <provider android:name="com.harleytg.forum.dev.HcfWidget$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.widgetbootstrap" android:initOrder="80"/>
-        <activity
-            android:name="com.harleytg.forum.dev.HcfForum$MainActivity"
-            android:exported="false"
-            android:launchMode="singleTop"
-            android:resizeableActivity="true"
-            android:configChanges="screenSize|smallestScreenSize|orientation|screenLayout|keyboardHidden|keyboard|uiMode"
-            android:windowSoftInputMode="adjustResize"/>
+        <activity android:name="com.harleytg.forum.dev.HcfForum$MainActivity" android:exported="false" android:launchMode="singleTop" android:resizeableActivity="true" android:configChanges="screenSize|smallestScreenSize|orientation|screenLayout|keyboardHidden|keyboard|uiMode" android:windowSoftInputMode="adjustResize"/>
     </application>
 </manifest>
