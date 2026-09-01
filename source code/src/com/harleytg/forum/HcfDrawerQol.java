@@ -1,0 +1,274 @@
+package com.harleytg.forum.dev;
+
+import android.app.Activity;
+import android.app.Application;
+import android.content.ContentProvider;
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.Cursor;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewParent;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+import java.lang.ref.WeakReference;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+/**
+ * Small quality-of-life layer for the native HCF drawer.
+ *
+ * It deliberately reuses the existing MainActivity views/listeners so Home,
+ * Notifications and HCF Events keep one source of truth for their behavior.
+ */
+public final class HcfDrawerQol {
+    private static final String QUICK_ROW_TAG = "hcf_drawer_quick_row_v1";
+    private static final String EVENTS_TAG = "hcf_drawer_events_forum_v1";
+    private static final Handler MAIN = new Handler(Looper.getMainLooper());
+    private static final AtomicBoolean INSTALLED = new AtomicBoolean(false);
+    private static WeakReference<Activity> resumedMain = new WeakReference<>(null);
+
+    private HcfDrawerQol() {}
+
+    private static void install(Context context) {
+        if (context == null || !INSTALLED.compareAndSet(false, true)) return;
+        Context appContext = context.getApplicationContext();
+        if (!(appContext instanceof Application)) return;
+
+        ((Application) appContext).registerActivityLifecycleCallbacks(
+                new Application.ActivityLifecycleCallbacks() {
+                    @Override public void onActivityCreated(Activity activity, Bundle state) {}
+                    @Override public void onActivityStarted(Activity activity) {}
+
+                    @Override public void onActivityResumed(Activity activity) {
+                        if (activity instanceof HcfForum.MainActivity) {
+                            resumedMain = new WeakReference<>(activity);
+                            MAIN.removeCallbacks(POLL);
+                            MAIN.post(POLL);
+                        }
+                    }
+
+                    @Override public void onActivityPaused(Activity activity) {
+                        Activity current = resumedMain.get();
+                        if (current == activity) {
+                            resumedMain.clear();
+                            MAIN.removeCallbacks(POLL);
+                        }
+                    }
+
+                    @Override public void onActivityStopped(Activity activity) {}
+                    @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) {}
+
+                    @Override public void onActivityDestroyed(Activity activity) {
+                        Activity current = resumedMain.get();
+                        if (current == activity) {
+                            resumedMain.clear();
+                            MAIN.removeCallbacks(POLL);
+                        }
+                    }
+                });
+    }
+
+    private static final Runnable POLL = new Runnable() {
+        @Override public void run() {
+            Activity activity = resumedMain.get();
+            if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+            try {
+                apply(activity);
+            } catch (Throwable error) {
+                AppLogger.warn(activity, "drawer_qol", error.getClass().getSimpleName());
+            }
+            MAIN.postDelayed(this, 500L);
+        }
+    };
+
+    private static void apply(Activity activity) {
+        View drawer = activity.findViewById(R.id.drawerPanel);
+        if (!(drawer instanceof ViewGroup)) return;
+        ViewGroup drawerRoot = (ViewGroup) drawer;
+
+        TextView forumLabel = findTextExact(drawerRoot, "Forum controls");
+        if (forumLabel == null) return;
+        ViewParent forumParent = forumLabel.getParent();
+        if (!(forumParent instanceof LinearLayout)) return;
+        LinearLayout menu = (LinearLayout) forumParent;
+
+        ensureQuickRow(activity, menu, forumLabel);
+        rehomeHcfEvents(menu);
+    }
+
+    /**
+     * Exposes the already-wired Home and Notifications buttons as a compact second row.
+     * The existing notification count TextView is reused as an overlay badge.
+     */
+    private static void ensureQuickRow(Activity activity, LinearLayout menu, TextView forumLabel) {
+        View existing = menu.findViewWithTag(QUICK_ROW_TAG);
+        if (existing instanceof LinearLayout) return;
+
+        Button home = activity.findViewById(R.id.drawerHome);
+        Button notifications = activity.findViewById(R.id.drawerNotifications);
+        TextView badge = activity.findViewById(R.id.drawerNotificationCountBadge);
+        if (home == null || notifications == null) return;
+
+        int forumIndex = menu.indexOfChild(forumLabel);
+        if (forumIndex < 0 || forumIndex + 1 >= menu.getChildCount()) return;
+
+        View firstControlRow = menu.getChildAt(forumIndex + 1);
+        int insertAt = menu.indexOfChild(firstControlRow) + 1;
+
+        removeFromParent(home);
+        removeFromParent(notifications);
+        if (badge != null) removeFromParent(badge);
+
+        LinearLayout row = new LinearLayout(activity);
+        row.setTag(QUICK_ROW_TAG);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(activity, 48));
+        rowLp.topMargin = dp(activity, 8);
+
+        configureQuickButton(home, "Home");
+        LinearLayout.LayoutParams homeLp = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        homeLp.rightMargin = dp(activity, 5);
+        row.addView(home, homeLp);
+
+        FrameLayout notificationCell = new FrameLayout(activity);
+        LinearLayout.LayoutParams cellLp = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        cellLp.leftMargin = dp(activity, 5);
+        row.addView(notificationCell, cellLp);
+
+        configureQuickButton(notifications, "Notifications");
+        notificationCell.addView(notifications, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        if (badge != null) {
+            styleUnreadBadge(activity, badge);
+            FrameLayout.LayoutParams badgeLp = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(activity, 20),
+                    Gravity.TOP | Gravity.END);
+            badgeLp.topMargin = dp(activity, 3);
+            badgeLp.rightMargin = dp(activity, 4);
+            notificationCell.addView(badge, badgeLp);
+        }
+
+        menu.addView(row, Math.min(insertAt, menu.getChildCount()), rowLp);
+        AppLogger.info(activity, "drawer_qol", "forum_quick_row_ready");
+    }
+
+    private static void configureQuickButton(Button button, String label) {
+        button.setVisibility(View.VISIBLE);
+        button.setText(label);
+        button.setMaxLines(1);
+        button.setAllCaps(false);
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
+        button.setMinHeight(0);
+        button.setMinimumHeight(0);
+        button.setPadding(button.getPaddingLeft(), 0, button.getPaddingRight(), 0);
+    }
+
+    private static void styleUnreadBadge(Activity activity, TextView badge) {
+        badge.setTextSize(9f);
+        badge.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        badge.setTextColor(activity.getColor(R.color.hcf_on_accent));
+        badge.setGravity(Gravity.CENTER);
+        badge.setMinWidth(dp(activity, 20));
+        badge.setMinimumWidth(dp(activity, 20));
+        badge.setPadding(dp(activity, 5), 0, dp(activity, 5), 0);
+
+        GradientDrawable background = new GradientDrawable();
+        background.setShape(GradientDrawable.RECTANGLE);
+        background.setColor(activity.getColor(R.color.hcf_cyan));
+        background.setCornerRadius(dp(activity, 10));
+        background.setStroke(dp(activity, 1), activity.getColor(R.color.hcf_bg));
+        badge.setBackground(background);
+    }
+
+    /**
+     * HCF Events is forum-sourced functionality. Move the existing injected view above
+     * the App heading so the same click listener/route remains intact and HCF Auth stays App-side.
+     */
+    private static void rehomeHcfEvents(LinearLayout menu) {
+        TextView appLabel = findDirectText(menu, "App");
+        TextView events = findTextExact(menu, "HCF Events");
+        if (appLabel == null || events == null) return;
+        if (EVENTS_TAG.equals(events.getTag())) return;
+
+        ViewParent parent = events.getParent();
+        if (!(parent instanceof ViewGroup)) return;
+        ((ViewGroup) parent).removeView(events);
+
+        int appIndex = menu.indexOfChild(appLabel);
+        if (appIndex < 0) return;
+        events.setTag(EVENTS_TAG);
+        events.setVisibility(View.VISIBLE);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(menu.getContext(), 8);
+        lp.bottomMargin = 0;
+        menu.addView(events, appIndex, lp);
+    }
+
+    private static TextView findDirectText(LinearLayout root, String exact) {
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View child = root.getChildAt(i);
+            if (!(child instanceof TextView)) continue;
+            CharSequence text = ((TextView) child).getText();
+            if (text != null && exact.equals(text.toString().trim())) return (TextView) child;
+        }
+        return null;
+    }
+
+    private static TextView findTextExact(ViewGroup root, String exact) {
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View child = root.getChildAt(i);
+            if (child instanceof TextView) {
+                CharSequence text = ((TextView) child).getText();
+                if (text != null && exact.equals(text.toString().trim())) return (TextView) child;
+            }
+            if (child instanceof ViewGroup) {
+                TextView nested = findTextExact((ViewGroup) child, exact);
+                if (nested != null) return nested;
+            }
+        }
+        return null;
+    }
+
+    private static void removeFromParent(View view) {
+        ViewParent parent = view == null ? null : view.getParent();
+        if (parent instanceof ViewGroup) ((ViewGroup) parent).removeView(view);
+    }
+
+    private static int dp(Context context, int value) {
+        return Math.round(value * context.getResources().getDisplayMetrics().density);
+    }
+
+    /** Installs the drawer QoL layer before MainActivity is shown. */
+    public static final class BootstrapProvider extends ContentProvider {
+        @Override public boolean onCreate() {
+            install(getContext());
+            return true;
+        }
+
+        @Override public Cursor query(Uri uri, String[] projection, String selection,
+                                      String[] selectionArgs, String sortOrder) { return null; }
+        @Override public String getType(Uri uri) { return null; }
+        @Override public Uri insert(Uri uri, ContentValues values) { return null; }
+        @Override public int delete(Uri uri, String selection, String[] selectionArgs) { return 0; }
+        @Override public int update(Uri uri, ContentValues values, String selection,
+                                    String[] selectionArgs) { return 0; }
+    }
+}
