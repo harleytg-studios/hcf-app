@@ -29,19 +29,20 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 /**
- * HCF_DRAWER_NEW_SHORTCUTS_V1
+ * HCF_DRAWER_NEW_SHORTCUTS_V2_STARTUP_HOST
  *
  * Adds two native hamburger-menu shortcuts using the existing HCF drawer style:
  *   HCF Auth   -> Account & Security > HCF Authenticator
  *   HCF Events -> https://forum.harleytg.com/events
  *
  * Both rows include a compact NEW badge while these features are newly exposed.
+ * StartupMainActivity subclasses HcfForum.MainActivity, so the activity test is
+ * intentionally instanceof-based rather than exact-class-name based.
  */
 public final class HcfDrawerNewItemsUi {
-    private static final String MAIN_ACTIVITY = "com.harleytg.forum.dev.HcfForum$MainActivity";
     private static final String SETTINGS_ACTIVITY = "com.harleytg.forum.dev.HcfSubActivities$SettingsActivity";
-    private static final String TAG_AUTH = "hcf_drawer_auth_new_v1";
-    private static final String TAG_EVENTS = "hcf_drawer_events_new_v1";
+    private static final String TAG_AUTH = "hcf_drawer_auth_new_v2";
+    private static final String TAG_EVENTS = "hcf_drawer_events_new_v2";
     private static final String EXTRA_OPEN_AUTH = "hcf_open_authenticator_subsettings";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static boolean installed;
@@ -89,7 +90,7 @@ public final class HcfDrawerNewItemsUi {
     }
 
     private static boolean isMain(Activity activity) {
-        return activity != null && MAIN_ACTIVITY.equals(activity.getClass().getName());
+        return activity instanceof HcfForum.MainActivity;
     }
 
     private static boolean isSettings(Activity activity) {
@@ -100,6 +101,7 @@ public final class HcfDrawerNewItemsUi {
         MAIN.postDelayed(() -> installDrawerRows(activity), 60L);
         MAIN.postDelayed(() -> installDrawerRows(activity), 180L);
         MAIN.postDelayed(() -> installDrawerRows(activity), 420L);
+        MAIN.postDelayed(() -> installDrawerRows(activity), 900L);
     }
 
     private static void installDrawerRows(Activity activity) {
@@ -202,10 +204,21 @@ public final class HcfDrawerNewItemsUi {
 
     private static WebView mainWebView(Activity activity) {
         try {
-            Field field = activity.getClass().getDeclaredField("webView");
-            field.setAccessible(true);
-            Object value = field.get(activity);
-            return value instanceof WebView ? (WebView) value : null;
+            Class<?> cursor = activity.getClass();
+            while (cursor != null) {
+                try {
+                    Field field = cursor.getDeclaredField("webView");
+                    field.setAccessible(true);
+                    Object value = field.get(activity);
+                    if (value instanceof WebView) return (WebView) value;
+                } catch (NoSuchFieldException missing) {
+                    cursor = cursor.getSuperclass();
+                    continue;
+                }
+                break;
+            }
+            View view = findId(activity, "webView");
+            return view instanceof WebView ? (WebView) view : null;
         } catch (Throwable ignored) {
             View view = findId(activity, "webView");
             return view instanceof WebView ? (WebView) view : null;
