@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.WeakHashMap;
 
 /**
- * HCF_AUTHENTICATOR_TOP_LEVEL_SUBSETTINGS_V3
+ * HCF_AUTHENTICATOR_TOP_LEVEL_SUBSETTINGS_V4_NEW_BADGE
  *
  * Moves HCF Authenticator out of Account Controls and into its own top-level
  * Account & Security subsettings panel. The panel is created with the same
@@ -42,11 +42,13 @@ import java.util.WeakHashMap;
  *
  * Before enrollment the authenticator panel shows the complete QR / Setup-key
  * workflow. Once a working local TOTP secret exists it becomes a compact
- * code-first panel.
+ * code-first panel. The top-level HCF Authenticator card carries the same
+ * compact NEW badge used by the new hamburger-menu shortcuts.
  */
 public final class HcfAuthenticatorAdaptiveSettingsUi {
-    private static final String AUTH_PANEL_TAG = "hcf_authenticator_top_level_subsetting_v3";
+    private static final String AUTH_PANEL_TAG = "hcf_authenticator_top_level_subsetting_v4";
     private static final String AUTH_SUMMARY_TAG = AUTH_PANEL_TAG + ":summary";
+    private static final String AUTH_NEW_BADGE_TAG = AUTH_PANEL_TAG + ":new_badge";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final WeakHashMap<Activity, ViewTreeObserver.OnGlobalLayoutListener> OBSERVERS = new WeakHashMap<>();
     private static boolean installed;
@@ -249,10 +251,54 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
         if (icon != null) {
             try { icon.setImageResource(R.drawable.fa_lock); } catch (Throwable ignored) {}
         }
+        addNewBadge(activity, authPanel);
 
         int index = settingsContent.indexOfChild(accountControlsTopPanel);
         settingsContent.addView(authPanel,
                 Math.min(index + 1, settingsContent.getChildCount()));
+    }
+
+    /** Adds the compact cyan NEW pill beside the HCF Authenticator title. */
+    private static void addNewBadge(Activity activity, View authPanel) {
+        if (authPanel == null || authPanel.findViewWithTag(AUTH_NEW_BADGE_TAG) != null) return;
+        TextView heading = findText(authPanel, "HCF Authenticator");
+        if (heading == null || !(heading.getParent() instanceof LinearLayout)) return;
+
+        LinearLayout parent = (LinearLayout) heading.getParent();
+        TextView badge = text(activity, "NEW", 8,
+                color(activity, R.color.hcf_bg, Color.rgb(8, 13, 17)));
+        badge.setTag(AUTH_NEW_BADGE_TAG);
+        badge.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        badge.setGravity(Gravity.CENTER);
+        badge.setIncludeFontPadding(false);
+        badge.setPadding(dp(activity, 7), dp(activity, 2), dp(activity, 7), dp(activity, 2));
+        int cyan = color(activity, R.color.hcf_cyan_bright, Color.rgb(0, 184, 240));
+        badge.setBackground(roundRect(activity, cyan, cyan, 8));
+
+        if (parent.getOrientation() == LinearLayout.HORIZONTAL) {
+            int index = parent.indexOfChild(heading);
+            LinearLayout.LayoutParams badgeLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(activity, 20));
+            badgeLp.leftMargin = dp(activity, 7);
+            parent.addView(badge, Math.min(index + 1, parent.getChildCount()), badgeLp);
+            return;
+        }
+
+        int index = parent.indexOfChild(heading);
+        if (index < 0) return;
+        parent.removeView(heading);
+
+        LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(heading, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams badgeLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(activity, 20));
+        badgeLp.leftMargin = dp(activity, 7);
+        row.addView(badge, badgeLp);
+        parent.addView(row, index, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     }
 
     /** Use the app's own private Settings renderer so this panel is visually native. */
