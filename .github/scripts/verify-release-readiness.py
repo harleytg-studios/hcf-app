@@ -43,6 +43,7 @@ updates_source = text(java_source / "HcfUpdates.java")
 platform_source = text(java_source / "HcfPlatform.java")
 widget_source = text(java_source / "HcfWidget.java")
 ban_devtools_source = text(java_source / "HcfBanDevTools.java")
+drawer_qol_source = text(java_source / "HcfDrawerQol.java")
 build_info = core_source
 readme = text(root / "README.md")
 build_script = text(source / "build-release.sh")
@@ -114,6 +115,7 @@ expected_java_files = {
     "HcfUI.java",
     "HcfWidget.java",
     "HcfBanDevTools.java",
+    "HcfDrawerQol.java",
 }
 actual_java_files = {p.name for p in (source / "src/com/harleytg/forum").glob("*.java")}
 require("Java runtime source set mismatch", actual_java_files == expected_java_files)
@@ -191,6 +193,10 @@ require("IP ban diagnostic action missing", 'Check IP Ban System' in ban_devtool
 require("IP ban diagnostic privacy label missing", 'Source details: Hidden' in ban_devtools_source)
 require("IP ban diagnostic must not contain repository URLs", 'github.com/' not in ban_devtools_source and 'raw.githubusercontent.com/' not in ban_devtools_source)
 require("IP ban diagnostic must not expose raw public IP", 'Public IP:' not in ban_devtools_source and 'Raw IP:' not in ban_devtools_source)
+require("drawer QoL provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfDrawerQol$BootstrapProvider' in manifest)
+require("drawer QoL forum Events rehome missing", 'rehomeHcfEvents' in drawer_qol_source and 'HCF Events' in drawer_qol_source and 'Forum controls' in drawer_qol_source)
+require("drawer QoL quick shortcuts missing", all(item in drawer_qol_source for item in ('drawerHome', 'drawerNotifications', 'drawerNotificationCountBadge', 'forum_quick_row_ready')))
+require("drawer QoL must preserve injected event tag", 'events.setTag(' not in drawer_qol_source)
 require("Discord observation provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfDiscordObservation$BootstrapProvider' in manifest)
 require("session persistence provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfSessionPersistence$BootstrapProvider' in manifest)
 require("session persistence must accept WebView cookies", "setAcceptCookie(true)" in session_persistence)
@@ -247,5 +253,5 @@ for path in workflows:
 
 print(
     "Release readiness verification: PASS "
-    f"({EXPECTED_PACKAGE} v{version_code}, internal {EXPECTED_INTERNAL_BUILD}, SHA-256 updater + ban gate + private ban diagnostic + session persistence + native settings URL + settings transfer + setup completion guard + adaptive desktop/DeX mode enabled)"
+    f"({EXPECTED_PACKAGE} v{version_code}, internal {EXPECTED_INTERNAL_BUILD}, SHA-256 updater + ban gate + private ban diagnostic + drawer forum QoL + session persistence + native settings URL + settings transfer + setup completion guard + adaptive desktop/DeX mode enabled)"
 )
