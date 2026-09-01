@@ -76,7 +76,7 @@ public final class HcfAuthenticatorSettings {
 
     private static boolean isSettings(Activity activity) {
         return activity != null
-                && "com.harleytg.forum.dev.HcfSubActivities$SettingsActivity"
+                && "com.harleytg.forum.dev.HcfUI$SettingsActivity"
                 .equals(activity.getClass().getName());
     }
 
