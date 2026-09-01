@@ -5,7 +5,9 @@ import android.app.Application;
 import android.content.ContentProvider;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.database.Cursor;
+import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -19,6 +21,7 @@ import android.view.ViewParent;
 import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -95,6 +98,12 @@ public final class HcfDrawerQol {
     };
 
     private static void apply(Activity activity) {
+        // The forum bridge can supply a native accent. Older code only applied that color
+        // to Menu, Reload and the host chip, which made error pages look as though half of
+        // the URL-bar controls were disabled. Normalize the complete native chrome first,
+        // even if the drawer itself has not been inflated yet.
+        repairHeaderChrome(activity);
+
         View drawer = activity.findViewById(R.id.drawerPanel);
         if (!(drawer instanceof ViewGroup)) return;
         ViewGroup drawerRoot = (ViewGroup) drawer;
@@ -109,6 +118,80 @@ public final class HcfDrawerQol {
         rehomeHcfEvents(menu);
         ensureAdminEntry(activity, menu);
         repairAuthNewBadge(activity, menu);
+    }
+
+    /**
+     * Keeps the Android header and URL-bar controls visually coherent on every forum
+     * route, including the web error handler. A supplied forum accent is used when it has
+     * enough contrast; otherwise the best readable HCF chrome color is selected.
+     */
+    private static void repairHeaderChrome(Activity activity) {
+        int requested = activity.getColor(R.color.hcf_cyan_bright);
+        try {
+            String saved = activity.getSharedPreferences("hcf_app", Context.MODE_PRIVATE)
+                    .getString("native_accent", "");
+            if (saved != null && !saved.trim().isEmpty()) {
+                requested = Color.parseColor(saved.trim());
+            }
+        } catch (Throwable ignored) {}
+
+        int accent = readableChromeAccent(activity, requested);
+        ColorStateList tint = ColorStateList.valueOf(accent);
+        int[] buttonIds = new int[]{
+                R.id.drawerButton,
+                R.id.headerNotificationsButton,
+                R.id.urlBackButton,
+                R.id.reloadButton,
+                R.id.copyUrlButton,
+                R.id.urlHomeButton
+        };
+        for (int id : buttonIds) {
+            View view = activity.findViewById(id);
+            if (view instanceof ImageButton) {
+                ((ImageButton) view).setImageTintList(tint);
+            }
+        }
+
+        View host = activity.findViewById(R.id.hostBadge);
+        if (host instanceof TextView) ((TextView) host).setTextColor(accent);
+    }
+
+    private static int readableChromeAccent(Activity activity, int requested) {
+        int background = activity.getColor(R.color.hcf_bg);
+        int urlBackground = activity.getColor(R.color.hcf_url_bar);
+        if (minimumContrast(requested, background, urlBackground) >= 3.0d) return requested;
+
+        int cyan = activity.getColor(R.color.hcf_cyan_bright);
+        int text = activity.getColor(R.color.hcf_text);
+        double cyanContrast = minimumContrast(cyan, background, urlBackground);
+        double textContrast = minimumContrast(text, background, urlBackground);
+        return textContrast > cyanContrast ? text : cyan;
+    }
+
+    private static double minimumContrast(int foreground, int firstBackground, int secondBackground) {
+        return Math.min(contrastRatio(foreground, firstBackground),
+                contrastRatio(foreground, secondBackground));
+    }
+
+    private static double contrastRatio(int first, int second) {
+        double l1 = relativeLuminance(first);
+        double l2 = relativeLuminance(second);
+        double high = Math.max(l1, l2);
+        double low = Math.min(l1, l2);
+        return (high + 0.05d) / (low + 0.05d);
+    }
+
+    private static double relativeLuminance(int color) {
+        double r = linearChannel(Color.red(color) / 255.0d);
+        double g = linearChannel(Color.green(color) / 255.0d);
+        double b = linearChannel(Color.blue(color) / 255.0d);
+        return (0.2126d * r) + (0.7152d * g) + (0.0722d * b);
+    }
+
+    private static double linearChannel(double channel) {
+        return channel <= 0.03928d
+                ? channel / 12.92d
+                : Math.pow((channel + 0.055d) / 1.055d, 2.4d);
     }
 
     /**
