@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    android:versionCode="100000106"
-    android:versionName="1.2 (100000106)"
+    android:versionCode="100000120"
+    android:versionName="1.2 (100000120)"
     android:compileSdkVersion="35"
     android:compileSdkVersionCodename="15"
     package="com.harleytg.forum.dev"
@@ -42,8 +42,8 @@
         android:appCategory="social">
         <meta-data android:name="com.harleytg.BRAND" android:value="Harley&apos;s Studios"/>
         <meta-data android:name="com.harleytg.BUILD_CHANNEL" android:value="dev"/>
-        <meta-data android:name="com.harleytg.APP_VERSION" android:value="1.1-hf2-a1 (100000105)"/>
-        <meta-data android:name="com.harleytg.APP_VERSION_CODE" android:value="100000105"/>
+        <meta-data android:name="com.harleytg.APP_VERSION" android:value="1.2 (100000120)"/>
+        <meta-data android:name="com.harleytg.APP_VERSION_CODE" android:value="100000120"/>
         <meta-data android:name="com.harleytg.APP_TYPE" android:value="Native Android Application"/>
         <meta-data android:name="com.harleytg.SESSION_CLIENT" android:value="Harley&apos;s Clan Forum App"/>
         <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="true"/>
@@ -70,6 +70,8 @@
         <provider android:name="com.harleytg.forum.dev.HcfSettingsStableUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.settingsstableui" android:initOrder="82"/>
         <!-- Preserve the current Settings category/subsetting across Activity recreation. -->
         <provider android:name="com.harleytg.forum.dev.HcfSettingsNavigationState$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.settingsnavigationstate" android:initOrder="81"/>
+        <!-- Adds native Two-Factor Authentication controls to Account & Security. -->
+        <provider android:name="com.harleytg.forum.dev.HcfAuthenticatorSettings$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.authenticatorsettings" android:initOrder="79"/>
         <activity android:name="com.harleytg.forum.dev.HcfForum$WelcomeActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfForum$SetupActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSettingsImportUi$TransferActivity" android:exported="false"/>
