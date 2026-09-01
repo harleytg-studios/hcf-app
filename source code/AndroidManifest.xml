@@ -72,6 +72,23 @@
         <activity android:name="com.harleytg.forum.dev.HcfForum$SetupActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSettingsImportUi$TransferActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$SettingsActivity" android:exported="false"/>
+        <activity
+            android:name="com.harleytg.forum.dev.HcfAuthenticator$Activity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="otpauth" android:host="totp"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="hcf-auth" android:host="open"/>
+            </intent-filter>
+        </activity>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$LogsActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfForum$CookieManagerActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$IdentityActivity" android:exported="false"/>
