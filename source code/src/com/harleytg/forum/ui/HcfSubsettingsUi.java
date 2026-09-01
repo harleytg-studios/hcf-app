@@ -33,15 +33,20 @@ import android.widget.Toast;
 import java.util.WeakHashMap;
 
 /**
- * HCF_SUBSETTINGS_UI_V4_FULL_AUTHENTICATOR
+ * HCF_SUBSETTINGS_UI_V5_NEARATA_USER_SETTINGS
  *
  * Dedicated owner for App Settings > Account & Security > Account Controls.
  * The complete HCF Authenticator UI is embedded directly in the Two-Factor
  * Authentication subsetting. HcfAuthenticator remains the TOTP/Keystore engine
  * and standalone deep-link fallback only.
+ *
+ * Harley's Clan Forum uses Nearata TwoFactor from the forum user settings page.
+ * Nearata exposes a QR code and manual Setup key to the user; it does not expose
+ * a copyable otpauth:// link in its normal enrollment UI. The provisioning URI
+ * exists inside the QR code internally and is accepted by the scanner.
  */
 public final class HcfSubsettingsUi {
-    private static final String TAG = "hcf_account_controls_subsettings_ui_v4_full_auth";
+    private static final String TAG = "hcf_account_controls_subsettings_ui_v5_nearata_settings";
     private static final String TAG_2FA_SUMMARY = TAG + ":2fa_summary";
     private static final String PREF_PREFIX = "account_controls_subsetting_";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
@@ -289,8 +294,8 @@ public final class HcfSubsettingsUi {
             return ready()
                     ? "HCF Authenticator ready • Nearata forum 2FA"
                     : (security.twoFactorControls
-                            ? "HCF Authenticator • set up with Nearata"
-                            : "HCF Authenticator • open forum 2FA setup");
+                            ? "HCF Authenticator • set up from User Settings"
+                            : "HCF Authenticator • open forum User Settings");
         }
 
         View build() {
@@ -353,18 +358,20 @@ public final class HcfSubsettingsUi {
             LinearLayout panel = innerPanel(activity);
             panel.addView(sectionLabel(activity, "SET UP HCF AUTHENTICATOR"));
             panel.addView(detail(activity,
-                    "Use the QR code or Setup key shown by Nearata TwoFactor on the forum."));
+                    "Open forum User Settings at /settings, then Two-Factor Authentication. Nearata shows a QR code and a Setup key. Use either one here."));
 
-            Button scan = actionButton(activity, "Scan or import Nearata QR code", true);
+            Button scan = actionButton(activity, "Scan or import QR code from User Settings", true);
             scan.setOnClickListener(v -> {
                 Intent intent = new Intent(activity, HcfAuthenticatorSettingsQrActivity.class);
                 activity.startActivity(intent);
             });
             panel.addView(scan, lp(activity, -1, dp(activity, 50), 11, 0));
 
-            Button paste = actionButton(activity, "Paste authenticator setup link", false);
-            paste.setOnClickListener(v -> pasteSetupLink());
-            panel.addView(paste, lp(activity, -1, dp(activity, 48), 8, 0));
+            TextView qrNote = text(activity,
+                    "Nearata does not show a copyable otpauth link. The provisioning data is contained inside its QR code, so you only need the QR code or Setup key shown on the forum.",
+                    9, color(activity, R.color.hcf_muted, Color.GRAY));
+            qrNote.setLineSpacing(0f, 1.08f);
+            panel.addView(qrNote, lp(activity, -1, -2, 9, 0));
 
             TextView manual = text(activity, "MANUAL SETUP KEY", 9, cyan(activity));
             manual.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -390,20 +397,22 @@ public final class HcfSubsettingsUi {
 
         private View nearataPanel() {
             LinearLayout panel = innerPanel(activity);
-            panel.addView(sectionLabel(activity, "FINISH ON NEARATA TWOFACTOR"));
+            panel.addView(sectionLabel(activity, "FINISH IN FORUM USER SETTINGS"));
             panel.addView(detail(activity,
-                    "Nearata requires your forum password, the current 6-digit passcode, and the same setup secret before it enables 2FA."));
+                    "Nearata TwoFactor lives on the forum User Settings page. After adding the same QR/Setup key to HCF, Nearata requires your forum password and current 6-digit passcode before it enables 2FA."));
 
-            panel.addView(stepRow(activity, "1", "Open Nearata's Two-Factor Authentication setup on the forum."),
+            panel.addView(stepRow(activity, "1", "Open forum User Settings (/settings), then Two-Factor Authentication."),
                     lp(activity, -1, -2, 9, 0));
-            panel.addView(stepRow(activity, "2", "Use the QR code or Setup key here, then copy the current HCF passcode."),
+            panel.addView(stepRow(activity, "2", "Scan/import the QR code shown there or enter its Setup key in HCF."),
                     lp(activity, -1, -2, 7, 0));
-            panel.addView(stepRow(activity, "3", "Enter your forum password + passcode in Nearata and press Enable."),
+            panel.addView(stepRow(activity, "3", "Copy the current 6-digit HCF passcode."),
                     lp(activity, -1, -2, 7, 0));
-            panel.addView(stepRow(activity, "4", "Save or copy the backup codes Nearata provides after activation."),
+            panel.addView(stepRow(activity, "4", "Return to Nearata, enter your forum password + passcode, then press Enable."),
+                    lp(activity, -1, -2, 7, 0));
+            panel.addView(stepRow(activity, "5", "Save or copy the backup codes Nearata provides after activation."),
                     lp(activity, -1, -2, 7, 0));
 
-            Button forum = actionButton(activity, "Open Nearata 2FA Setup", false);
+            Button forum = actionButton(activity, "Open Forum User Settings", false);
             forum.setOnClickListener(v -> openForumSettings(activity));
             panel.addView(forum, lp(activity, -1, dp(activity, 48), 10, 0));
             return panel;
@@ -511,28 +520,6 @@ public final class HcfSubsettingsUi {
             if (clipboard != null) {
                 clipboard.setPrimaryClip(ClipData.newPlainText("HCF authentication passcode", lastCode));
                 Toast.makeText(activity, "6-digit passcode copied.", Toast.LENGTH_SHORT).show();
-            }
-        }
-
-        private void pasteSetupLink() {
-            ClipboardManager clipboard = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
-            if (clipboard == null || !clipboard.hasPrimaryClip()) {
-                Toast.makeText(activity, "Clipboard is empty.", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            ClipData clip = clipboard.getPrimaryClip();
-            CharSequence value = clip == null || clip.getItemCount() == 0
-                    ? null : clip.getItemAt(0).coerceToText(activity);
-            if (value == null || value.toString().trim().isEmpty()) {
-                Toast.makeText(activity, "Clipboard does not contain an authenticator setup link.", Toast.LENGTH_LONG).show();
-                return;
-            }
-            try {
-                HcfAuthenticator.Config incoming = HcfAuthenticator.Config.fromOtpAuth(
-                        Uri.parse(value.toString().trim()));
-                confirmSave(incoming, "clipboard setup link");
-            } catch (Throwable error) {
-                Toast.makeText(activity, "That is not a supported TOTP setup link.", Toast.LENGTH_LONG).show();
             }
         }
 
