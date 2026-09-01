@@ -6,7 +6,6 @@ import android.content.ContentProvider;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -165,9 +164,14 @@ public final class HcfAuthenticatorSettings {
                 false), lp(activity, -1, -2, 0, 9));
 
         LinearLayout twoFactorBody = body(activity);
+        TextView authLabel = text(activity, "HCF AUTHENTICATOR", 9,
+                color(activity, R.color.hcf_cyan_bright, Color.rgb(0, 184, 240)));
+        authLabel.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        twoFactorBody.addView(authLabel);
+
         TextView status = twoFactorStatus(activity);
         status.setTag(TAG_2FA_STATUS);
-        twoFactorBody.addView(status);
+        twoFactorBody.addView(status, lp(activity, -1, -2, 7, 0));
         twoFactorBody.addView(detail(activity,
                 "Use HCF as your authenticator for rotating 6-digit codes. Setup supports camera QR scanning, QR screenshots, otpauth links and manual Base32 setup keys."),
                 lp(activity, -1, -2, 9, 0));
