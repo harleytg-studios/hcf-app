@@ -335,7 +335,7 @@ final class BuildInfo {
     static final String RELEASE_STAGE = "Development";
     static final String SESSION_CLIENT = "Harley's Clan Forum App";
     static final String UPDATE_DEV_BRANCH = "dev";
-    static final String UPDATE_REPOSITORY = "markhitchk/hcf-app";
+    static final String UPDATE_REPOSITORY = "harleytg-studios/hcf-app";
     static final String UPDATE_STABLE_BRANCH = "stable";
     static final String USER_AGENT_MARKER = "HarleysClanForumApp/1.2 Build/100000106";
     static final String VERSION = "1.2";
@@ -343,7 +343,7 @@ final class BuildInfo {
     static final String VERSION_BUILD_LINE = "v" + VERSION + " (" + VERSION_CODE + ") • " + BUILD_TAG;
     static final String VERSION_CODE_SCHEME = "dev-version-v1";
     static final String VERSION_TAG = "v1.2";
-    static final String REMOTE_DOMAIN_CONFIG = "https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/domains.config";
+    static final String REMOTE_DOMAIN_CONFIG = "https://raw.githubusercontent.com/harleytg-studios/hcf-app/main/configs/domains.config";
 
     static String installedVersionName() {
         return VERSION + " (" + VERSION_CODE + ")";
@@ -1725,7 +1725,7 @@ final class AppSecurity {
             }
         }
         Uri parse = Uri.parse(trim);
-        if ("https".equalsIgnoreCase(parse.getScheme()) && "github.com".equalsIgnoreCase(parse.getHost()) && (path = parse.getPath()) != null && path.toLowerCase(Locale.US).startsWith("/markhitchk/hcf-app/releases/download/".toLowerCase(Locale.US))) {
+        if ("https".equalsIgnoreCase(parse.getScheme()) && "github.com".equalsIgnoreCase(parse.getHost()) && (path = parse.getPath()) != null && path.toLowerCase(Locale.US).startsWith("/harleytg-studios/hcf-app/releases/download/".toLowerCase(Locale.US))) {
             return path.toLowerCase(Locale.US).endsWith(".apk");
         }
         return false;
