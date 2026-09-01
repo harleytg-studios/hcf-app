@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -20,6 +21,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.Surface;
@@ -29,6 +31,8 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -53,18 +57,15 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * HCF_AUTHENTICATOR_NATIVE_QR_SCANNER_V2
+ * HCF_AUTHENTICATOR_NATIVE_QR_SCANNER_V3_SYSTEM_UI
  *
- * Native camera/image QR importer used by the HCF Authenticator Settings panel.
+ * Native camera/image QR importer used by the dedicated HCF Authenticator
+ * subsettings panel. Camera decoding and screenshot decoding use bundled ZXing
+ * Core, not Android WebView BarcodeDetector.
  *
- * The old scanner depended on the BarcodeDetector Web API inside Android WebView.
- * BarcodeDetector is not consistently implemented by Android System WebView, so
- * some devices could show a camera preview but never decode a QR code. This
- * scanner uses Android Camera + bundled ZXing Core instead. No network access or
- * WebView QR APIs are required.
- *
- * A successful Nearata TOTP QR is validated and saved directly to the encrypted
- * HcfAuthenticator vault. Imported screenshots use the same local decoder.
+ * The screen intentionally follows the same HCF Settings visual language:
+ * compact back/logo header, cyan metadata, bordered cards, rounded controls and
+ * the same dark surface hierarchy as Account & Security.
  */
 @SuppressWarnings("deprecation")
 public final class HcfAuthenticatorSettingsQrActivity extends Activity
@@ -72,8 +73,9 @@ public final class HcfAuthenticatorSettingsQrActivity extends Activity
 
     private static final int REQUEST_CAMERA = 8341;
     private static final int REQUEST_IMAGE = 8342;
-    private static final int BG = Color.rgb(13, 16, 20);
-    private static final int PANEL = Color.rgb(17, 27, 34);
+    private static final int BG = Color.rgb(8, 13, 17);
+    private static final int PANEL = Color.rgb(18, 28, 35);
+    private static final int SURFACE = Color.rgb(14, 22, 28);
     private static final int BORDER = Color.rgb(41, 64, 75);
     private static final int CYAN = Color.rgb(0, 184, 240);
     private static final int TEXT = Color.rgb(239, 247, 250);
@@ -114,7 +116,7 @@ public final class HcfAuthenticatorSettingsQrActivity extends Activity
 
         buildUi();
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            setStatus("Camera permission is needed for live scanning. You can still import a QR screenshot.", false);
+            setStatus("Camera permission is needed for live scanning. You can still import a QR image.", false);
             requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA);
         }
     }
@@ -159,7 +161,7 @@ public final class HcfAuthenticatorSettingsQrActivity extends Activity
             camera.startPreview();
             requestNextFrame();
         } catch (Throwable error) {
-            setStatus("Camera preview could not restart. Tap Retry camera or import a QR screenshot.", false);
+            setStatus("Camera preview could not restart. Tap Restart camera or import a QR image.", false);
         }
     }
 
@@ -176,7 +178,7 @@ public final class HcfAuthenticatorSettingsQrActivity extends Activity
             setStatus("Camera ready. Point it at the QR code in forum User Settings.", true);
             if (surfaceReady) startCamera();
         } else {
-            setStatus("Camera access is off. Import the QR screenshot instead, or tap Retry camera to grant access.", false);
+            setStatus("Camera access is off. Import the QR image instead, or tap Restart camera to grant access.", false);
         }
     }
 
@@ -184,7 +186,7 @@ public final class HcfAuthenticatorSettingsQrActivity extends Activity
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode != REQUEST_IMAGE || resultCode != RESULT_OK || data == null || data.getData() == null) return;
         Uri image = data.getData();
-        setStatus("Reading QR screenshot on this device…", true);
+        setStatus("Reading QR image on this device…", true);
         if (decodeHandler == null) return;
         decodeHandler.post(() -> {
             String value = decodeImage(image);
@@ -192,7 +194,7 @@ public final class HcfAuthenticatorSettingsQrActivity extends Activity
                 if (value != null) {
                     handleDecodedValue(value);
                 } else {
-                    setStatus("No TOTP authenticator QR code was found in that image. Try a clearer screenshot or use the Setup key.", false);
+                    setStatus("No TOTP authenticator QR code was found. Try a clearer image or use the Setup key.", false);
                 }
             });
         });
@@ -202,70 +204,129 @@ public final class HcfAuthenticatorSettingsQrActivity extends Activity
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
+        root.setPadding(dp(12), dp(9), dp(12), dp(12));
 
+        // Same compact header language used by Account & Security.
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(10), dp(7), dp(10), dp(7));
 
-        Button close = button("‹", false);
-        close.setTextSize(TypedValue.COMPLEX_UNIT_SP, 28);
-        close.setOnClickListener(v -> finish());
-        header.addView(close, new LinearLayout.LayoutParams(dp(48), dp(44)));
+        ImageButton back = iconButton(R.drawable.fa_arrow_left, "Back");
+        back.setOnClickListener(v -> finish());
+        header.addView(back, new LinearLayout.LayoutParams(dp(58), dp(58)));
+
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.htg_app_logo);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        logo.setContentDescription("Harley's Clan Forum logo");
+        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(dp(52), dp(52));
+        logoLp.leftMargin = dp(10);
+        header.addView(logo, logoLp);
 
         LinearLayout labels = new LinearLayout(this);
         labels.setOrientation(LinearLayout.VERTICAL);
-        TextView title = text("Scan 2FA QR Code", 18, TEXT);
+        TextView title = text("Scan 2FA QR", 20, TEXT);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         labels.addView(title);
-        labels.addView(text("Nearata User Settings • decoded locally with HCF", 9, MUTED));
+        TextView subtitle = text("HCF Authenticator Setup • Nearata", 10, CYAN);
+        subtitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        LinearLayout.LayoutParams subtitleLp = new LinearLayout.LayoutParams(-1, -2);
+        subtitleLp.topMargin = dp(3);
+        labels.addView(subtitle, subtitleLp);
         LinearLayout.LayoutParams labelsLp = new LinearLayout.LayoutParams(0, -2, 1f);
-        labelsLp.leftMargin = dp(8);
+        labelsLp.leftMargin = dp(12);
         header.addView(labels, labelsLp);
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
 
-        status = text("Preparing native QR scanner…", 10, MUTED);
-        status.setGravity(Gravity.CENTER);
-        status.setPadding(dp(12), dp(5), dp(12), dp(8));
-        root.addView(status, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout scannerCard = new LinearLayout(this);
+        scannerCard.setOrientation(LinearLayout.VERTICAL);
+        scannerCard.setPadding(dp(10), dp(10), dp(10), dp(10));
+        scannerCard.setBackground(roundRect(PANEL, BORDER, 15));
+        LinearLayout.LayoutParams scannerCardLp = new LinearLayout.LayoutParams(-1, 0, 1f);
+        scannerCardLp.topMargin = dp(13);
+        root.addView(scannerCard, scannerCardLp);
+
+        TextView scannerLabel = text("Camera scanner", 11, CYAN);
+        scannerLabel.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        scannerCard.addView(scannerLabel);
+
+        TextView instructions = text(
+                "Point the camera at the QR code shown in forum User Settings → Two-Factor Authentication.",
+                10, MUTED);
+        instructions.setLineSpacing(0f, 1.08f);
+        LinearLayout.LayoutParams instructionsLp = new LinearLayout.LayoutParams(-1, -2);
+        instructionsLp.topMargin = dp(4);
+        scannerCard.addView(instructions, instructionsLp);
+
+        FrameLayout stageShell = new FrameLayout(this);
+        stageShell.setBackground(roundRect(Color.rgb(7, 11, 14), BORDER, 13));
+        stageShell.setPadding(dp(2), dp(2), dp(2), dp(2));
+        LinearLayout.LayoutParams stageShellLp = new LinearLayout.LayoutParams(-1, 0, 1f);
+        stageShellLp.topMargin = dp(10);
+        scannerCard.addView(stageShell, stageShellLp);
 
         FrameLayout stage = new FrameLayout(this);
-        stage.setBackgroundColor(Color.rgb(8, 11, 14));
+        stage.setBackgroundColor(Color.rgb(7, 11, 14));
         preview = new SurfaceView(this);
         previewHolder = preview.getHolder();
         previewHolder.addCallback(this);
         stage.addView(preview, new FrameLayout.LayoutParams(-1, -1));
         stage.addView(new ScannerOverlay(this), new FrameLayout.LayoutParams(-1, -1));
-        root.addView(stage, new LinearLayout.LayoutParams(-1, 0, 1f));
+        stageShell.addView(stage, new FrameLayout.LayoutParams(-1, -1));
+
+        status = text("Preparing native QR scanner…", 10, MUTED);
+        status.setGravity(Gravity.CENTER);
+        status.setLineSpacing(0f, 1.06f);
+        status.setPadding(dp(10), dp(8), dp(10), dp(8));
+        status.setBackground(roundRect(SURFACE, BORDER, 10));
+        LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(-1, -2);
+        statusLp.topMargin = dp(9);
+        scannerCard.addView(status, statusLp);
 
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.VERTICAL);
-        controls.setPadding(dp(14), dp(12), dp(14), dp(14));
-        controls.setBackgroundColor(PANEL);
+        controls.setPadding(dp(12), dp(11), dp(12), dp(12));
+        controls.setBackground(roundRect(PANEL, BORDER, 15));
+        LinearLayout.LayoutParams controlsLp = new LinearLayout.LayoutParams(-1, -2);
+        controlsLp.topMargin = dp(11);
+        root.addView(controls, controlsLp);
+
+        TextView optionsLabel = text("Scan options", 11, CYAN);
+        optionsLabel.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        controls.addView(optionsLabel);
 
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams actionsLp = new LinearLayout.LayoutParams(-1, -2);
+        actionsLp.topMargin = dp(9);
+        controls.addView(actions, actionsLp);
 
-        retryCamera = button("Retry camera", true);
+        retryCamera = button("Restart camera", true);
         retryCamera.setOnClickListener(v -> retryCamera());
         LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(0, dp(48), 1f);
         actions.addView(retryCamera, actionLp);
 
-        Button importImage = button("Import QR screenshot", false);
+        Button importImage = button("Import QR image", false);
         importImage.setOnClickListener(v -> chooseImage());
         LinearLayout.LayoutParams importLp = new LinearLayout.LayoutParams(0, dp(48), 1f);
         importLp.leftMargin = dp(9);
         actions.addView(importImage, importLp);
-        controls.addView(actions, new LinearLayout.LayoutParams(-1, -2));
 
-        TextView hint = text("Point the rear camera at the QR code shown under User Settings → Two-Factor Authentication. Only TOTP setup QR codes are accepted.", 10, MUTED);
-        hint.setGravity(Gravity.CENTER);
-        hint.setLineSpacing(0f, 1.12f);
-        LinearLayout.LayoutParams hintLp = new LinearLayout.LayoutParams(-1, -2);
-        hintLp.topMargin = dp(10);
-        controls.addView(hint, hintLp);
+        Button manual = button("Use Setup key instead", false);
+        manual.setOnClickListener(v -> finish());
+        LinearLayout.LayoutParams manualLp = new LinearLayout.LayoutParams(-1, dp(48));
+        manualLp.topMargin = dp(9);
+        controls.addView(manual, manualLp);
 
-        root.addView(controls, new LinearLayout.LayoutParams(-1, -2));
+        TextView privacy = text(
+                "QR data is decoded locally on this device and saved only to the encrypted HCF Authenticator vault.",
+                9, MUTED);
+        privacy.setGravity(Gravity.CENTER);
+        privacy.setLineSpacing(0f, 1.08f);
+        LinearLayout.LayoutParams privacyLp = new LinearLayout.LayoutParams(-1, -2);
+        privacyLp.topMargin = dp(9);
+        controls.addView(privacy, privacyLp);
+
         setContentView(root);
     }
 
@@ -320,7 +381,7 @@ public final class HcfAuthenticatorSettingsQrActivity extends Activity
             requestNextFrame();
         } catch (Throwable error) {
             stopCamera();
-            setStatus("The camera could not start. Import a QR screenshot or tap Retry camera.", false);
+            setStatus("The camera could not start. Import a QR image or tap Restart camera.", false);
         }
     }
 
@@ -373,7 +434,7 @@ public final class HcfAuthenticatorSettingsQrActivity extends Activity
             });
         } catch (Throwable error) {
             decodeBusy = false;
-            setStatus("Camera frame capture failed. Tap Retry camera or import a QR screenshot.", false);
+            setStatus("Camera frame capture failed. Tap Restart camera or import a QR image.", false);
         }
     }
 
@@ -566,6 +627,8 @@ public final class HcfAuthenticatorSettingsQrActivity extends Activity
         if (status == null) return;
         status.setText(message);
         status.setTextColor(positive ? MUTED : ERROR);
+        status.setBackground(roundRect(positive ? SURFACE : Color.rgb(35, 19, 23),
+                positive ? BORDER : Color.rgb(104, 45, 53), 10));
     }
 
     private TextView text(String value, float sp, int color) {
@@ -576,16 +639,28 @@ public final class HcfAuthenticatorSettingsQrActivity extends Activity
         return view;
     }
 
+    private ImageButton iconButton(int drawable, String description) {
+        ImageButton button = new ImageButton(this);
+        button.setImageResource(drawable);
+        button.setImageTintList(ColorStateList.valueOf(CYAN));
+        button.setContentDescription(description);
+        button.setScaleType(ImageView.ScaleType.CENTER);
+        button.setPadding(dp(16), dp(16), dp(16), dp(16));
+        button.setBackground(roundRect(SURFACE, BORDER, 15));
+        button.setStateListAnimator(null);
+        return button;
+    }
+
     private Button button(String value, boolean primary) {
         Button button = new Button(this);
         button.setAllCaps(false);
         button.setText(value);
-        button.setTextColor(primary ? Color.BLACK : TEXT);
-        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        button.setTextColor(primary ? Color.BLACK : CYAN);
+        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setStateListAnimator(null);
-        button.setPadding(dp(12), 0, dp(12), 0);
-        button.setBackground(roundRect(primary ? CYAN : Color.rgb(12, 21, 27),
+        button.setPadding(dp(10), 0, dp(10), 0);
+        button.setBackground(roundRect(primary ? CYAN : SURFACE,
                 primary ? CYAN : BORDER, 12));
         return button;
     }
@@ -616,15 +691,18 @@ public final class HcfAuthenticatorSettingsQrActivity extends Activity
     private static final class ScannerOverlay extends View {
         private final Paint shade = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint frame = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint scan = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final float density;
 
         ScannerOverlay(Activity context) {
             super(context);
             density = context.getResources().getDisplayMetrics().density;
-            shade.setColor(Color.argb(92, 0, 0, 0));
+            shade.setColor(Color.argb(88, 0, 0, 0));
             frame.setColor(CYAN);
             frame.setStyle(Paint.Style.STROKE);
             frame.setStrokeWidth(2f * density);
+            scan.setColor(Color.argb(205, 0, 184, 240));
+            scan.setStrokeWidth(2f * density);
             setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
 
@@ -639,6 +717,13 @@ public final class HcfAuthenticatorSettingsQrActivity extends Activity
             canvas.drawRect(0, top, left, top + size, shade);
             canvas.drawRect(left + size, top, getWidth(), top + size, shade);
             canvas.drawRoundRect(box, 22f * density, 22f * density, frame);
+
+            long cycle = SystemClock.uptimeMillis() % 1800L;
+            float phase = cycle / 1800f;
+            float lineY = top + (size * phase);
+            canvas.drawLine(left + 14f * density, lineY,
+                    left + size - 14f * density, lineY, scan);
+            postInvalidateDelayed(16L);
         }
     }
 }
