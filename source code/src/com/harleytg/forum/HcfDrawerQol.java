@@ -35,6 +35,7 @@ public final class HcfDrawerQol {
     private static final String QUICK_ROW_TAG = "hcf_drawer_quick_row_v1";
     private static final String ADMIN_BUTTON_TAG = "hcf_drawer_admin_v1";
     private static final String AUTH_BADGE_WRAP_TAG = "hcf_drawer_auth_badge_wrap_v1";
+    private static final String AUTH_BADGE_TAG = "hcf_drawer_auth_badge_v2";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final AtomicBoolean INSTALLED = new AtomicBoolean(false);
     private static WeakReference<Activity> resumedMain = new WeakReference<>(null);
@@ -323,62 +324,132 @@ public final class HcfDrawerQol {
     }
 
     /**
-     * The NEW badge injected for HCF Auth used to become a standalone drawer row after
-     * the forum/app sections were reorganized. Wrap the existing HCF Auth view and move
-     * that same badge into its top-right corner so it no longer creates a large blank gap.
+     * Keeps exactly one NEW badge anchored to HCF Auth. The original drawer injector can
+     * add its own NEW view after this wrapper is created, so every refresh also removes
+     * any later standalone/duplicate NEW badges instead of returning early.
      */
     private static void repairAuthNewBadge(Activity activity, LinearLayout menu) {
-        View alreadyWrapped = menu.findViewWithTag(AUTH_BADGE_WRAP_TAG);
-        if (alreadyWrapped instanceof FrameLayout) return;
+        FrameLayout wrapper = null;
+        View wrapped = menu.findViewWithTag(AUTH_BADGE_WRAP_TAG);
+        if (wrapped instanceof FrameLayout) wrapper = (FrameLayout) wrapped;
 
-        TextView auth = findTextExact(menu, "HCF Auth");
-        TextView badge = findTextExact(menu, "NEW");
-        if (auth == null || badge == null) return;
+        if (wrapper == null) {
+            TextView auth = findTextExact(menu, "HCF Auth");
+            if (auth == null) return;
 
-        View authRoot = topLevelChild(menu, auth);
-        View badgeRoot = topLevelChild(menu, badge);
-        if (authRoot == null || badgeRoot == null || authRoot == badgeRoot) return;
+            View authRoot = topLevelChild(menu, auth);
+            if (authRoot == null) return;
+            int authIndex = menu.indexOfChild(authRoot);
+            if (authIndex < 0) return;
+            ViewGroup.LayoutParams original = authRoot.getLayoutParams();
 
-        int authIndex = menu.indexOfChild(authRoot);
-        if (authIndex < 0) return;
-        ViewGroup.LayoutParams original = authRoot.getLayoutParams();
+            removeFromParent(authRoot);
 
-        // Remove the badge itself first. If its old top-level container is now empty,
-        // remove that empty container too so no spacer remains in the drawer.
-        removeFromParent(badge);
-        if (badgeRoot != badge && badgeRoot instanceof ViewGroup
-                && ((ViewGroup) badgeRoot).getChildCount() == 0) {
-            removeFromParent(badgeRoot);
+            wrapper = new FrameLayout(activity);
+            wrapper.setTag(AUTH_BADGE_WRAP_TAG);
+            wrapper.setMinimumHeight(dp(activity, 64));
+
+            FrameLayout.LayoutParams authLp = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            wrapper.addView(authRoot, authLp);
+
+            LinearLayout.LayoutParams wrapperLp;
+            if (original instanceof LinearLayout.LayoutParams) {
+                wrapperLp = new LinearLayout.LayoutParams((LinearLayout.LayoutParams) original);
+                wrapperLp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            } else {
+                wrapperLp = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            }
+            menu.addView(wrapper, Math.min(authIndex, menu.getChildCount()), wrapperLp);
         }
 
-        removeFromParent(authRoot);
+        TextView anchored = null;
+        View tagged = wrapper.findViewWithTag(AUTH_BADGE_TAG);
+        if (tagged instanceof TextView) anchored = (TextView) tagged;
+        if (anchored == null) {
+            TextView existingInside = findTextExact(wrapper, "NEW");
+            if (existingInside != null) {
+                anchored = existingInside;
+                anchored.setTag(AUTH_BADGE_TAG);
+            }
+        }
+        if (anchored == null) {
+            anchored = new TextView(activity);
+            anchored.setTag(AUTH_BADGE_TAG);
+            wrapper.addView(anchored);
+        }
 
-        FrameLayout wrapper = new FrameLayout(activity);
-        wrapper.setTag(AUTH_BADGE_WRAP_TAG);
-        wrapper.setMinimumHeight(dp(activity, 64));
-
-        FrameLayout.LayoutParams authLp = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        wrapper.addView(authRoot, authLp);
-
-        styleNewBadge(activity, badge);
+        styleNewBadge(activity, anchored);
         FrameLayout.LayoutParams badgeLp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, dp(activity, 24),
                 Gravity.TOP | Gravity.END);
         badgeLp.topMargin = dp(activity, 8);
         badgeLp.rightMargin = dp(activity, 10);
-        wrapper.addView(badge, badgeLp);
+        anchored.setLayoutParams(badgeLp);
+        anchored.bringToFront();
 
-        LinearLayout.LayoutParams wrapperLp;
-        if (original instanceof LinearLayout.LayoutParams) {
-            wrapperLp = new LinearLayout.LayoutParams((LinearLayout.LayoutParams) original);
-            wrapperLp.width = ViewGroup.LayoutParams.MATCH_PARENT;
-        } else {
-            wrapperLp = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        removeStrayNewBadges(menu, wrapper, anchored);
+    }
+
+    private static void removeStrayNewBadges(LinearLayout menu, FrameLayout wrapper, TextView anchored) {
+        java.util.ArrayList<TextView> badges = new java.util.ArrayList<TextView>();
+        collectTextExact(menu, "NEW", badges);
+        for (TextView badge : badges) {
+            if (badge == anchored || isDescendantOf(badge, wrapper)) continue;
+
+            View top = topLevelChild(menu, badge);
+            removeFromParent(badge);
+            if (top == null) continue;
+            if (top == badge) {
+                removeFromParent(top);
+            } else if (top instanceof ViewGroup && ((ViewGroup) top).getChildCount() == 0) {
+                removeFromParent(top);
+            } else if (top.getParent() == menu) {
+                // A source-owned badge container can retain fixed margins/height even after
+                // its NEW TextView is removed. Collapse only containers that no longer
+                // contain meaningful visible content.
+                if (!hasVisibleText((ViewGroup) top)) removeFromParent(top);
+            }
         }
-        menu.addView(wrapper, Math.min(authIndex, menu.getChildCount()), wrapperLp);
-        AppLogger.info(activity, "drawer_qol", "auth_new_badge_attached");
+    }
+
+    private static boolean hasVisibleText(ViewGroup root) {
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View child = root.getChildAt(i);
+            if (child instanceof TextView && child.getVisibility() == View.VISIBLE) {
+                CharSequence text = ((TextView) child).getText();
+                if (text != null && !text.toString().trim().isEmpty()) return true;
+            }
+            if (child instanceof ViewGroup && hasVisibleText((ViewGroup) child)) return true;
+        }
+        return false;
+    }
+
+    private static boolean isDescendantOf(View child, ViewGroup ancestor) {
+        if (child == null || ancestor == null) return false;
+        ViewParent parent = child.getParent();
+        while (parent instanceof View) {
+            if (parent == ancestor) return true;
+            parent = parent.getParent();
+        }
+        return false;
+    }
+
+    private static void collectTextExact(ViewGroup root, String exact,
+                                         java.util.ArrayList<TextView> out) {
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View child = root.getChildAt(i);
+            if (child instanceof TextView) {
+                CharSequence text = ((TextView) child).getText();
+                if (text != null && exact.equals(text.toString().trim())) {
+                    out.add((TextView) child);
+                }
+            }
+            if (child instanceof ViewGroup) {
+                collectTextExact((ViewGroup) child, exact, out);
+            }
+        }
     }
 
     private static void styleNewBadge(Activity activity, TextView badge) {
@@ -392,6 +463,7 @@ public final class HcfDrawerQol {
         badge.setPadding(dp(activity, 7), 0, dp(activity, 7), 0);
         badge.setClickable(false);
         badge.setFocusable(false);
+        badge.setVisibility(View.VISIBLE);
 
         GradientDrawable background = new GradientDrawable();
         background.setShape(GradientDrawable.RECTANGLE);
