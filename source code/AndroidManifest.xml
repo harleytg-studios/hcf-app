@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    android:versionCode="100000122"
-    android:versionName="1.2 (100000122)"
+    android:versionCode="100000123"
+    android:versionName="1.2 (100000123)"
     android:compileSdkVersion="35"
     android:compileSdkVersionCodename="15"
     package="com.harleytg.forum.dev"
@@ -42,8 +42,8 @@
         android:appCategory="social">
         <meta-data android:name="com.harleytg.BRAND" android:value="Harley&apos;s Studios"/>
         <meta-data android:name="com.harleytg.BUILD_CHANNEL" android:value="dev"/>
-        <meta-data android:name="com.harleytg.APP_VERSION" android:value="1.2 (100000122)"/>
-        <meta-data android:name="com.harleytg.APP_VERSION_CODE" android:value="100000122"/>
+        <meta-data android:name="com.harleytg.APP_VERSION" android:value="1.2 (100000123)"/>
+        <meta-data android:name="com.harleytg.APP_VERSION_CODE" android:value="100000123"/>
         <meta-data android:name="com.harleytg.APP_TYPE" android:value="Native Android Application"/>
         <meta-data android:name="com.harleytg.SESSION_CLIENT" android:value="Harley&apos;s Clan Forum App"/>
         <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="true"/>
@@ -86,6 +86,7 @@
             </intent-filter>
         </activity>
         <activity android:name="com.harleytg.forum.dev.HcfAuthenticator$QrScannerActivity" android:exported="false" android:launchMode="singleTop"/>
+        <activity android:name="com.harleytg.forum.dev.HcfAuthenticatorSettingsQrActivity" android:exported="false" android:launchMode="singleTop"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$LogsActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfForum$CookieManagerActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSubActivities$IdentityActivity" android:exported="false"/>
