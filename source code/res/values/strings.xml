@@ -23,4 +23,6 @@
     <string name="widget_hcf_notifications">Notifs</string>
     <string name="widget_hcf_reload">Reload</string>
     <string name="widget_hcf_settings">Settings</string>
+    <string name="shortcut_authenticator_short">Authenticator</string>
+    <string name="shortcut_authenticator_long">Open HCF Authenticator</string>
 </resources>
