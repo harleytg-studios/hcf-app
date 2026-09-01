@@ -26,6 +26,62 @@ jobs:
       - name: Checkout Dev source
         uses: actions/checkout@v4
 
+      - name: Normalize Dev build identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          manifest_path = Path('source code/AndroidManifest.xml')
+          core_path = Path('source code/src/com/harleytg/forum/HcfCore.java')
+          verify_path = Path('.github/scripts/verify-release-readiness.py')
+          readme_path = Path('README.md')
+
+          manifest = manifest_path.read_text(encoding='utf-8')
+          match = re.search(r'android:versionCode="(\d+)"', manifest)
+          if not match:
+              raise SystemExit('Manifest versionCode missing')
+          version_code = match.group(1)
+
+          core = core_path.read_text(encoding='utf-8')
+          core = re.sub(
+              r'DEVELOPMENT_BUILD_LABEL = "v1\.2 \(\d+\) • " \+ BUILD_TAG;',
+              f'DEVELOPMENT_BUILD_LABEL = "v1.2 ({version_code}) • " + BUILD_TAG;',
+              core,
+              count=1,
+          )
+          core = re.sub(
+              r'USER_AGENT_MARKER = "HarleysClanForumApp/1\.2 Build/\d+";',
+              f'USER_AGENT_MARKER = "HarleysClanForumApp/1.2 Build/{version_code}";',
+              core,
+              count=1,
+          )
+          core = re.sub(
+              r'VERSION_CODE = \d+;',
+              f'VERSION_CODE = {version_code};',
+              core,
+              count=1,
+          )
+          core_path.write_text(core, encoding='utf-8')
+
+          verify = verify_path.read_text(encoding='utf-8')
+          verify = re.sub(
+              r'EXPECTED_VERSION_CODE = \d+',
+              f'EXPECTED_VERSION_CODE = {version_code}',
+              verify,
+              count=1,
+          )
+          verify_path.write_text(verify, encoding='utf-8')
+
+          readme = readme_path.read_text(encoding='utf-8')
+          readme = re.sub(r'- Version code: `\d+`', f'- Version code: `{version_code}`', readme, count=1)
+          readme_path.write_text(readme, encoding='utf-8')
+
+          print(f'Dev build identity normalized to versionCode {version_code}.')
+          PY
+
       - name: Load build identity
         shell: bash
         run: |
@@ -241,6 +297,8 @@ jobs:
           grep -Fq 'service-context' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'network-available' "$OUT/DEX-STRINGS.txt"
           grep -Fq 'screen-on' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'Two-Factor Authentication' "$OUT/DEX-STRINGS.txt"
+          grep -Fq 'HCF AUTHENTICATOR' "$OUT/DEX-STRINGS.txt"
           ! grep -Fq 'https://discord.com/api/webhooks/' "$OUT/DEX-STRINGS.txt"
           ! grep -Fq 'https://discordapp.com/api/webhooks/' "$OUT/DEX-STRINGS.txt"
           ! grep -Fq 'cloudfunctions.net/hcfBanApi' "$OUT/DEX-STRINGS.txt"
