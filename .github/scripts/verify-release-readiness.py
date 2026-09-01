@@ -42,6 +42,7 @@ notifications_source = text(java_source / "HcfNotifications.java")
 updates_source = text(java_source / "HcfUpdates.java")
 platform_source = text(java_source / "HcfPlatform.java")
 widget_source = text(java_source / "HcfWidget.java")
+ban_devtools_source = text(java_source / "HcfBanDevTools.java")
 build_info = core_source
 readme = text(root / "README.md")
 build_script = text(source / "build-release.sh")
@@ -112,6 +113,7 @@ expected_java_files = {
     "HcfForum.java",
     "HcfUI.java",
     "HcfWidget.java",
+    "HcfBanDevTools.java",
 }
 actual_java_files = {p.name for p in (source / "src/com/harleytg/forum").glob("*.java")}
 require("Java runtime source set mismatch", actual_java_files == expected_java_files)
@@ -184,6 +186,11 @@ require("settings backup format missing", 'FORMAT = "hcf-settings"' in settings_
 require("settings transfer must protect update channel", "AppPrefs.UPDATE_CHANNEL" not in settings_transfer)
 
 require("native ban gate missing from manifest", f'{EXPECTED_PACKAGE}.HcfBanSystem$GateActivity' in manifest)
+require("IP ban Dev Tools provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfBanDevTools$BootstrapProvider' in manifest)
+require("IP ban diagnostic action missing", 'Check IP Ban System' in ban_devtools_source and 'ip_ban_diagnostic' in ban_devtools_source)
+require("IP ban diagnostic privacy label missing", 'Source details: Hidden' in ban_devtools_source)
+require("IP ban diagnostic must not contain repository URLs", 'github.com/' not in ban_devtools_source and 'raw.githubusercontent.com/' not in ban_devtools_source)
+require("IP ban diagnostic must not expose raw public IP", 'Public IP:' not in ban_devtools_source and 'Raw IP:' not in ban_devtools_source)
 require("Discord observation provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfDiscordObservation$BootstrapProvider' in manifest)
 require("session persistence provider missing from manifest", f'{EXPECTED_PACKAGE}.HcfSessionPersistence$BootstrapProvider' in manifest)
 require("session persistence must accept WebView cookies", "setAcceptCookie(true)" in session_persistence)
@@ -240,5 +247,5 @@ for path in workflows:
 
 print(
     "Release readiness verification: PASS "
-    f"({EXPECTED_PACKAGE} v{version_code}, internal {EXPECTED_INTERNAL_BUILD}, SHA-256 updater + ban gate + session persistence + native settings URL + settings transfer + setup completion guard + adaptive desktop/DeX mode enabled)"
+    f"({EXPECTED_PACKAGE} v{version_code}, internal {EXPECTED_INTERNAL_BUILD}, SHA-256 updater + ban gate + private ban diagnostic + session persistence + native settings URL + settings transfer + setup completion guard + adaptive desktop/DeX mode enabled)"
 )
