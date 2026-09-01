@@ -18,9 +18,12 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+
+import java.util.WeakHashMap;
 
 /**
  * Converts Account Controls into the same compact expandable-subsetting pattern
@@ -28,12 +31,13 @@ import android.widget.TextView;
  * actions and native HCF Authenticator implementation.
  */
 public final class HcfAuthenticatorSettings {
-    private static final String TAG = "hcf_account_controls_subsettings_v3";
+    private static final String TAG = "hcf_account_controls_subsettings_v4";
     private static final String TAG_2FA_STATUS = TAG + ":2fa_status";
     private static final String TAG_2FA_SUMMARY = TAG + ":2fa_summary";
     private static final String TAG_2FA_BUTTON = TAG + ":2fa_button";
     private static final String PREF_PREFIX = "account_controls_subsetting_";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
+    private static final WeakHashMap<Activity, ViewTreeObserver.OnGlobalLayoutListener> OBSERVERS = new WeakHashMap<>();
     private static boolean installed;
 
     private HcfAuthenticatorSettings() {}
@@ -61,39 +65,84 @@ public final class HcfAuthenticatorSettings {
         installed = true;
         app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
             @Override public void onActivityCreated(Activity activity, Bundle state) {
-                if (isSettings(activity)) scheduleInjection(activity);
+                if (isSettings(activity)) {
+                    installObserver(activity);
+                    scheduleInjection(activity);
+                }
             }
             @Override public void onActivityResumed(Activity activity) {
-                if (isSettings(activity)) scheduleInjection(activity);
+                if (isSettings(activity)) {
+                    installObserver(activity);
+                    scheduleInjection(activity);
+                }
             }
             @Override public void onActivityStarted(Activity activity) {}
             @Override public void onActivityPaused(Activity activity) {}
             @Override public void onActivityStopped(Activity activity) {}
             @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) {}
-            @Override public void onActivityDestroyed(Activity activity) {}
+            @Override public void onActivityDestroyed(Activity activity) {
+                removeObserver(activity);
+            }
         });
     }
 
     private static boolean isSettings(Activity activity) {
         return activity != null
-                && "com.harleytg.forum.dev.HcfUI$SettingsActivity"
+                && "com.harleytg.forum.dev.HcfSubActivities$SettingsActivity"
                 .equals(activity.getClass().getName());
     }
 
-    private static void scheduleInjection(Activity activity) {
-        MAIN.postDelayed(() -> inject(activity), 70L);
-        MAIN.postDelayed(() -> inject(activity), 230L);
-        MAIN.postDelayed(() -> inject(activity), 560L);
+    private static void installObserver(final Activity activity) {
+        if (activity == null || activity.isFinishing()) return;
+        final View root = activity.findViewById(android.R.id.content);
+        if (root == null) return;
+        synchronized (OBSERVERS) {
+            if (OBSERVERS.containsKey(activity)) return;
+            ViewTreeObserver observer = root.getViewTreeObserver();
+            if (observer == null || !observer.isAlive()) return;
+            ViewTreeObserver.OnGlobalLayoutListener listener = new ViewTreeObserver.OnGlobalLayoutListener() {
+                @Override public void onGlobalLayout() {
+                    if (activity.isFinishing()) return;
+                    inject(activity, false);
+                }
+            };
+            observer.addOnGlobalLayoutListener(listener);
+            OBSERVERS.put(activity, listener);
+        }
     }
 
-    private static void inject(Activity activity) {
+    private static void removeObserver(Activity activity) {
+        if (activity == null) return;
+        ViewTreeObserver.OnGlobalLayoutListener listener;
+        synchronized (OBSERVERS) {
+            listener = OBSERVERS.remove(activity);
+        }
+        if (listener == null) return;
+        try {
+            View root = activity.findViewById(android.R.id.content);
+            if (root == null) return;
+            ViewTreeObserver observer = root.getViewTreeObserver();
+            if (observer != null && observer.isAlive()) {
+                observer.removeOnGlobalLayoutListener(listener);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void scheduleInjection(Activity activity) {
+        MAIN.postDelayed(() -> inject(activity, true), 70L);
+        MAIN.postDelayed(() -> inject(activity, true), 230L);
+        MAIN.postDelayed(() -> inject(activity, true), 560L);
+    }
+
+    private static void inject(Activity activity, boolean refreshExisting) {
         if (activity == null || activity.isFinishing()) return;
         View root = activity.findViewById(android.R.id.content);
         if (!(root instanceof ViewGroup)) return;
 
         View alreadyConverted = root.findViewWithTag(TAG);
         if (alreadyConverted != null) {
-            refreshTwoFactor(root);
+            if (refreshExisting) refreshTwoFactor(root);
             return;
         }
 
