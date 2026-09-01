@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class HcfDrawerQol {
     private static final String QUICK_ROW_TAG = "hcf_drawer_quick_row_v1";
-    private static final String EVENTS_TAG = "hcf_drawer_events_forum_v1";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final AtomicBoolean INSTALLED = new AtomicBoolean(false);
     private static WeakReference<Activity> resumedMain = new WeakReference<>(null);
@@ -198,27 +197,37 @@ public final class HcfDrawerQol {
 
     /**
      * HCF Events is forum-sourced functionality. Move the existing injected view above
-     * the App heading so the same click listener/route remains intact and HCF Auth stays App-side.
+     * the App heading so the same click listener, route and injector-owned tag stay intact.
      */
     private static void rehomeHcfEvents(LinearLayout menu) {
         TextView appLabel = findDirectText(menu, "App");
         TextView events = findTextExact(menu, "HCF Events");
         if (appLabel == null || events == null) return;
-        if (EVENTS_TAG.equals(events.getTag())) return;
+
+        if (events.getParent() == menu) {
+            int eventsIndex = menu.indexOfChild(events);
+            int appIndex = menu.indexOfChild(appLabel);
+            if (eventsIndex >= 0 && appIndex >= 0 && eventsIndex < appIndex) return;
+        }
 
         ViewParent parent = events.getParent();
         if (!(parent instanceof ViewGroup)) return;
+        ViewGroup.LayoutParams original = events.getLayoutParams();
         ((ViewGroup) parent).removeView(events);
 
         int appIndex = menu.indexOfChild(appLabel);
         if (appIndex < 0) return;
-        events.setTag(EVENTS_TAG);
         events.setVisibility(View.VISIBLE);
 
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams lp;
+        if (original instanceof LinearLayout.LayoutParams) {
+            lp = new LinearLayout.LayoutParams((LinearLayout.LayoutParams) original);
+            lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+        } else {
+            lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
         lp.topMargin = dp(menu.getContext(), 8);
-        lp.bottomMargin = 0;
         menu.addView(events, appIndex, lp);
     }
 
