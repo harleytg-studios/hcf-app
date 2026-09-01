@@ -16,6 +16,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
+import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class HcfDrawerQol {
     private static final String QUICK_ROW_TAG = "hcf_drawer_quick_row_v1";
+    private static final String ADMIN_BUTTON_TAG = "hcf_drawer_admin_v1";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final AtomicBoolean INSTALLED = new AtomicBoolean(false);
     private static WeakReference<Activity> resumedMain = new WeakReference<>(null);
@@ -103,6 +105,7 @@ public final class HcfDrawerQol {
 
         ensureQuickRow(activity, menu, forumLabel);
         rehomeHcfEvents(menu);
+        ensureAdminEntry(activity, menu);
     }
 
     /**
@@ -229,6 +232,80 @@ public final class HcfDrawerQol {
         }
         lp.topMargin = dp(menu.getContext(), 8);
         menu.addView(events, appIndex, lp);
+    }
+
+    /**
+     * Adds a forum Admin shortcut only while the currently resolved forum identity is
+     * both signed in and marked administrator by ForumIdentity. No username, email or
+     * local allow-list is used, so visibility follows the same live identity shown in
+     * the drawer identity card.
+     */
+    private static void ensureAdminEntry(Activity activity, LinearLayout menu) {
+        ForumIdentity.Snapshot identity = ForumIdentity.load(activity);
+        boolean allowed = identity != null && identity.loggedIn && identity.admin;
+        View existing = menu.findViewWithTag(ADMIN_BUTTON_TAG);
+
+        if (!allowed) {
+            if (existing != null) removeFromParent(existing);
+            return;
+        }
+
+        if (existing instanceof Button) {
+            existing.setVisibility(View.VISIBLE);
+            return;
+        }
+
+        TextView appLabel = findDirectText(menu, "App");
+        if (appLabel == null) return;
+
+        Button admin = new Button(activity, null, 0, R.style.HcfDrawerItem);
+        admin.setTag(ADMIN_BUTTON_TAG);
+        admin.setText("Admin");
+        admin.setAllCaps(false);
+        admin.setMaxLines(1);
+        admin.setContentDescription("Open forum administrator panel");
+        admin.setMinWidth(0);
+        admin.setMinimumWidth(0);
+        admin.setMinHeight(0);
+        admin.setMinimumHeight(0);
+        try { FaIcons.applyStart(admin, R.drawable.fa_shield); } catch (Throwable ignored) {}
+
+        admin.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view) {
+                ForumIdentity.Snapshot current = ForumIdentity.load(activity);
+                if (current == null || !current.loggedIn || !current.admin) {
+                    removeFromParent(admin);
+                    AppLogger.warn(activity, "drawer_admin", "identity_no_longer_admin");
+                    return;
+                }
+
+                String host = current.host;
+                if (!ForumUrlRouter.isForumHost(host)) {
+                    host = activity.getSharedPreferences("hcf_app", Context.MODE_PRIVATE)
+                            .getString("active_host", "forum.harleytg.com");
+                }
+                if (!ForumUrlRouter.isForumHost(host)) host = "forum.harleytg.com";
+
+                String adminUrl = "https://" + host + "/admin";
+                View target = activity.findViewById(R.id.webView);
+                if (!(target instanceof WebView)) {
+                    AppLogger.warn(activity, "drawer_admin", "webview_missing");
+                    return;
+                }
+
+                activity.onBackPressed();
+                ((WebView) target).loadUrl(adminUrl);
+                AppLogger.info(activity, "drawer_admin", AppLogger.safeUrl(adminUrl));
+            }
+        });
+
+        int appIndex = menu.indexOfChild(appLabel);
+        if (appIndex < 0) return;
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(activity, 8);
+        menu.addView(admin, appIndex, lp);
+        AppLogger.info(activity, "drawer_qol", "admin_identity_action_ready");
     }
 
     private static TextView findDirectText(LinearLayout root, String exact) {
