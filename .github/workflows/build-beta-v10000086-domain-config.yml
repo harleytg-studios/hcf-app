@@ -92,7 +92,7 @@ jobs:
           grep -q 'android:versionName="1.0 (10000086)"' "$ROOT/AndroidManifest.xml"
           grep -q 'VERSION_CODE = 10000086' "$ROOT/src/com/harleytg/forum/BuildInfo.java"
           grep -q 'DEFAULT_UPDATE_CHANNEL = "dev"' "$ROOT/src/com/harleytg/forum/BuildInfo.java"
-          grep -q 'raw.githubusercontent.com/markhitchk/hcf-app/main/configs/domains.config' "$ROOT/src/com/harleytg/forum/RemoteDomainConfig.java"
+          grep -q 'raw.githubusercontent.com/harleytg-studios/hcf-app/main/configs/domains.config' "$ROOT/src/com/harleytg/forum/RemoteDomainConfig.java"
           grep -q 'RemoteDomainConfig.initialize(this)' "$ROOT/src/com/harleytg/forum/HcfApplication.java"
           grep -q 'Release release = fetchDev();' "$ROOT/src/com/harleytg/forum/UpdateChecker.java"
 
@@ -101,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSL --retry 3 --connect-timeout 10 \
-            'https://raw.githubusercontent.com/markhitchk/hcf-app/main/configs/domains.config' \
+            'https://raw.githubusercontent.com/harleytg-studios/hcf-app/main/configs/domains.config' \
             -o "$RUNNER_TEMP/domains.config"
           grep -q '^domain=forum.harleytg.com$' "$RUNNER_TEMP/domains.config"
           grep -q '^domain_1=harleysclan.freeflarum.com$' "$RUNNER_TEMP/domains.config"
@@ -142,7 +142,7 @@ jobs:
           grep -q "name='com.harleytg.forum.dev'" "$OUT/APK-BADGING.txt"
           grep -q "versionCode='10000086'" "$OUT/APK-BADGING.txt"
           grep -q "versionName='1.0 (10000086)'" "$OUT/APK-BADGING.txt"
-          unzip -p "$OUT/HCF-Beta-v10000086-aligned-unsigned.apk" classes.dex | strings | grep -q 'raw.githubusercontent.com/markhitchk/hcf-app/main/configs/domains.config'
+          unzip -p "$OUT/HCF-Beta-v10000086-aligned-unsigned.apk" classes.dex | strings | grep -q 'raw.githubusercontent.com/harleytg-studios/hcf-app/main/configs/domains.config'
 
           cp "$BT/lib/apksigner.jar" "$OUT/apksigner.jar"
           cp "$RUNNER_TEMP/domains.config" "$OUT/domains.config"
