@@ -269,7 +269,7 @@ public final class HcfUpdates {
 final class UpdateChecker {
     static final String CHANNEL_DEV = "dev";
     static final String CHANNEL_STABLE = "stable";
-    private static final String RELEASES_URL = "https://api.github.com/repos/markhitchk/hcf-app/releases?per_page=30";
+    private static final String RELEASES_URL = "https://api.github.com/repos/harleytg-studios/hcf-app/releases?per_page=30";
     private static final String CACHE_ASSET_ID = "update_checked_asset_id";
     private static final String CACHE_ASSET_SHA256 = "update_checked_asset_sha256";
     private static final String CACHE_ASSET_UPDATED = "update_checked_asset_updated";
