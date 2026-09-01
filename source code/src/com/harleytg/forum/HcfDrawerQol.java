@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class HcfDrawerQol {
     private static final String QUICK_ROW_TAG = "hcf_drawer_quick_row_v1";
     private static final String ADMIN_BUTTON_TAG = "hcf_drawer_admin_v1";
+    private static final String AUTH_BADGE_WRAP_TAG = "hcf_drawer_auth_badge_wrap_v1";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final AtomicBoolean INSTALLED = new AtomicBoolean(false);
     private static WeakReference<Activity> resumedMain = new WeakReference<>(null);
@@ -106,6 +107,7 @@ public final class HcfDrawerQol {
         ensureQuickRow(activity, menu, forumLabel);
         rehomeHcfEvents(menu);
         ensureAdminEntry(activity, menu);
+        repairAuthNewBadge(activity, menu);
     }
 
     /**
@@ -251,7 +253,7 @@ public final class HcfDrawerQol {
         }
 
         if (existing instanceof Button) {
-            existing.setVisibility(View.VISIBLE);
+            normalizeAdminButton(activity, (Button) existing);
             return;
         }
 
@@ -264,10 +266,7 @@ public final class HcfDrawerQol {
         admin.setAllCaps(false);
         admin.setMaxLines(1);
         admin.setContentDescription("Open forum administrator panel");
-        admin.setMinWidth(0);
-        admin.setMinimumWidth(0);
-        admin.setMinHeight(0);
-        admin.setMinimumHeight(0);
+        normalizeAdminButton(activity, admin);
         try { FaIcons.applyStart(admin, R.drawable.fa_shield); } catch (Throwable ignored) {}
 
         admin.setOnClickListener(new View.OnClickListener() {
@@ -306,6 +305,111 @@ public final class HcfDrawerQol {
         lp.topMargin = dp(activity, 8);
         menu.addView(admin, appIndex, lp);
         AppLogger.info(activity, "drawer_qol", "admin_identity_action_ready");
+    }
+
+    /** Keep Admin visually identical in height to the other full-width drawer cards. */
+    private static void normalizeAdminButton(Activity activity, Button admin) {
+        admin.setVisibility(View.VISIBLE);
+        admin.setMinWidth(0);
+        admin.setMinimumWidth(0);
+        int cardHeight = dp(activity, 64);
+        admin.setMinHeight(cardHeight);
+        admin.setMinimumHeight(cardHeight);
+        ViewGroup.LayoutParams params = admin.getLayoutParams();
+        if (params != null && params.height > 0 && params.height < cardHeight) {
+            params.height = cardHeight;
+            admin.setLayoutParams(params);
+        }
+    }
+
+    /**
+     * The NEW badge injected for HCF Auth used to become a standalone drawer row after
+     * the forum/app sections were reorganized. Wrap the existing HCF Auth view and move
+     * that same badge into its top-right corner so it no longer creates a large blank gap.
+     */
+    private static void repairAuthNewBadge(Activity activity, LinearLayout menu) {
+        View alreadyWrapped = menu.findViewWithTag(AUTH_BADGE_WRAP_TAG);
+        if (alreadyWrapped instanceof FrameLayout) return;
+
+        TextView auth = findTextExact(menu, "HCF Auth");
+        TextView badge = findTextExact(menu, "NEW");
+        if (auth == null || badge == null) return;
+
+        View authRoot = topLevelChild(menu, auth);
+        View badgeRoot = topLevelChild(menu, badge);
+        if (authRoot == null || badgeRoot == null || authRoot == badgeRoot) return;
+
+        int authIndex = menu.indexOfChild(authRoot);
+        if (authIndex < 0) return;
+        ViewGroup.LayoutParams original = authRoot.getLayoutParams();
+
+        // Remove the badge itself first. If its old top-level container is now empty,
+        // remove that empty container too so no spacer remains in the drawer.
+        removeFromParent(badge);
+        if (badgeRoot != badge && badgeRoot instanceof ViewGroup
+                && ((ViewGroup) badgeRoot).getChildCount() == 0) {
+            removeFromParent(badgeRoot);
+        }
+
+        removeFromParent(authRoot);
+
+        FrameLayout wrapper = new FrameLayout(activity);
+        wrapper.setTag(AUTH_BADGE_WRAP_TAG);
+        wrapper.setMinimumHeight(dp(activity, 64));
+
+        FrameLayout.LayoutParams authLp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        wrapper.addView(authRoot, authLp);
+
+        styleNewBadge(activity, badge);
+        FrameLayout.LayoutParams badgeLp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(activity, 24),
+                Gravity.TOP | Gravity.END);
+        badgeLp.topMargin = dp(activity, 8);
+        badgeLp.rightMargin = dp(activity, 10);
+        wrapper.addView(badge, badgeLp);
+
+        LinearLayout.LayoutParams wrapperLp;
+        if (original instanceof LinearLayout.LayoutParams) {
+            wrapperLp = new LinearLayout.LayoutParams((LinearLayout.LayoutParams) original);
+            wrapperLp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+        } else {
+            wrapperLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+        menu.addView(wrapper, Math.min(authIndex, menu.getChildCount()), wrapperLp);
+        AppLogger.info(activity, "drawer_qol", "auth_new_badge_attached");
+    }
+
+    private static void styleNewBadge(Activity activity, TextView badge) {
+        badge.setText("NEW");
+        badge.setTextSize(9f);
+        badge.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        badge.setTextColor(activity.getColor(R.color.hcf_cyan_bright));
+        badge.setGravity(Gravity.CENTER);
+        badge.setMinWidth(dp(activity, 38));
+        badge.setMinimumWidth(dp(activity, 38));
+        badge.setPadding(dp(activity, 7), 0, dp(activity, 7), 0);
+        badge.setClickable(false);
+        badge.setFocusable(false);
+
+        GradientDrawable background = new GradientDrawable();
+        background.setShape(GradientDrawable.RECTANGLE);
+        background.setColor(activity.getColor(R.color.hcf_bg));
+        background.setCornerRadius(dp(activity, 12));
+        background.setStroke(dp(activity, 1), activity.getColor(R.color.hcf_cyan));
+        badge.setBackground(background);
+    }
+
+    private static View topLevelChild(LinearLayout menu, View descendant) {
+        if (menu == null || descendant == null) return null;
+        View current = descendant;
+        ViewParent parent = current.getParent();
+        while (parent instanceof View && parent != menu) {
+            current = (View) parent;
+            parent = current.getParent();
+        }
+        return parent == menu ? current : null;
     }
 
     private static TextView findDirectText(LinearLayout root, String exact) {
