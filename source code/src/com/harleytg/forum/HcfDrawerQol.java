@@ -303,21 +303,22 @@ public final class HcfDrawerQol {
         if (appIndex < 0) return;
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = dp(activity, 8);
+        lp.topMargin = dp(activity, 6);
         menu.addView(admin, appIndex, lp);
         AppLogger.info(activity, "drawer_qol", "admin_identity_action_ready");
     }
 
-    /** Keep Admin visually identical in height to the other full-width drawer cards. */
+    /** Keep Admin compact while preserving the standard HCF drawer-item styling. */
     private static void normalizeAdminButton(Activity activity, Button admin) {
         admin.setVisibility(View.VISIBLE);
         admin.setMinWidth(0);
         admin.setMinimumWidth(0);
-        int cardHeight = dp(activity, 64);
+        admin.setTextSize(14f);
+        int cardHeight = dp(activity, 52);
         admin.setMinHeight(cardHeight);
         admin.setMinimumHeight(cardHeight);
         ViewGroup.LayoutParams params = admin.getLayoutParams();
-        if (params != null && params.height > 0 && params.height < cardHeight) {
+        if (params != null && params.height > 0 && params.height != cardHeight) {
             params.height = cardHeight;
             admin.setLayoutParams(params);
         }
