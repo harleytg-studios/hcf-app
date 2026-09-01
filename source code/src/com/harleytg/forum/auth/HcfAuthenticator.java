@@ -1,11 +1,13 @@
 package com.harleytg.forum.dev;
 
+import android.Manifest;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -21,6 +23,13 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -61,6 +70,8 @@ public final class HcfAuthenticator {
     private static final int DANGER = Color.rgb(255, 77, 87);
 
     public static final class Activity extends android.app.Activity {
+        private static final int REQUEST_QR_SCANNER = 8240;
+
         private final Handler handler = new Handler(Looper.getMainLooper());
         private Config config;
         private String lastCode = "";
@@ -104,6 +115,15 @@ public final class HcfAuthenticator {
         @Override protected void onPause() {
             handler.removeCallbacks(ticker);
             super.onPause();
+        }
+
+        @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+            super.onActivityResult(requestCode, resultCode, data);
+            if (requestCode == REQUEST_QR_SCANNER && resultCode == RESULT_OK && data != null) {
+                String raw = data.getStringExtra(QrScannerActivity.EXTRA_QR_VALUE);
+                if ((raw == null || raw.trim().isEmpty()) && data.getData() != null) raw = data.getData().toString();
+                importOtpAuth(raw, "QR code");
+            }
         }
 
         private void buildUi() {
@@ -176,11 +196,29 @@ public final class HcfAuthenticator {
 
             LinearLayout setup = panel();
             setup.addView(section("SET UP FROM THE FORUM"));
-            setup.addView(text("Copy the Base32 setup key from the forum's Two-Factor Authentication screen, or open an otpauth:// setup link in HCF.", 11, MUTED));
+            setup.addView(text("Scan the forum's Two-Factor Authentication QR code, import a QR screenshot, paste an otpauth:// setup link, or enter the Base32 setup key manually.", 11, MUTED));
+
+            Button scan = button("Scan or import QR code", true);
+            scan.setOnClickListener(v -> startActivityForResult(new Intent(this, QrScannerActivity.class), REQUEST_QR_SCANNER));
+            LinearLayout.LayoutParams scanLp = new LinearLayout.LayoutParams(-1, dp(50));
+            scanLp.topMargin = dp(12);
+            setup.addView(scan, scanLp);
+
+            Button paste = button("Paste authenticator setup link", false);
+            paste.setOnClickListener(v -> pasteSetupLink());
+            LinearLayout.LayoutParams pasteLp = new LinearLayout.LayoutParams(-1, dp(48));
+            pasteLp.topMargin = dp(8);
+            setup.addView(paste, pasteLp);
+
+            TextView manualLabel = text("Manual setup key", 10, CYAN);
+            manualLabel.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            manualLabel.setPadding(0, dp(14), 0, 0);
+            setup.addView(manualLabel);
+
             accountInput = input("Forum account name (optional)");
             accountInput.setInputType(InputType.TYPE_CLASS_TEXT);
             LinearLayout.LayoutParams fieldLp = new LinearLayout.LayoutParams(-1, dp(50));
-            fieldLp.topMargin = dp(12);
+            fieldLp.topMargin = dp(9);
             setup.addView(accountInput, fieldLp);
             secretInput = input("Base32 setup key");
             secretInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
@@ -210,7 +248,7 @@ public final class HcfAuthenticator {
             manage.addView(warning);
             root.addView(manage, panelLp());
 
-            TextView footer = text("RFC 6238 TOTP • Android Keystore • No cloud sync", 9, MUTED);
+            TextView footer = text("RFC 6238 TOTP • Android Keystore • QR setup stays on-device • No cloud sync", 9, MUTED);
             footer.setGravity(Gravity.CENTER);
             root.addView(footer);
             setContentView(scroll);
@@ -265,11 +303,32 @@ public final class HcfAuthenticator {
             if (intent == null || intent.getData() == null) return;
             Uri uri = intent.getData();
             if (!"otpauth".equalsIgnoreCase(uri.getScheme())) return;
+            importOtpAuth(uri.toString(), "setup link");
+        }
+
+        private void pasteSetupLink() {
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (clipboard == null || !clipboard.hasPrimaryClip()) {
+                Toast.makeText(this, "Clipboard is empty.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            ClipData clip = clipboard.getPrimaryClip();
+            CharSequence value = clip == null || clip.getItemCount() == 0 ? null : clip.getItemAt(0).coerceToText(this);
+            if (value == null || value.toString().trim().isEmpty()) {
+                Toast.makeText(this, "Clipboard does not contain an authenticator setup link.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            importOtpAuth(value.toString(), "clipboard");
+        }
+
+        private void importOtpAuth(String raw, String source) {
+            if (raw == null || raw.trim().isEmpty()) return;
             try {
+                Uri uri = Uri.parse(raw.trim());
                 Config incoming = Config.fromOtpAuth(uri);
-                confirmSave(incoming, config == null ? "Add" : "Replace");
+                confirmSave(incoming, config == null ? "Add" : "Replace", source);
             } catch (Throwable error) {
-                Toast.makeText(this, "This authenticator setup link is invalid or unsupported.", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "The " + source + " is not a supported TOTP authenticator setup.", Toast.LENGTH_LONG).show();
             }
         }
 
@@ -282,16 +341,18 @@ public final class HcfAuthenticator {
             try {
                 Config incoming = Config.manual(raw, accountInput.getText().toString().trim());
                 Base32.decode(incoming.secret);
-                if (config == null) save(incoming); else confirmSave(incoming, "Replace");
+                if (config == null) save(incoming); else confirmSave(incoming, "Replace", "manual setup key");
             } catch (Throwable error) {
                 secretInput.setError("Invalid Base32 setup key");
             }
         }
 
-        private void confirmSave(Config incoming, String action) {
+        private void confirmSave(Config incoming, String action, String source) {
             new AlertDialog.Builder(this)
                     .setTitle(action + " HCF authenticator?")
-                    .setMessage("Account: " + incoming.displayLabel() + "\n\nThe setup secret will be encrypted with Android Keystore and stored only on this device.")
+                    .setMessage("Account: " + incoming.displayLabel()
+                            + "\nSource: " + source
+                            + "\n\nThe setup secret will be encrypted with Android Keystore and stored only on this device.")
                     .setNegativeButton("Cancel", null)
                     .setPositiveButton(action, (dialog, which) -> save(incoming))
                     .show();
@@ -406,6 +467,292 @@ public final class HcfAuthenticator {
             drawable.setCornerRadius(dp(radius));
             drawable.setStroke(dp(strokeWidth), stroke);
             return drawable;
+        }
+
+        private int dp(int value) {
+            return Math.round(value * getResources().getDisplayMetrics().density);
+        }
+    }
+
+    /**
+     * Local QR scanner. The HTML is embedded in the APK, blocks network loads, and uses
+     * the Android WebView platform BarcodeDetector. QR contents are returned to Activity
+     * and never uploaded to HCF or another service.
+     */
+    public static final class QrScannerActivity extends android.app.Activity {
+        public static final String EXTRA_QR_VALUE = "hcf_auth_qr_value";
+
+        private static final int REQUEST_CAMERA = 8241;
+        private static final int REQUEST_IMAGE = 8242;
+
+        private WebView scanner;
+        private ValueCallback<Uri[]> pendingFiles;
+        private TextView nativeStatus;
+        private boolean cameraAllowed;
+
+        @Override protected void onCreate(Bundle state) {
+            super.onCreate(state);
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+            getWindow().setStatusBarColor(BG);
+            getWindow().setNavigationBarColor(BG);
+            buildUi();
+
+            cameraAllowed = checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+            if (cameraAllowed) {
+                loadScanner(true);
+            } else {
+                nativeStatus.setText("Camera permission is needed for live scanning. You can still import a QR image.");
+                requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA);
+            }
+        }
+
+        @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+            if (requestCode != REQUEST_CAMERA) return;
+            cameraAllowed = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            loadScanner(cameraAllowed);
+        }
+
+        @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+            super.onActivityResult(requestCode, resultCode, data);
+            if (requestCode == REQUEST_IMAGE) {
+                ValueCallback<Uri[]> callback = pendingFiles;
+                pendingFiles = null;
+                if (callback != null) callback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+            }
+        }
+
+        @Override protected void onDestroy() {
+            if (pendingFiles != null) {
+                pendingFiles.onReceiveValue(null);
+                pendingFiles = null;
+            }
+            if (scanner != null) {
+                try {
+                    scanner.loadUrl("about:blank");
+                    scanner.removeJavascriptInterface("HcfQrBridge");
+                    scanner.stopLoading();
+                    scanner.destroy();
+                } catch (Throwable ignored) {}
+                scanner = null;
+            }
+            super.onDestroy();
+        }
+
+        private void buildUi() {
+            LinearLayout root = new LinearLayout(this);
+            root.setOrientation(LinearLayout.VERTICAL);
+            root.setBackgroundColor(BG);
+
+            LinearLayout header = new LinearLayout(this);
+            header.setOrientation(LinearLayout.HORIZONTAL);
+            header.setGravity(Gravity.CENTER_VERTICAL);
+            header.setPadding(dp(10), dp(7), dp(10), dp(7));
+            Button close = button("‹", false);
+            close.setTextSize(TypedValue.COMPLEX_UNIT_SP, 28);
+            close.setOnClickListener(v -> finish());
+            header.addView(close, new LinearLayout.LayoutParams(dp(48), dp(44)));
+
+            LinearLayout labels = new LinearLayout(this);
+            labels.setOrientation(LinearLayout.VERTICAL);
+            TextView title = text("Scan authenticator QR", 18, TEXT);
+            title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            labels.addView(title);
+            labels.addView(text("Live camera or QR screenshot • processed on this device", 9, MUTED));
+            LinearLayout.LayoutParams labelsLp = new LinearLayout.LayoutParams(0, -2, 1f);
+            labelsLp.leftMargin = dp(8);
+            header.addView(labels, labelsLp);
+            root.addView(header, new LinearLayout.LayoutParams(-1, -2));
+
+            nativeStatus = text("Preparing secure QR scanner…", 10, MUTED);
+            nativeStatus.setGravity(Gravity.CENTER);
+            nativeStatus.setPadding(dp(12), dp(5), dp(12), dp(7));
+            root.addView(nativeStatus, new LinearLayout.LayoutParams(-1, -2));
+
+            scanner = new WebView(this);
+            scanner.setBackgroundColor(BG);
+            configureScannerWebView();
+            root.addView(scanner, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+            setContentView(root);
+        }
+
+        @SuppressWarnings("SetJavaScriptEnabled")
+        private void configureScannerWebView() {
+            WebSettings settings = scanner.getSettings();
+            settings.setJavaScriptEnabled(true);
+            settings.setDomStorageEnabled(false);
+            settings.setDatabaseEnabled(false);
+            settings.setAllowFileAccess(false);
+            settings.setAllowContentAccess(true);
+            settings.setBlockNetworkLoads(true);
+            settings.setMediaPlaybackRequiresUserGesture(false);
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+            settings.setSafeBrowsingEnabled(true);
+
+            scanner.addJavascriptInterface(new QrBridge(), "HcfQrBridge");
+            scanner.setWebViewClient(new WebViewClient());
+            scanner.setWebChromeClient(new WebChromeClient() {
+                @Override public void onPermissionRequest(PermissionRequest request) {
+                    runOnUiThread(() -> {
+                        if (request == null) return;
+                        boolean localOrigin = request.getOrigin() != null
+                                && "https".equalsIgnoreCase(request.getOrigin().getScheme())
+                                && "hcf-auth.local".equalsIgnoreCase(request.getOrigin().getHost());
+                        boolean video = false;
+                        for (String resource : request.getResources()) {
+                            if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) {
+                                video = true;
+                                break;
+                            }
+                        }
+                        if (localOrigin && video
+                                && checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                            request.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+                        } else {
+                            request.deny();
+                        }
+                    });
+                }
+
+                @Override public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback,
+                                                           FileChooserParams fileChooserParams) {
+                    if (pendingFiles != null) pendingFiles.onReceiveValue(null);
+                    pendingFiles = filePathCallback;
+                    Intent choose = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    choose.addCategory(Intent.CATEGORY_OPENABLE);
+                    choose.setType("image/*");
+                    try {
+                        startActivityForResult(choose, REQUEST_IMAGE);
+                    } catch (Throwable error) {
+                        pendingFiles = null;
+                        filePathCallback.onReceiveValue(null);
+                        Toast.makeText(QrScannerActivity.this, "No image picker is available.", Toast.LENGTH_LONG).show();
+                    }
+                    return true;
+                }
+            });
+        }
+
+        private void loadScanner(boolean allowCamera) {
+            nativeStatus.setText(allowCamera
+                    ? "Point the rear camera at the forum QR code."
+                    : "Live camera is off. Use Import QR image, or grant camera access and retry.");
+            scanner.loadDataWithBaseURL(
+                    "https://hcf-auth.local/scanner/",
+                    scannerHtml(allowCamera),
+                    "text/html",
+                    "UTF-8",
+                    null);
+        }
+
+        private void requestCameraFromPage() {
+            runOnUiThread(() -> {
+                if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    cameraAllowed = true;
+                    loadScanner(true);
+                } else {
+                    requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA);
+                }
+            });
+        }
+
+        private final class QrBridge {
+            @JavascriptInterface public void onResult(String value) {
+                runOnUiThread(() -> {
+                    if (value == null || !value.trim().toLowerCase(Locale.US).startsWith("otpauth://totp/")) {
+                        Toast.makeText(QrScannerActivity.this, "That QR code is not a TOTP authenticator setup.", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    Intent result = new Intent();
+                    result.putExtra(EXTRA_QR_VALUE, value.trim());
+                    result.setData(Uri.parse(value.trim()));
+                    setResult(RESULT_OK, result);
+                    finish();
+                });
+            }
+
+            @JavascriptInterface public void requestCamera() {
+                requestCameraFromPage();
+            }
+
+            @JavascriptInterface public void scannerStatus(String message) {
+                runOnUiThread(() -> {
+                    if (message != null && !message.trim().isEmpty()) nativeStatus.setText(message.trim());
+                });
+            }
+        }
+
+        private String scannerHtml(boolean allowCamera) {
+            String cameraFlag = allowCamera ? "true" : "false";
+            return "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'>"
+                    + "<style>"
+                    + "*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#0d1014;color:#eff7fa;font-family:system-ui,-apple-system,sans-serif}"
+                    + "body{display:flex;flex-direction:column;overflow:hidden}.stage{position:relative;flex:1;min-height:260px;background:#080b0e;overflow:hidden}"
+                    + "video{width:100%;height:100%;object-fit:cover;background:#080b0e}.shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.22),transparent 28%,transparent 72%,rgba(0,0,0,.30));pointer-events:none}"
+                    + ".frame{position:absolute;left:50%;top:50%;width:min(72vw,320px);height:min(72vw,320px);transform:translate(-50%,-50%);border:2px solid #00b8f0;border-radius:22px;box-shadow:0 0 0 9999px rgba(0,0,0,.26),0 0 22px rgba(0,184,240,.35);pointer-events:none}"
+                    + ".frame:before,.frame:after{content:'';position:absolute;inset:16px;border-top:2px solid rgba(255,255,255,.22);border-bottom:2px solid rgba(255,255,255,.22)}"
+                    + ".panel{padding:14px 14px calc(14px + env(safe-area-inset-bottom));background:#111b22;border-top:1px solid #29404b}"
+                    + "#status{font-size:12px;color:#9baeb7;text-align:center;min-height:34px;line-height:1.35}.ok{color:#55e13b!important}.bad{color:#ff4d57!important}"
+                    + ".actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:8px}button,.pick{height:48px;border-radius:12px;border:1px solid #29404b;background:#0c151b;color:#eff7fa;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 10px}"
+                    + ".primary{background:#00b8f0;border-color:#00b8f0;color:#061014}.pick input{display:none}.hint{margin-top:10px;font-size:10px;line-height:1.4;color:#78909a;text-align:center}"
+                    + "</style></head><body>"
+                    + "<div class='stage'><video id='video' autoplay playsinline muted></video><div class='shade'></div><div class='frame'></div></div>"
+                    + "<div class='panel'><div id='status'>Preparing QR detector…</div><div class='actions'>"
+                    + "<button id='camera' class='primary'>Retry camera</button>"
+                    + "<label class='pick'>Import QR image<input id='file' type='file' accept='image/*'></label>"
+                    + "</div><div class='hint'>Only TOTP authenticator QR codes are accepted. QR data is processed locally and is not uploaded.</div></div>"
+                    + "<script>"
+                    + "const cameraAllowed=" + cameraFlag + ";const statusEl=document.getElementById('status');const video=document.getElementById('video');"
+                    + "let detector=null,stream=null,stopped=false,busy=false,lastMessage='';"
+                    + "function status(m,c){statusEl.textContent=m;statusEl.className=c||'';try{HcfQrBridge.scannerStatus(m)}catch(e){}}"
+                    + "async function getDetector(){if(!('BarcodeDetector' in window))throw new Error('Platform QR detector unavailable');"
+                    + "const formats=BarcodeDetector.getSupportedFormats?await BarcodeDetector.getSupportedFormats():['qr_code'];"
+                    + "if(formats.indexOf('qr_code')<0)throw new Error('QR detection is unavailable on this device');"
+                    + "return new BarcodeDetector({formats:['qr_code']});}"
+                    + "function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}video.srcObject=null;}"
+                    + "function consume(v){const raw=(v||'').trim();if(/^otpauth:\\/\\/totp\\//i.test(raw)){stopped=true;stopCamera();status('Authenticator QR detected.','ok');HcfQrBridge.onResult(raw);return true;}"
+                    + "const now=Date.now();if(now-lastMessage>1300){lastMessage=now;status('QR detected, but it is not a TOTP authenticator setup.','bad');}return false;}"
+                    + "async function detectSource(source){if(!detector)detector=await getDetector();const codes=await detector.detect(source);"
+                    + "if(codes&&codes.length){for(const c of codes){if(consume(c.rawValue))return true;}}return false;}"
+                    + "async function loop(){if(stopped||!stream)return;if(!busy&&video.readyState>=2){busy=true;try{await detectSource(video);}catch(e){}finally{busy=false;}}setTimeout(loop,180);}"
+                    + "async function startCamera(){stopped=false;stopCamera();try{if(!cameraAllowed){status('Camera permission is not enabled. Tap Retry camera to request it, or import a QR image.','bad');return;}"
+                    + "if(!detector)detector=await getDetector();stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});"
+                    + "video.srcObject=stream;await video.play();status('Point the camera at the forum authenticator QR code.','');loop();}"
+                    + "catch(e){status('Live QR scanning is unavailable. You can still import a QR screenshot.','bad');}}"
+                    + "document.getElementById('camera').onclick=()=>{if(!cameraAllowed){try{HcfQrBridge.requestCamera()}catch(e){}return;}startCamera();};"
+                    + "document.getElementById('file').addEventListener('change',async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;"
+                    + "try{status('Reading QR image…','');const bmp=await createImageBitmap(f);const found=await detectSource(bmp);bmp.close&&bmp.close();if(!found)status('No TOTP authenticator QR code was found in that image.','bad');}"
+                    + "catch(err){status('This device could not read that QR image. Use the manual setup key instead.','bad');}e.target.value='';});"
+                    + "window.addEventListener('pagehide',stopCamera);window.addEventListener('beforeunload',stopCamera);"
+                    + "(async()=>{try{detector=await getDetector();if(cameraAllowed)startCamera();else status('Camera permission is off. Import a QR image or tap Retry camera.','bad');}"
+                    + "catch(e){status('Platform QR detection is unavailable. Use the manual Base32 setup key.','bad');}})();"
+                    + "</script></body></html>";
+        }
+
+        private TextView text(String value, float sp, int color) {
+            TextView view = new TextView(this);
+            view.setText(value);
+            view.setTextColor(color);
+            view.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+            return view;
+        }
+
+        private Button button(String value, boolean primary) {
+            Button button = new Button(this);
+            button.setAllCaps(false);
+            button.setText(value);
+            button.setTextColor(primary ? Color.BLACK : TEXT);
+            button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+            button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            button.setPadding(dp(12), 0, dp(12), 0);
+            GradientDrawable drawable = new GradientDrawable();
+            drawable.setColor(primary ? CYAN : PANEL_DARK);
+            drawable.setCornerRadius(dp(12));
+            drawable.setStroke(dp(1), primary ? CYAN : BORDER);
+            button.setBackground(drawable);
+            button.setStateListAnimator(null);
+            return button;
         }
 
         private int dp(int value) {
