@@ -18,27 +18,35 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.WeakHashMap;
 
 /**
- * Owns the final Account Controls layout for HCF Authenticator.
+ * HCF_AUTHENTICATOR_TOP_LEVEL_SUBSETTINGS_V3
  *
- * The forum/server Nearata controls stay in the Two-Factor Authentication
- * subsetting. HCF Authenticator is moved into its own sibling subsetting with an
- * independent expand/collapse state.
+ * Moves HCF Authenticator out of Account Controls and into its own top-level
+ * Account & Security subsettings panel. The panel is created with the same
+ * private connectedSettingsPanel renderer used by the rest of Settings, so it
+ * participates in the normal HCF accordion UI instead of introducing a second
+ * settings design.
  *
- * Before enrollment, HCF Authenticator shows the full QR / Setup-key workflow.
- * Once a working local TOTP secret exists, it becomes a compact code-first panel.
+ * Nearata forum/server controls remain under Account Controls > Two-Factor
+ * Authentication. HCF Authenticator owns only the local encrypted TOTP setup,
+ * live passcodes, scanner/import tools and local removal controls.
+ *
+ * Before enrollment the authenticator panel shows the complete QR / Setup-key
+ * workflow. Once a working local TOTP secret exists it becomes a compact
+ * code-first panel.
  */
 public final class HcfAuthenticatorAdaptiveSettingsUi {
-    private static final String AUTH_PANEL_TAG = "hcf_authenticator_own_subsetting_v2";
+    private static final String AUTH_PANEL_TAG = "hcf_authenticator_top_level_subsetting_v3";
     private static final String AUTH_SUMMARY_TAG = AUTH_PANEL_TAG + ":summary";
-    private static final String PREF_KEY = "account_controls_subsetting_hcf_authenticator";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final WeakHashMap<Activity, ViewTreeObserver.OnGlobalLayoutListener> OBSERVERS = new WeakHashMap<>();
     private static boolean installed;
@@ -123,9 +131,10 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
     }
 
     private static void schedule(Activity activity) {
-        MAIN.postDelayed(() -> apply(activity), 90L);
-        MAIN.postDelayed(() -> apply(activity), 240L);
-        MAIN.postDelayed(() -> apply(activity), 520L);
+        MAIN.postDelayed(() -> apply(activity), 70L);
+        MAIN.postDelayed(() -> apply(activity), 180L);
+        MAIN.postDelayed(() -> apply(activity), 360L);
+        MAIN.postDelayed(() -> apply(activity), 650L);
     }
 
     private static void apply(Activity activity) {
@@ -136,7 +145,7 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
         TextView codeTitle = findText(root, "CURRENT 6-DIGIT PASSCODE");
         if (codeTitle == null) return;
 
-        ensureSeparatePanel(activity, (ViewGroup) root);
+        ensureTopLevelPanel(activity, (ViewGroup) root);
 
         boolean configured = isConfigured(activity);
         View heading = findText(root, "HCF AUTHENTICATOR • FULL SETTINGS");
@@ -173,21 +182,23 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
         if (summary instanceof TextView) {
             ((TextView) summary).setText(configured
                     ? "Configured • live 6-digit passcodes"
-                    : "Not configured • QR code or Setup key");
+                    : "Offline 2FA passcodes and setup tools");
         }
     }
 
-    private static void ensureSeparatePanel(Activity activity, ViewGroup root) {
+    /**
+     * Pull the local-authenticator controls out of Account Controls and insert a
+     * true sibling panel next to Account & Identity and Account Controls.
+     */
+    private static void ensureTopLevelPanel(Activity activity, ViewGroup root) {
         if (root.findViewWithTag(AUTH_PANEL_TAG) != null) return;
 
         TextView twoFactorTitle = findText(root, "Two-Factor Authentication");
         TextView codeTitle = findText(root, "CURRENT 6-DIGIT PASSCODE");
         if (twoFactorTitle == null || codeTitle == null) return;
 
-        View twoFactorPanel = findSubsettingPanel(twoFactorTitle);
+        View twoFactorPanel = findConnectedPanel(twoFactorTitle);
         if (!(twoFactorPanel instanceof LinearLayout)) return;
-        if (!(twoFactorPanel.getParent() instanceof LinearLayout)) return;
-        LinearLayout accountControls = (LinearLayout) twoFactorPanel.getParent();
 
         List<View> authViews = new ArrayList<>();
         addIfPresent(authViews, findText(root, "HCF AUTHENTICATOR • FULL SETTINGS"));
@@ -199,6 +210,14 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
         addIfPresent(authViews, parentOf(findText(root, "LOCAL AUTHENTICATOR STORAGE")));
         addIfPresent(authViews, findTextStarting(root, "RFC 6238 TOTP"));
         if (authViews.isEmpty()) return;
+
+        TextView accountControlsSubtitle = findText(root,
+                "Profile, password, email and session security shortcuts");
+        if (accountControlsSubtitle == null) return;
+        View accountControlsTopPanel = findConnectedPanel(accountControlsSubtitle);
+        if (!(accountControlsTopPanel instanceof LinearLayout)
+                || !(accountControlsTopPanel.getParent() instanceof LinearLayout)) return;
+        LinearLayout settingsContent = (LinearLayout) accountControlsTopPanel.getParent();
 
         LinearLayout authContent = new LinearLayout(activity);
         authContent.setOrientation(LinearLayout.VERTICAL);
@@ -213,73 +232,111 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
         setTwoFactorSummary((LinearLayout) twoFactorPanel,
                 "Nearata TwoFactor • forum User Settings");
 
-        String summary = isConfigured(activity)
+        boolean configured = isConfigured(activity);
+        String summary = configured
                 ? "Configured • live 6-digit passcodes"
-                : "Not configured • QR code or Setup key";
-        View authPanel = buildSubsetting(activity, summary, authContent);
-        authPanel.setTag(AUTH_PANEL_TAG);
+                : "Offline 2FA passcodes and setup tools";
 
-        int index = accountControls.indexOfChild(twoFactorPanel);
-        LinearLayout.LayoutParams panelLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        panelLp.topMargin = dp(activity, 9);
-        accountControls.addView(authPanel, Math.min(index + 1, accountControls.getChildCount()), panelLp);
+        View authPanel = invokeConnectedSettingsPanel(activity,
+                "HCF Authenticator", summary, authContent, false);
+        if (authPanel == null) {
+            authPanel = buildFallbackPanel(activity, summary, authContent);
+        }
+        authPanel.setTag(AUTH_PANEL_TAG);
+        TextView summaryView = findText(authPanel, summary);
+        if (summaryView != null) summaryView.setTag(AUTH_SUMMARY_TAG);
+        ImageView icon = findFirstImageView(authPanel);
+        if (icon != null) {
+            try { icon.setImageResource(R.drawable.fa_lock); } catch (Throwable ignored) {}
+        }
+
+        int index = settingsContent.indexOfChild(accountControlsTopPanel);
+        settingsContent.addView(authPanel,
+                Math.min(index + 1, settingsContent.getChildCount()));
     }
 
-    private static View buildSubsetting(Activity activity, String summary, View content) {
+    /** Use the app's own private Settings renderer so this panel is visually native. */
+    private static View invokeConnectedSettingsPanel(Activity activity, String title,
+                                                     String subtitle, View content,
+                                                     boolean expanded) {
+        Class<?> cursor = activity.getClass();
+        while (cursor != null) {
+            try {
+                Method method = cursor.getDeclaredMethod("connectedSettingsPanel",
+                        String.class, String.class, View.class, boolean.class);
+                method.setAccessible(true);
+                Object result = method.invoke(activity, title, subtitle, content, expanded);
+                return result instanceof View ? (View) result : null;
+            } catch (NoSuchMethodException missing) {
+                cursor = cursor.getSuperclass();
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /** Only used if a future Settings implementation removes connectedSettingsPanel. */
+    private static View buildFallbackPanel(Activity activity, String summary, View content) {
         LinearLayout panel = new LinearLayout(activity);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setBackground(roundRect(activity,
                 color(activity, R.color.hcf_surface, Color.rgb(19, 28, 34)),
-                color(activity, R.color.hcf_border, Color.rgb(41, 64, 75)), 13));
+                color(activity, R.color.hcf_border, Color.rgb(41, 64, 75)), 15));
 
         LinearLayout header = new LinearLayout(activity);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(activity, 14), dp(activity, 11), dp(activity, 11), dp(activity, 11));
+        header.setPadding(dp(activity, 16), dp(activity, 14), dp(activity, 14), dp(activity, 14));
         header.setClickable(true);
         header.setFocusable(true);
 
+        ImageView icon = new ImageView(activity);
+        icon.setImageResource(R.drawable.fa_lock);
+        try { icon.setColorFilter(color(activity, R.color.hcf_cyan_bright, Color.rgb(0, 184, 240))); }
+        catch (Throwable ignored) {}
+        header.addView(icon, new LinearLayout.LayoutParams(dp(activity, 32), dp(activity, 32)));
+
         LinearLayout labels = new LinearLayout(activity);
         labels.setOrientation(LinearLayout.VERTICAL);
-        TextView heading = text(activity, "HCF Authenticator", 13,
-                color(activity, R.color.hcf_text, Color.WHITE));
+        LinearLayout.LayoutParams labelsLp = new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        labelsLp.leftMargin = dp(activity, 12);
+
+        TextView heading = text(activity, "HCF Authenticator", 14,
+                color(activity, R.color.hcf_cyan_bright, Color.rgb(0, 184, 240)));
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         labels.addView(heading);
 
         TextView summaryView = text(activity, summary, 10,
                 color(activity, R.color.hcf_muted, Color.LTGRAY));
         summaryView.setTag(AUTH_SUMMARY_TAG);
-        summaryView.setMaxLines(2);
-        LinearLayout.LayoutParams summaryLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams summaryLp = new LinearLayout.LayoutParams(-1, -2);
         summaryLp.topMargin = dp(activity, 3);
         labels.addView(summaryView, summaryLp);
-        header.addView(labels, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        header.addView(labels, labelsLp);
 
         TextView arrow = text(activity, "›", 22,
-                color(activity, R.color.hcf_accent_text, Color.rgb(0, 184, 240)));
-        arrow.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+                color(activity, R.color.hcf_cyan_bright, Color.rgb(0, 184, 240)));
         arrow.setGravity(Gravity.CENTER);
-        header.addView(arrow, new LinearLayout.LayoutParams(dp(activity, 30), dp(activity, 36)));
+        header.addView(arrow, new LinearLayout.LayoutParams(dp(activity, 30), dp(activity, 40)));
 
         LinearLayout shell = new LinearLayout(activity);
         shell.setOrientation(LinearLayout.VERTICAL);
-        shell.setPadding(dp(activity, 14), 0, dp(activity, 14), dp(activity, 13));
+        shell.setPadding(dp(activity, 14), 0, dp(activity, 14), dp(activity, 14));
         shell.addView(content);
-
-        boolean expanded = activity.getSharedPreferences(AppPrefs.FILE, 0)
-                .getBoolean(PREF_KEY, true);
-        applyExpanded(shell, arrow, expanded);
+        shell.setVisibility(View.GONE);
         header.setOnClickListener(v -> {
-            boolean next = shell.getVisibility() != View.VISIBLE;
-            applyExpanded(shell, arrow, next);
-            activity.getSharedPreferences(AppPrefs.FILE, 0).edit()
-                    .putBoolean(PREF_KEY, next).apply();
+            boolean open = shell.getVisibility() != View.VISIBLE;
+            shell.setVisibility(open ? View.VISIBLE : View.GONE);
+            arrow.setText(open ? "⌄" : "›");
         });
 
         panel.addView(header);
         panel.addView(shell);
+        LinearLayout.LayoutParams panelLp = new LinearLayout.LayoutParams(-1, -2);
+        panelLp.bottomMargin = dp(activity, 12);
+        panel.setLayoutParams(panelLp);
         return panel;
     }
 
@@ -307,8 +364,9 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
         }
     }
 
-    private static View findSubsettingPanel(View title) {
-        View current = title;
+    /** Finds either a native connectedSettingsPanel or one of the inner subsetting panels. */
+    private static View findConnectedPanel(View titleOrSubtitle) {
+        View current = titleOrSubtitle;
         while (current != null && current.getParent() instanceof View) {
             current = (View) current.getParent();
             if (!(current instanceof LinearLayout)) continue;
@@ -320,11 +378,6 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
             }
         }
         return null;
-    }
-
-    private static void applyExpanded(View body, TextView arrow, boolean expanded) {
-        body.setVisibility(expanded ? View.VISIBLE : View.GONE);
-        arrow.setText(expanded ? "⌄" : "›");
     }
 
     private static boolean isConfigured(Context context) {
@@ -376,6 +429,18 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
             ViewGroup group = (ViewGroup) view;
             for (int i = 0; i < group.getChildCount(); i++) {
                 TextView found = findTextStarting(group.getChildAt(i), prefix);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private static ImageView findFirstImageView(View view) {
+        if (view instanceof ImageView) return (ImageView) view;
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                ImageView found = findFirstImageView(group.getChildAt(i));
                 if (found != null) return found;
             }
         }
