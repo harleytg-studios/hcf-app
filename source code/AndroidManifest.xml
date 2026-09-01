@@ -69,6 +69,7 @@
         <provider android:name="com.harleytg.forum.dev.HcfAuthenticatorAdaptiveSettingsUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.authenticatoradaptiveui" android:initOrder="78"/>
         <provider android:name="com.harleytg.forum.dev.HcfDrawerNewItemsUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.drawernewitemsui" android:initOrder="77"/>
         <provider android:name="com.harleytg.forum.dev.HcfCacheToolsUi$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.cachetoolsui" android:initOrder="76"/>
+        <provider android:name="com.harleytg.forum.dev.HcfBanDevTools$BootstrapProvider" android:exported="false" android:authorities="com.harleytg.forum.dev.bandevtools" android:initOrder="75"/>
         <activity android:name="com.harleytg.forum.dev.HcfForum$WelcomeActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfForum$SetupActivity" android:exported="false"/>
         <activity android:name="com.harleytg.forum.dev.HcfSettingsImportUi$TransferActivity" android:exported="false"/>
