@@ -28,27 +28,23 @@ import java.util.List;
 import java.util.WeakHashMap;
 
 /**
- * HCF_AUTHENTICATOR_TOP_LEVEL_SUBSETTINGS_V4_NEW_BADGE
+ * HCF_AUTHENTICATOR_TOP_LEVEL_SUBSETTINGS_V5_STATE_SPLIT
  *
- * Moves HCF Authenticator out of Account Controls and into its own top-level
- * Account & Security subsettings panel. The panel is created with the same
- * private connectedSettingsPanel renderer used by the rest of Settings, so it
- * participates in the normal HCF accordion UI instead of introducing a second
- * settings design.
+ * HCF Authenticator is a true top-level Account & Security panel. All local
+ * authenticator enrollment controls, including the Nearata finish/setup guide,
+ * are moved into this panel. Account Controls > Two-Factor Authentication is
+ * left as the forum/Nearata status and management entry only.
  *
- * Nearata forum/server controls remain under Account Controls > Two-Factor
- * Authentication. HCF Authenticator owns only the local encrypted TOTP setup,
- * live passcodes, scanner/import tools and local removal controls.
- *
- * Before enrollment the authenticator panel shows the complete QR / Setup-key
- * workflow. Once a working local TOTP secret exists it becomes a compact
- * code-first panel. The top-level HCF Authenticator card carries the same
- * compact NEW badge used by the new hamburger-menu shortcuts.
+ * State behavior:
+ * - Not configured: show enrollment/setup UI; hide live-code and removal UI.
+ * - Configured: show only the compact live-code/removal UI; hide setup UI.
+ * - After local removal: setup UI automatically returns in the same panel.
  */
 public final class HcfAuthenticatorAdaptiveSettingsUi {
-    private static final String AUTH_PANEL_TAG = "hcf_authenticator_top_level_subsetting_v4";
+    private static final String AUTH_PANEL_TAG = "hcf_authenticator_top_level_subsetting_v5";
     private static final String AUTH_SUMMARY_TAG = AUTH_PANEL_TAG + ":summary";
     private static final String AUTH_NEW_BADGE_TAG = AUTH_PANEL_TAG + ":new_badge";
+    private static final String NEARATA_MANAGE_TAG = AUTH_PANEL_TAG + ":nearata_manage";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final WeakHashMap<Activity, ViewTreeObserver.OnGlobalLayoutListener> OBSERVERS = new WeakHashMap<>();
     private static boolean installed;
@@ -156,15 +152,20 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
             localStatus = findTextStarting(root, "HCF Authenticator not configured on this device");
         }
         View nearataStatus = parentOf(findText(root, "Nearata 2FA controls"));
+        View currentCodePanel = parentOf(findText(root, "CURRENT 6-DIGIT PASSCODE"));
         View setupPanel = parentOf(findText(root, "SET UP HCF AUTHENTICATOR"));
         View finishPanel = parentOf(findText(root, "FINISH IN FORUM USER SETTINGS"));
         View managePanel = parentOf(findText(root, "LOCAL AUTHENTICATOR STORAGE"));
         View footer = findTextStarting(root, "RFC 6238 TOTP");
 
+        // Nearata remains a forum-side control and should never disappear just
+        // because the local HCF Authenticator is configured.
+        setVisible(nearataStatus, true);
+
         if (configured) {
             setVisible(heading, false);
             setVisible(localStatus, false);
-            setVisible(nearataStatus, false);
+            setVisible(currentCodePanel, true);
             setVisible(setupPanel, false);
             setVisible(finishPanel, false);
             setVisible(footer, false);
@@ -173,11 +174,27 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
         } else {
             setVisible(heading, true);
             setVisible(localStatus, true);
-            setVisible(nearataStatus, true);
+            setVisible(currentCodePanel, false);
             setVisible(setupPanel, true);
             setVisible(finishPanel, true);
             setVisible(footer, true);
             setVisible(managePanel, false);
+        }
+
+        // If a configured secret is deleted without rebuilding the Settings
+        // Activity, restore the correct enrollment button wording immediately.
+        if (setupPanel != null) {
+            TextView replace = findText(setupPanel, "Replace Setup key");
+            TextView save = findText(setupPanel, "Save Setup key");
+            TextView button = replace != null ? replace : save;
+            if (button != null) button.setText(configured ? "Replace Setup key" : "Save Setup key");
+        }
+
+        TextView twoFactorTitle = findText(root, "Two-Factor Authentication");
+        View twoFactorPanel = findConnectedPanel(twoFactorTitle);
+        if (twoFactorPanel instanceof LinearLayout) {
+            setTwoFactorSummary((LinearLayout) twoFactorPanel,
+                    "Nearata TwoFactor • forum User Settings");
         }
 
         View summary = root.findViewWithTag(AUTH_SUMMARY_TAG);
@@ -189,8 +206,8 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
     }
 
     /**
-     * Pull the local-authenticator controls out of Account Controls and insert a
-     * true sibling panel next to Account & Identity and Account Controls.
+     * Pull the complete local-authenticator workflow out of Account Controls and
+     * insert it as a true sibling panel next to Account & Identity/Controls.
      */
     private static void ensureTopLevelPanel(Activity activity, ViewGroup root) {
         if (root.findViewWithTag(AUTH_PANEL_TAG) != null) return;
@@ -202,6 +219,10 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
         View twoFactorPanel = findConnectedPanel(twoFactorTitle);
         if (!(twoFactorPanel instanceof LinearLayout)) return;
 
+        View nearataStatus = parentOf(findText(root, "Nearata 2FA controls"));
+        View nearataBody = nearataStatus != null && nearataStatus.getParent() instanceof View
+                ? (View) nearataStatus.getParent() : null;
+
         List<View> authViews = new ArrayList<>();
         addIfPresent(authViews, findText(root, "HCF AUTHENTICATOR • FULL SETTINGS"));
         View status = findTextStarting(root, "HCF Authenticator configured on this device");
@@ -209,6 +230,9 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
         addIfPresent(authViews, status);
         addIfPresent(authViews, parentOf(findText(root, "CURRENT 6-DIGIT PASSCODE")));
         addIfPresent(authViews, parentOf(findText(root, "SET UP HCF AUTHENTICATOR")));
+        // The Nearata activation guide is part of HCF Authenticator enrollment,
+        // so move it with the setup controls instead of leaving it under 2FA.
+        addIfPresent(authViews, parentOf(findText(root, "FINISH IN FORUM USER SETTINGS")));
         addIfPresent(authViews, parentOf(findText(root, "LOCAL AUTHENTICATOR STORAGE")));
         addIfPresent(authViews, findTextStarting(root, "RFC 6238 TOTP"));
         if (authViews.isEmpty()) return;
@@ -233,6 +257,7 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
 
         setTwoFactorSummary((LinearLayout) twoFactorPanel,
                 "Nearata TwoFactor • forum User Settings");
+        addNearataManageAction(activity, nearataBody);
 
         boolean configured = isConfigured(activity);
         String summary = configured
@@ -256,6 +281,41 @@ public final class HcfAuthenticatorAdaptiveSettingsUi {
         int index = settingsContent.indexOfChild(accountControlsTopPanel);
         settingsContent.addView(authPanel,
                 Math.min(index + 1, settingsContent.getChildCount()));
+    }
+
+    /** Keep a simple forum-side management action under Two-Factor Authentication. */
+    private static void addNearataManageAction(Activity activity, View nearataBody) {
+        if (!(nearataBody instanceof LinearLayout)
+                || nearataBody.findViewWithTag(NEARATA_MANAGE_TAG) != null) return;
+
+        TextView action = text(activity, "Manage Nearata in Forum Settings", 11,
+                color(activity, R.color.hcf_cyan_bright, Color.rgb(0, 184, 240)));
+        action.setTag(NEARATA_MANAGE_TAG);
+        action.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        action.setGravity(Gravity.CENTER);
+        action.setPadding(dp(activity, 12), dp(activity, 12), dp(activity, 12), dp(activity, 12));
+        action.setBackground(roundRect(activity,
+                color(activity, R.color.hcf_surface, Color.rgb(19, 28, 34)),
+                color(activity, R.color.hcf_border, Color.rgb(41, 64, 75)), 11));
+        action.setClickable(true);
+        action.setFocusable(true);
+        action.setOnClickListener(v -> {
+            try {
+                ForumIdentity.Snapshot identity = ForumIdentity.load(activity);
+                String host = ForumUrlRouter.isForumHost(identity.host)
+                        ? identity.host : "forum.harleytg.com";
+                android.content.Intent intent = new android.content.Intent(activity, HcfForum.MainActivity.class);
+                intent.setData(Uri.parse("https://" + host + "/settings"));
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        | android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                activity.startActivity(intent);
+            } catch (Throwable ignored) {}
+        });
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(activity, 9);
+        ((LinearLayout) nearataBody).addView(action, lp);
     }
 
     /** Adds the compact cyan NEW pill beside the HCF Authenticator title. */
