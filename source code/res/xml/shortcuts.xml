@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut
+        android:shortcutId="hcf_authenticator"
+        android:enabled="true"
+        android:icon="@drawable/ic_notification_paw"
+        android:shortcutShortLabel="@string/shortcut_authenticator_short"
+        android:shortcutLongLabel="@string/shortcut_authenticator_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.harleytg.forum.dev"
+            android:targetClass="com.harleytg.forum.dev.HcfAuthenticator$Activity"
+            android:data="hcf-auth://open" />
+    </shortcut>
+    <shortcut
         android:shortcutId="hcf_new_discussion"
         android:enabled="true"
         android:icon="@drawable/ic_notification_paw"
