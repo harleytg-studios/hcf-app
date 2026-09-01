@@ -98,10 +98,9 @@ public final class HcfDrawerQol {
     };
 
     private static void apply(Activity activity) {
-        // The forum bridge can supply a native accent. Older code only applied that color
-        // to Menu, Reload and the host chip, which made error pages look as though half of
-        // the URL-bar controls were disabled. Normalize the complete native chrome first,
-        // even if the drawer itself has not been inflated yet.
+        // Keep every native header/url-bar icon on the same fixed HCF cyan. The forum
+        // bridge may still supply a native accent for other UI, but it must not make the
+        // app chrome look partially disabled or mismatched on error routes.
         repairHeaderChrome(activity);
 
         View drawer = activity.findViewById(R.id.drawerPanel);
@@ -121,21 +120,11 @@ public final class HcfDrawerQol {
     }
 
     /**
-     * Keeps the Android header and URL-bar controls visually coherent on every forum
-     * route, including the web error handler. A supplied forum accent is used when it has
-     * enough contrast; otherwise the best readable HCF chrome color is selected.
+     * Uses exactly one HCF chrome color for all native header and URL-bar controls on
+     * every route. Saved/forum-provided accents intentionally do not override this.
      */
     private static void repairHeaderChrome(Activity activity) {
-        int requested = activity.getColor(R.color.hcf_cyan_bright);
-        try {
-            String saved = activity.getSharedPreferences("hcf_app", Context.MODE_PRIVATE)
-                    .getString("native_accent", "");
-            if (saved != null && !saved.trim().isEmpty()) {
-                requested = Color.parseColor(saved.trim());
-            }
-        } catch (Throwable ignored) {}
-
-        int accent = readableChromeAccent(activity, requested);
+        int accent = activity.getColor(R.color.hcf_cyan_bright);
         ColorStateList tint = ColorStateList.valueOf(accent);
         int[] buttonIds = new int[]{
                 R.id.drawerButton,
@@ -148,7 +137,9 @@ public final class HcfDrawerQol {
         for (int id : buttonIds) {
             View view = activity.findViewById(id);
             if (view instanceof ImageButton) {
-                ((ImageButton) view).setImageTintList(tint);
+                ImageButton button = (ImageButton) view;
+                button.setImageTintList(tint);
+                if (button.isEnabled()) button.setAlpha(1.0f);
             }
         }
 
